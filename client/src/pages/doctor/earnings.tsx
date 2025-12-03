@@ -1,0 +1,388 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { 
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  CreditCard,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Download,
+  Filter,
+  ArrowUpRight,
+  ArrowDownRight
+} from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { LoadingPage } from "@/components/ui/loading-spinner";
+import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import type { Payment, AppointmentWithDetails } from "@shared/schema";
+
+interface EarningsSummary {
+  totalEarnings: number;
+  pendingEarnings: number;
+  completedPayments: number;
+  pendingPayments: number;
+  thisMonthEarnings: number;
+  lastMonthEarnings: number;
+}
+
+interface EarningsData {
+  summary: EarningsSummary;
+  payments: (Payment & { appointment?: AppointmentWithDetails })[];
+}
+
+export default function DoctorEarnings() {
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPeriod, setFilterPeriod] = useState<string>("all");
+
+  const { data, isLoading, isError } = useQuery<EarningsData>({
+    queryKey: ["/api/doctor/earnings"],
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const formatFee = (fee: number) => {
+    return new Intl.NumberFormat('en-LK', {
+      style: 'currency',
+      currency: 'LKR',
+      minimumFractionDigits: 0,
+    }).format(fee);
+  };
+
+  const summary = data?.summary || {
+    totalEarnings: 0,
+    pendingEarnings: 0,
+    completedPayments: 0,
+    pendingPayments: 0,
+    thisMonthEarnings: 0,
+    lastMonthEarnings: 0,
+  };
+
+  const payments = data?.payments || [];
+
+  const monthlyGrowth = summary.lastMonthEarnings > 0
+    ? ((summary.thisMonthEarnings - summary.lastMonthEarnings) / summary.lastMonthEarnings) * 100
+    : 0;
+
+  const filteredPayments = payments.filter(payment => {
+    if (filterStatus !== "all" && payment.status !== filterStatus) {
+      return false;
+    }
+    if (filterPeriod !== "all") {
+      const paymentDate = parseISO(payment.createdAt);
+      const now = new Date();
+      if (filterPeriod === "today") {
+        if (format(paymentDate, "yyyy-MM-dd") !== format(now, "yyyy-MM-dd")) {
+          return false;
+        }
+      } else if (filterPeriod === "week") {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        if (paymentDate < weekAgo) return false;
+      } else if (filterPeriod === "month") {
+        const monthAgo = new Date();
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        if (paymentDate < monthAgo) return false;
+      }
+    }
+    return true;
+  });
+
+  if (isLoading) {
+    return <LoadingPage message="Loading earnings..." />;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <p className="text-muted-foreground">Failed to load earnings. Please try again.</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold" data-testid="text-page-title">
+            Earnings
+          </h1>
+          <p className="text-muted-foreground">
+            Track your income and payment history
+          </p>
+        </div>
+        <Button variant="outline" data-testid="button-export">
+          <Download className="h-4 w-4 mr-2" />
+          Export Report
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-900">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-600 dark:text-green-400">Total Earnings</p>
+                <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                  {formatFee(summary.totalEarnings)}
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  {summary.completedPayments} completed
+                </p>
+              </div>
+              <DollarSign className="h-10 w-10 text-green-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/20 border-amber-200 dark:border-amber-900">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-amber-600 dark:text-amber-400">Pending</p>
+                <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                  {formatFee(summary.pendingEarnings)}
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {summary.pendingPayments} payments
+                </p>
+              </div>
+              <Clock className="h-10 w-10 text-amber-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-900">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-600 dark:text-blue-400">This Month</p>
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                  {formatFee(summary.thisMonthEarnings)}
+                </p>
+                <div className="flex items-center gap-1 text-xs">
+                  {monthlyGrowth >= 0 ? (
+                    <>
+                      <ArrowUpRight className="h-3 w-3 text-green-500" />
+                      <span className="text-green-600">+{monthlyGrowth.toFixed(1)}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownRight className="h-3 w-3 text-red-500" />
+                      <span className="text-red-600">{monthlyGrowth.toFixed(1)}%</span>
+                    </>
+                  )}
+                  <span className="text-muted-foreground">vs last month</span>
+                </div>
+              </div>
+              <TrendingUp className="h-10 w-10 text-blue-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-900">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-purple-600 dark:text-purple-400">Last Month</p>
+                <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                  {formatFee(summary.lastMonthEarnings)}
+                </p>
+                <p className="text-xs text-purple-600 dark:text-purple-400">
+                  Reference period
+                </p>
+              </div>
+              <Calendar className="h-10 w-10 text-purple-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardTitle>Payment History</CardTitle>
+          <div className="flex items-center gap-2">
+            <Select value={filterPeriod} onValueChange={setFilterPeriod}>
+              <SelectTrigger className="w-[130px]" data-testid="filter-period">
+                <Calendar className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="week">This Week</SelectItem>
+                <SelectItem value="month">This Month</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[130px]" data-testid="filter-status">
+                <Filter className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {filteredPayments.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Consultation</TableHead>
+                    <TableHead>Total Amount</TableHead>
+                    <TableHead>Your Earnings</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPayments.map((payment) => (
+                    <TableRow key={payment.id} data-testid={`row-payment-${payment.id}`}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">
+                            {format(parseISO(payment.createdAt), "MMM d, yyyy")}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(payment.createdAt), "h:mm a")}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {payment.appointment?.patient?.fullName || "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {payment.appointment?.consultationType === "online" ? "Online" : "In Person"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatFee(payment.totalAmount)}
+                      </TableCell>
+                      <TableCell className="font-semibold text-green-600">
+                        {formatFee(payment.doctorEarnings)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm capitalize">
+                            {payment.method?.replace("_", " ") || "Unknown"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={payment.status} type="payment" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">
+                {filterStatus !== "all" || filterPeriod !== "all"
+                  ? "No payments match your filters"
+                  : "No payment history yet"}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Payment Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Consultation Fees</span>
+                <span className="font-medium">
+                  {formatFee(payments.reduce((sum, p) => sum + p.consultationFee, 0))}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Platform Commission (10%)</span>
+                <span className="font-medium text-red-500">
+                  -{formatFee(payments.reduce((sum, p) => sum + (p.platformCommission || 0), 0))}
+                </span>
+              </div>
+              <hr />
+              <div className="flex justify-between font-semibold">
+                <span>Net Earnings</span>
+                <span className="text-green-600">
+                  {formatFee(summary.totalEarnings)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Payment Methods
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {["online", "pay_at_clinic", "bank_transfer"].map((method) => {
+              const count = payments.filter(p => p.method === method).length;
+              const amount = payments
+                .filter(p => p.method === method)
+                .reduce((sum, p) => sum + p.doctorEarnings, 0);
+              
+              return (
+                <div key={method} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm capitalize">{method.replace("_", " ")}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{formatFee(amount)}</p>
+                    <p className="text-xs text-muted-foreground">{count} payments</p>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
