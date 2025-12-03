@@ -16,6 +16,7 @@ import DoctorsPage from "@/pages/doctors";
 import DoctorProfilePage from "@/pages/doctor-profile";
 import BookAppointmentPage from "@/pages/book-appointment";
 import PatientDashboard from "@/pages/patient/dashboard";
+import PatientAppointmentsPage from "@/pages/patient/appointments";
 import DoctorDashboard from "@/pages/doctor/dashboard";
 import AdminDashboard from "@/pages/admin/dashboard";
 import NotFound from "@/pages/not-found";
@@ -70,7 +71,7 @@ function Router() {
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
           <DashboardLayout>
             <Switch>
-              <Route path="/patient/appointments" component={PatientDashboard} />
+              <Route path="/patient/appointments" component={PatientAppointmentsPage} />
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientDashboard} />
               <Route path="/patient/settings" component={PatientDashboard} />
