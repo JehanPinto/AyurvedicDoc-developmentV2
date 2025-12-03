@@ -44,13 +44,39 @@ The platform supports multilingual content (English, Sinhala, Tamil) and handles
 - **My Reviews** (/patient/reviews): View reviews written for doctors, rating summary, edit/delete reviews, see doctor responses
 - **Settings** (/patient/settings): Profile management (name, phone, address, language), password change, notification preferences (email/SMS toggles)
 
+### New Features (December 2024)
+- **Doctor Registration**: Multi-step registration form with personal info, qualifications, document uploads, and bank details
+- **Document Upload Security**: Token-based registration sessions with rate limiting, file type validation, and authenticated document access
+- **Admin Document Verification**: View uploaded verification documents in admin doctors page with secure authenticated access
+- **Rejection Workflow**: Admin can reject doctors with a specific reason that's stored and displayed to the doctor
+- **Google OAuth Ready**: Backend routes configured for Google login (requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables)
+
 ### In Progress / Pending
+- Google OAuth activation (waiting for credentials)
 - Video consultation integration
 - Payment gateway integration (UI ready, needs Stripe integration)
 - Email notifications
 - Multi-language UI translations
 - Advanced search and filtering
 - Medical history timeline
+
+### Current Security Implementation (MVP)
+The doctor registration system includes these security controls:
+- **Email-Bound Sessions**: One active registration session per email address
+- **Email Verification on Upload**: Uploads require both token AND matching email header
+- **Rate Limiting**: 3 session creations per IP per hour, 5 uploads per session
+- **Session Expiration**: Sessions expire after 2 hours, cleanup runs every 15 minutes
+- **File Security**: Server-generated unique filenames, MIME/extension validation, 5MB limit
+- **Authenticated Access**: Documents accessible only via authenticated endpoint, role-based (admin all, doctor own)
+
+### Security Enhancements (Pre-Production)
+Before deploying to production with real medical data, consider implementing:
+- Email OTP verification for doctor registration (requires email infrastructure)
+- Advanced rate limiting with anomaly detection and per-email cooldowns
+- Signed URLs with expiration for document access
+- Enhanced file content validation (magic byte sniffing)
+- Audit logging for document access and uploads
+- CAPTCHA integration for session creation
 
 ### Completed Database Migration
 - PostgreSQL database fully integrated with Drizzle ORM

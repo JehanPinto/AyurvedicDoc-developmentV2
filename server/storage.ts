@@ -51,7 +51,7 @@ export interface IStorage {
   getPendingDoctors(): Promise<DoctorWithDetails[]>;
   createDoctorProfile(profile: InsertDoctorProfile): Promise<DoctorProfile>;
   updateDoctorProfile(id: string, updates: Partial<InsertDoctorProfile>): Promise<DoctorProfile | undefined>;
-  updateDoctorStatus(id: string, status: string): Promise<DoctorProfile | undefined>;
+  updateDoctorStatus(id: string, status: string, rejectionReason?: string): Promise<DoctorProfile | undefined>;
 
   getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]>;
   createDoctorSchedule(schedule: InsertDoctorSchedule): Promise<DoctorSchedule>;
@@ -579,8 +579,12 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
-  async updateDoctorStatus(id: string, status: string): Promise<DoctorProfile | undefined> {
-    return this.updateDoctorProfile(id, { status: status as any });
+  async updateDoctorStatus(id: string, status: string, rejectionReason?: string): Promise<DoctorProfile | undefined> {
+    const updates: any = { status: status as any };
+    if (rejectionReason) {
+      updates.rejectionReason = rejectionReason;
+    }
+    return this.updateDoctorProfile(id, updates);
   }
 
   async getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {

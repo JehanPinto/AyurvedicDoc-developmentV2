@@ -482,6 +482,37 @@ export default function AdminDoctorsPage() {
                   </div>
                 )}
 
+                {selectedDoctor.verificationDocuments && selectedDoctor.verificationDocuments.length > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Verification Documents</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedDoctor.verificationDocuments.map((doc: string, index: number) => {
+                        const filename = doc.split('/').pop() || '';
+                        return (
+                          <a 
+                            key={index}
+                            href={`/api/documents/${filename}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 p-2 bg-muted rounded-md hover-elevate"
+                            data-testid={`link-document-${index}`}
+                          >
+                            <FileText className="h-4 w-4 text-primary" />
+                            <span className="text-sm">Document {index + 1}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {selectedDoctor.status === DoctorStatus.REJECTED && selectedDoctor.rejectionReason && (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Rejection Reason</p>
+                    <p className="text-sm text-red-700 dark:text-red-300">{selectedDoctor.rejectionReason}</p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
                   <div className="text-center">
                     <p className="text-2xl font-bold">{selectedDoctor.totalAppointments}</p>

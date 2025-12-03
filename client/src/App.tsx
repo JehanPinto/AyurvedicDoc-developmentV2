@@ -21,6 +21,7 @@ import PatientAppointmentsPage from "@/pages/patient/appointments";
 import PatientReviewsPage from "@/pages/patient/reviews";
 import PatientSettingsPage from "@/pages/patient/settings";
 import DoctorDashboard from "@/pages/doctor/dashboard";
+import DoctorRegisterPage from "@/pages/doctor/register";
 import DoctorAppointmentsPage from "@/pages/doctor/appointments";
 import DoctorSchedulePage from "@/pages/doctor/schedule";
 import DoctorPatientsPage from "@/pages/doctor/patients";
@@ -67,6 +68,7 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
+      <Route path="/doctor/register" component={DoctorRegisterPage} />
       <Route path="/doctors" component={DoctorsPage} />
       <Route path="/doctors/:id" component={DoctorProfilePage} />
       <Route path="/book/:doctorId">

@@ -6,6 +6,153 @@ import { createHash } from "crypto";
 import bcrypt from "bcrypt";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const multerStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage: multerStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".pdf"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only JPEG, PNG, and PDF are allowed."));
+    }
+  },
+});
+
+interface RegistrationSession {
+  token: string;
+  email: string;
+  createdAt: number;
+  expiresAt: number;
+  uploadedFiles: string[];
+  uploadCount: number;
+}
+
+const emailToSession = new Map<string, string>();
+
+const registrationSessions = new Map<string, RegistrationSession>();
+const SESSION_EXPIRY_MS = 2 * 60 * 60 * 1000;
+const MAX_UPLOADS_PER_SESSION = 5;
+
+function createRegistrationSession(email: string): string {
+  const existingToken = emailToSession.get(email.toLowerCase());
+  if (existingToken) {
+    const existingSession = registrationSessions.get(existingToken);
+    if (existingSession && Date.now() < existingSession.expiresAt) {
+      return existingToken;
+    }
+    cleanupSession(existingToken);
+  }
+  
+  const token = randomUUID() + "-" + randomUUID();
+  const now = Date.now();
+  registrationSessions.set(token, {
+    token,
+    email: email.toLowerCase(),
+    createdAt: now,
+    expiresAt: now + SESSION_EXPIRY_MS,
+    uploadedFiles: [],
+    uploadCount: 0,
+  });
+  emailToSession.set(email.toLowerCase(), token);
+  return token;
+}
+
+function validateRegistrationSession(token: string): RegistrationSession | null {
+  if (!token) return null;
+  const session = registrationSessions.get(token);
+  if (!session) return null;
+  if (Date.now() > session.expiresAt) {
+    cleanupSession(token);
+    return null;
+  }
+  return session;
+}
+
+function cleanupSession(token: string): void {
+  const session = registrationSessions.get(token);
+  if (session) {
+    emailToSession.delete(session.email);
+    for (const filePath of session.uploadedFiles) {
+      const fullPath = path.join(uploadDir, path.basename(filePath));
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    }
+    registrationSessions.delete(token);
+  }
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of registrationSessions.entries()) {
+    if (now > session.expiresAt) {
+      cleanupSession(token);
+    }
+  }
+}, 15 * 60 * 1000);
+
+const sessionCreationLimits = new Map<string, { count: number; resetTime: number }>();
+const MAX_SESSIONS_PER_IP = 3;
+const SESSION_CREATION_WINDOW_MS = 60 * 60 * 1000;
+
+function checkSessionCreationLimit(ip: string): boolean {
+  const now = Date.now();
+  const limit = sessionCreationLimits.get(ip);
+  
+  if (!limit || now > limit.resetTime) {
+    sessionCreationLimits.set(ip, { count: 1, resetTime: now + SESSION_CREATION_WINDOW_MS });
+    return true;
+  }
+  
+  if (limit.count >= MAX_SESSIONS_PER_IP) {
+    return false;
+  }
+  
+  limit.count++;
+  return true;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, limit] of sessionCreationLimits.entries()) {
+    if (now > limit.resetTime) {
+      sessionCreationLimits.delete(ip);
+    }
+  }
+}, SESSION_CREATION_WINDOW_MS);
+
+function consumeSession(token: string): string[] | null {
+  const session = registrationSessions.get(token);
+  if (!session || Date.now() > session.expiresAt) {
+    return null;
+  }
+  const files = [...session.uploadedFiles];
+  registrationSessions.delete(token);
+  return files;
+}
 import {
   insertUserSchema, loginSchema, insertDoctorProfileSchema,
   insertAppointmentSchema, insertPaymentSchema, insertPrescriptionSchema,
@@ -118,6 +265,16 @@ export async function registerRoutes(
 
   app.post("/api/auth/register-doctor", async (req: Request, res: Response) => {
     try {
+      const registrationToken = req.headers["x-registration-token"] as string;
+      let sessionFiles: string[] = [];
+      
+      if (registrationToken) {
+        const files = consumeSession(registrationToken);
+        if (files) {
+          sessionFiles = files;
+        }
+      }
+      
       const userData = insertUserSchema.parse({ ...req.body, role: UserRole.DOCTOR });
       
       const existingUser = await storage.getUserByEmail(userData.email);
@@ -128,15 +285,25 @@ export async function registerRoutes(
       const hashedPassword = await hashPassword(userData.password);
       const user = await storage.createUser({ ...userData, password: hashedPassword });
       
+      const verificationDocs = sessionFiles.length > 0 
+        ? sessionFiles 
+        : (req.body.verificationDocuments || []);
+      
       const doctorData = insertDoctorProfileSchema.parse({
         userId: user.id,
         registrationNumber: req.body.registrationNumber,
         qualifications: req.body.qualifications,
-        experienceYears: req.body.experienceYears || 0,
+        experienceYears: parseInt(req.body.experienceYears) || 0,
         specializationIds: req.body.specializationIds || [],
         languagesSpoken: req.body.languagesSpoken || ["english"],
         consultationTypes: req.body.consultationTypes || ["in_person"],
-        consultationFee: req.body.consultationFee || 0,
+        consultationFee: parseInt(req.body.consultationFee) || 0,
+        onlineConsultationFee: req.body.onlineConsultationFee ? parseInt(req.body.onlineConsultationFee) : undefined,
+        homeVisitFee: req.body.homeVisitFee ? parseInt(req.body.homeVisitFee) : undefined,
+        verificationDocuments: verificationDocs,
+        bankName: req.body.bankName || null,
+        bankAccountNumber: req.body.bankAccountNumber || null,
+        bankBranch: req.body.bankBranch || null,
         status: DoctorStatus.PENDING,
       });
       
@@ -278,6 +445,106 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/registration/session", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email || typeof email !== "string" || !email.includes("@")) {
+        return res.status(400).json({ error: "Valid email address is required" });
+      }
+      
+      const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+      
+      if (!checkSessionCreationLimit(clientIp)) {
+        return res.status(429).json({ error: "Too many registration attempts. Please try again later." });
+      }
+      
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: "This email is already registered. Please login instead." });
+      }
+      
+      const token = createRegistrationSession(email);
+      res.json({ token, email });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create registration session" });
+    }
+  });
+
+  app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const token = req.headers["x-registration-token"] as string;
+      const email = req.headers["x-registration-email"] as string;
+      const session = validateRegistrationSession(token);
+      
+      if (!session) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(401).json({ error: "Invalid or expired registration session" });
+      }
+      
+      if (!email || email.toLowerCase() !== session.email) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(401).json({ error: "Email mismatch with registration session" });
+      }
+      
+      if (session.uploadCount >= MAX_UPLOADS_PER_SESSION) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(429).json({ error: "Maximum uploads reached for this session" });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const fileUrl = `/uploads/${req.file.filename}`;
+      session.uploadedFiles.push(fileUrl);
+      session.uploadCount++;
+      
+      res.json({ 
+        url: fileUrl, 
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size 
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
+  app.get("/api/documents/:filename", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const filename = path.basename(req.params.filename);
+      
+      if (!filename || filename.includes('..')) {
+        return res.status(400).json({ error: "Invalid filename" });
+      }
+      
+      if (user.role !== UserRole.ADMIN) {
+        const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
+        if (!doctorProfile || !doctorProfile.verificationDocuments?.includes(`/uploads/${filename}`)) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+      
+      const filePath = path.join(uploadDir, filename);
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      res.sendFile(filePath);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to serve document" });
+    }
+  });
+
+  
   app.get("/api/specializations", async (_req: Request, res: Response) => {
     try {
       const specializations = await storage.getAllSpecializations();
@@ -1067,6 +1334,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/doctors/:id/verify", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
+      await storage.updateDoctorProfile(req.params.id, { rejectionReason: null });
       const doctor = await storage.updateDoctorStatus(req.params.id, DoctorStatus.VERIFIED);
       
       if (doctor) {
@@ -1087,7 +1355,7 @@ export async function registerRoutes(
   app.patch("/api/admin/doctors/:id/reject", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
       const { reason } = req.body;
-      const doctor = await storage.updateDoctorStatus(req.params.id, DoctorStatus.REJECTED);
+      const doctor = await storage.updateDoctorStatus(req.params.id, DoctorStatus.REJECTED, reason);
       
       if (doctor) {
         await storage.createNotification({
@@ -1106,6 +1374,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/doctors/:id/suspend", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
+      await storage.updateDoctorProfile(req.params.id, { rejectionReason: null });
       const doctor = await storage.updateDoctorStatus(req.params.id, DoctorStatus.SUSPENDED);
       
       if (doctor) {

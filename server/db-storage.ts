@@ -308,8 +308,12 @@ export class DbStorage implements IStorage {
     return result[0] ? mapDoctorProfile(result[0]) : undefined;
   }
 
-  async updateDoctorStatus(id: string, status: string): Promise<DoctorProfile | undefined> {
-    return this.updateDoctorProfile(id, { status: status as any });
+  async updateDoctorStatus(id: string, status: string, rejectionReason?: string): Promise<DoctorProfile | undefined> {
+    const updates: any = { status: status as any };
+    if (rejectionReason) {
+      updates.rejectionReason = rejectionReason;
+    }
+    return this.updateDoctorProfile(id, updates);
   }
 
   async getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {

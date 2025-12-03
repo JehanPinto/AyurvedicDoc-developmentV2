@@ -123,6 +123,7 @@ export const doctorProfiles = pgTable("doctor_profiles", {
   onlineConsultationFee: integer("online_consultation_fee"),
   homeVisitFee: integer("home_visit_fee"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
   verificationDocuments: text("verification_documents").array().default(sql`ARRAY[]::text[]`),
   bankName: varchar("bank_name", { length: 100 }),
   bankAccountNumber: varchar("bank_account_number", { length: 50 }),
