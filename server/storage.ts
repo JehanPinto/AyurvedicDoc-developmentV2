@@ -1,37 +1,951 @@
-import { type User, type InsertUser } from "@shared/schema";
 import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import {
+  type User, type InsertUser,
+  type Specialization, type InsertSpecialization,
+  type Hospital, type InsertHospital,
+  type DoctorProfile, type InsertDoctorProfile,
+  type DoctorSchedule, type InsertDoctorSchedule,
+  type AppointmentSlot, type InsertAppointmentSlot,
+  type Appointment, type InsertAppointment,
+  type Payment, type InsertPayment,
+  type Prescription, type InsertPrescription,
+  type Review, type InsertReview,
+  type Notification, type InsertNotification,
+  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient,
+  type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
+  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
+} from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+  getAllUsers(role?: string): Promise<User[]>;
+
+  getSpecialization(id: string): Promise<Specialization | undefined>;
+  getAllSpecializations(): Promise<Specialization[]>;
+  createSpecialization(spec: InsertSpecialization): Promise<Specialization>;
+  updateSpecialization(id: string, updates: Partial<InsertSpecialization>): Promise<Specialization | undefined>;
+  deleteSpecialization(id: string): Promise<boolean>;
+
+  getHospital(id: string): Promise<Hospital | undefined>;
+  getAllHospitals(): Promise<Hospital[]>;
+  getHospitalsByCity(city: string): Promise<Hospital[]>;
+  createHospital(hospital: InsertHospital): Promise<Hospital>;
+  updateHospital(id: string, updates: Partial<InsertHospital>): Promise<Hospital | undefined>;
+  deleteHospital(id: string): Promise<boolean>;
+
+  getDoctorProfile(id: string): Promise<DoctorProfile | undefined>;
+  getDoctorProfileByUserId(userId: string): Promise<DoctorProfile | undefined>;
+  getDoctorWithDetails(doctorId: string): Promise<DoctorWithDetails | undefined>;
+  getAllDoctors(filters?: {
+    specializationId?: string;
+    city?: string;
+    status?: string;
+    minRating?: number;
+    consultationType?: string;
+  }): Promise<DoctorWithDetails[]>;
+  getVerifiedDoctors(): Promise<DoctorWithDetails[]>;
+  getPendingDoctors(): Promise<DoctorWithDetails[]>;
+  createDoctorProfile(profile: InsertDoctorProfile): Promise<DoctorProfile>;
+  updateDoctorProfile(id: string, updates: Partial<InsertDoctorProfile>): Promise<DoctorProfile | undefined>;
+  updateDoctorStatus(id: string, status: string): Promise<DoctorProfile | undefined>;
+
+  getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]>;
+  createDoctorSchedule(schedule: InsertDoctorSchedule): Promise<DoctorSchedule>;
+  updateDoctorSchedule(id: string, updates: Partial<InsertDoctorSchedule>): Promise<DoctorSchedule | undefined>;
+  deleteDoctorSchedule(id: string): Promise<boolean>;
+
+  getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined>;
+  getAvailableSlots(doctorId: string, date: string): Promise<AppointmentSlot[]>;
+  getDoctorSlots(doctorId: string, startDate: string, endDate: string): Promise<AppointmentSlot[]>;
+  createAppointmentSlot(slot: InsertAppointmentSlot): Promise<AppointmentSlot>;
+  updateAppointmentSlot(id: string, updates: Partial<InsertAppointmentSlot>): Promise<AppointmentSlot | undefined>;
+  blockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
+  unblockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
+
+  getAppointment(id: string): Promise<Appointment | undefined>;
+  getAppointmentWithDetails(id: string): Promise<AppointmentWithDetails | undefined>;
+  getPatientAppointments(patientId: string): Promise<AppointmentWithDetails[]>;
+  getDoctorAppointments(doctorId: string, date?: string): Promise<AppointmentWithDetails[]>;
+  createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment | undefined>;
+  cancelAppointment(id: string, reason: string, cancelledBy: string): Promise<Appointment | undefined>;
+
+  getPayment(id: string): Promise<Payment | undefined>;
+  getPaymentByAppointment(appointmentId: string): Promise<Payment | undefined>;
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  updatePayment(id: string, updates: Partial<InsertPayment>): Promise<Payment | undefined>;
+
+  getPrescription(id: string): Promise<Prescription | undefined>;
+  getPrescriptionByAppointment(appointmentId: string): Promise<Prescription | undefined>;
+  getPatientPrescriptions(patientId: string): Promise<Prescription[]>;
+  createPrescription(prescription: InsertPrescription): Promise<Prescription>;
+  updatePrescription(id: string, updates: Partial<InsertPrescription>): Promise<Prescription | undefined>;
+
+  getReview(id: string): Promise<Review | undefined>;
+  getReviewByAppointment(appointmentId: string): Promise<Review | undefined>;
+  getDoctorReviews(doctorId: string): Promise<ReviewWithPatient[]>;
+  createReview(review: InsertReview): Promise<Review>;
+  updateReview(id: string, updates: Partial<InsertReview>): Promise<Review | undefined>;
+  hideReview(id: string): Promise<Review | undefined>;
+
+  getUserNotifications(userId: string): Promise<Notification[]>;
+  getUnreadNotifications(userId: string): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: string): Promise<Notification | undefined>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+
+  getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats>;
+  getDoctorDashboardStats(doctorId: string): Promise<DoctorDashboardStats>;
+  getAdminDashboardStats(): Promise<AdminDashboardStats>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
+  private specializations: Map<string, Specialization>;
+  private hospitals: Map<string, Hospital>;
+  private doctorProfiles: Map<string, DoctorProfile>;
+  private doctorSchedules: Map<string, DoctorSchedule>;
+  private appointmentSlots: Map<string, AppointmentSlot>;
+  private appointments: Map<string, Appointment>;
+  private payments: Map<string, Payment>;
+  private prescriptions: Map<string, Prescription>;
+  private reviews: Map<string, Review>;
+  private notifications: Map<string, Notification>;
 
   constructor() {
     this.users = new Map();
+    this.specializations = new Map();
+    this.hospitals = new Map();
+    this.doctorProfiles = new Map();
+    this.doctorSchedules = new Map();
+    this.appointmentSlots = new Map();
+    this.appointments = new Map();
+    this.payments = new Map();
+    this.prescriptions = new Map();
+    this.reviews = new Map();
+    this.notifications = new Map();
+
+    this.seedData();
+  }
+
+  private seedData() {
+    const now = new Date().toISOString();
+
+    const specializations: Specialization[] = [
+      { id: "spec-1", name: "Panchakarma", description: "Traditional Ayurvedic detoxification and rejuvenation therapy", icon: "Leaf" },
+      { id: "spec-2", name: "Kayachikitsa", description: "Internal medicine and general Ayurvedic treatment", icon: "Heart" },
+      { id: "spec-3", name: "Rasayana", description: "Rejuvenation and anti-aging therapies", icon: "Sparkles" },
+      { id: "spec-4", name: "Shalya Tantra", description: "Ayurvedic surgical procedures", icon: "Scissors" },
+      { id: "spec-5", name: "Shalakya Tantra", description: "Treatment of eye, ear, nose, and throat diseases", icon: "Eye" },
+      { id: "spec-6", name: "Kaumarbhritya", description: "Pediatric Ayurveda and child healthcare", icon: "Baby" },
+      { id: "spec-7", name: "Prasuti Tantra", description: "Obstetrics and gynecology in Ayurveda", icon: "Users" },
+      { id: "spec-8", name: "Mano Vigyan", description: "Ayurvedic psychiatry and mental health", icon: "Brain" },
+    ];
+    specializations.forEach(s => this.specializations.set(s.id, s));
+
+    const hospitals: Hospital[] = [
+      { id: "hosp-1", name: "Ayurveda Central Hospital", address: "123 Temple Road, Fort", city: "Colombo", contactNumber: "+94112345678", email: "info@ayurvedacentral.lk", latitude: 6.9271, longitude: 79.8612, parkingAvailable: true, directions: "Near Fort Railway Station" },
+      { id: "hosp-2", name: "Kandy Ayurveda Clinic", address: "45 Peradeniya Road", city: "Kandy", contactNumber: "+94812234567", email: "kandy@ayurvedacentral.lk", latitude: 7.2906, longitude: 80.6337, parkingAvailable: true, directions: "Opposite Kandy Lake" },
+      { id: "hosp-3", name: "Galle Wellness Center", address: "78 Lighthouse Street", city: "Galle", contactNumber: "+94912234567", email: "galle@ayurvedacentral.lk", latitude: 6.0367, longitude: 80.217, parkingAvailable: false, directions: "Inside Galle Fort" },
+    ];
+    hospitals.forEach(h => this.hospitals.set(h.id, h));
+
+    const adminUser: User = {
+      id: "user-admin",
+      email: "admin@ayurvedicdoctor.lk",
+      password: "$2b$10$dGYqVL.YsY0i3tOY8vUHxu4NqKQQrNqbHoI4kOSNjfCILvUwqe4IG",
+      fullName: "System Administrator",
+      phone: "+94771234567",
+      role: UserRole.ADMIN,
+      preferredLanguages: ["english"],
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.users.set(adminUser.id, adminUser);
+
+    const doctorUsers = [
+      {
+        id: "user-doc-1",
+        email: "dr.silva@example.com",
+        password: "$2b$10$dGYqVL.YsY0i3tOY8vUHxu4NqKQQrNqbHoI4kOSNjfCILvUwqe4IG",
+        fullName: "Dr. Anura Silva",
+        phone: "+94772345678",
+        role: UserRole.DOCTOR,
+        gender: "male",
+        city: "Colombo",
+        preferredLanguages: ["english", "sinhala"],
+        profileImage: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400",
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "user-doc-2",
+        email: "dr.fernando@example.com",
+        password: "$2b$10$dGYqVL.YsY0i3tOY8vUHxu4NqKQQrNqbHoI4kOSNjfCILvUwqe4IG",
+        fullName: "Dr. Kumari Fernando",
+        phone: "+94773456789",
+        role: UserRole.DOCTOR,
+        gender: "female",
+        city: "Kandy",
+        preferredLanguages: ["english", "sinhala", "tamil"],
+        profileImage: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400",
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "user-doc-3",
+        email: "dr.perera@example.com",
+        password: "$2b$10$dGYqVL.YsY0i3tOY8vUHxu4NqKQQrNqbHoI4kOSNjfCILvUwqe4IG",
+        fullName: "Dr. Nihal Perera",
+        phone: "+94774567890",
+        role: UserRole.DOCTOR,
+        gender: "male",
+        city: "Galle",
+        preferredLanguages: ["english", "sinhala"],
+        profileImage: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400",
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    doctorUsers.forEach(u => this.users.set(u.id, u as User));
+
+    const doctorProfiles: DoctorProfile[] = [
+      {
+        id: "doc-1",
+        userId: "user-doc-1",
+        registrationNumber: "SLMC-12345",
+        qualifications: "BAMS (University of Colombo), MD in Panchakarma",
+        biography: "Dr. Anura Silva is a renowned Ayurvedic physician with over 15 years of experience in Panchakarma therapy. He has treated thousands of patients and is known for his expertise in detoxification treatments.",
+        experienceYears: 15,
+        specializationIds: ["spec-1", "spec-2"],
+        languagesSpoken: ["english", "sinhala"],
+        consultationTypes: ["in_person", "online"],
+        hospitalIds: ["hosp-1"],
+        consultationFee: 2500,
+        onlineConsultationFee: 2000,
+        status: DoctorStatus.VERIFIED,
+        verificationDocuments: [],
+        isAvailable: true,
+        maxAdvanceBookingDays: 30,
+        minBookingNoticeHours: 2,
+        slotDurationMinutes: 30,
+        bufferTimeMinutes: 10,
+        averageRating: 4.8,
+        totalReviews: 125,
+        totalAppointments: 1250,
+        currentQueueNumber: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "doc-2",
+        userId: "user-doc-2",
+        registrationNumber: "SLMC-23456",
+        qualifications: "BAMS (University of Kelaniya), Diploma in Rasayana",
+        biography: "Dr. Kumari Fernando specializes in women's health and pediatric Ayurveda. She has a gentle approach and is particularly skilled in treating chronic conditions through Rasayana therapy.",
+        experienceYears: 12,
+        specializationIds: ["spec-3", "spec-6", "spec-7"],
+        languagesSpoken: ["english", "sinhala", "tamil"],
+        consultationTypes: ["in_person", "online", "home_visit"],
+        hospitalIds: ["hosp-2"],
+        consultationFee: 2000,
+        onlineConsultationFee: 1500,
+        homeVisitFee: 5000,
+        status: DoctorStatus.VERIFIED,
+        verificationDocuments: [],
+        isAvailable: true,
+        maxAdvanceBookingDays: 14,
+        minBookingNoticeHours: 4,
+        slotDurationMinutes: 45,
+        bufferTimeMinutes: 15,
+        averageRating: 4.9,
+        totalReviews: 89,
+        totalAppointments: 890,
+        currentQueueNumber: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "doc-3",
+        userId: "user-doc-3",
+        registrationNumber: "SLMC-34567",
+        qualifications: "BAMS (University of Jaffna), MSc in Ayurveda",
+        biography: "Dr. Nihal Perera focuses on mental health and stress-related disorders using Ayurvedic principles. His holistic approach combines traditional therapies with modern understanding of psychological wellness.",
+        experienceYears: 8,
+        specializationIds: ["spec-8", "spec-3"],
+        languagesSpoken: ["english", "sinhala"],
+        consultationTypes: ["in_person", "online"],
+        hospitalIds: ["hosp-3"],
+        consultationFee: 1800,
+        onlineConsultationFee: 1500,
+        status: DoctorStatus.VERIFIED,
+        verificationDocuments: [],
+        isAvailable: true,
+        maxAdvanceBookingDays: 21,
+        minBookingNoticeHours: 3,
+        slotDurationMinutes: 30,
+        bufferTimeMinutes: 10,
+        averageRating: 4.6,
+        totalReviews: 45,
+        totalAppointments: 450,
+        currentQueueNumber: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    doctorProfiles.forEach(p => this.doctorProfiles.set(p.id, p));
+
+    const patientUser: User = {
+      id: "user-patient-1",
+      email: "patient@example.com",
+      password: "$2b$10$dGYqVL.YsY0i3tOY8vUHxu4NqKQQrNqbHoI4kOSNjfCILvUwqe4IG",
+      fullName: "Saman Jayawardena",
+      phone: "+94775678901",
+      role: UserRole.PATIENT,
+      gender: "male",
+      city: "Colombo",
+      preferredLanguages: ["english", "sinhala"],
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.users.set(patientUser.id, patientUser);
+
+    this.generateAppointmentSlots();
+  }
+
+  private generateAppointmentSlots() {
+    const doctors = Array.from(this.doctorProfiles.values());
+    const today = new Date();
+    
+    doctors.forEach(doctor => {
+      for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + dayOffset);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const morningSlots = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30"];
+        const afternoonSlots = ["14:00", "14:30", "15:00", "15:30", "16:00", "16:30"];
+        
+        [...morningSlots, ...afternoonSlots].forEach((startTime, index) => {
+          const endMinutes = parseInt(startTime.split(':')[1]) + doctor.slotDurationMinutes;
+          const endHour = parseInt(startTime.split(':')[0]) + Math.floor(endMinutes / 60);
+          const endMins = endMinutes % 60;
+          const endTime = `${endHour.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+          
+          const slot: AppointmentSlot = {
+            id: `slot-${doctor.id}-${dateStr}-${index}`,
+            doctorId: doctor.id,
+            hospitalId: doctor.hospitalIds[0],
+            date: dateStr,
+            startTime,
+            endTime,
+            consultationType: index % 3 === 0 ? "online" : "in_person",
+            isBooked: Math.random() < 0.2,
+            isBlocked: false,
+          };
+          this.appointmentSlots.set(slot.id, slot);
+        });
+      }
+    });
   }
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email === email);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const now = new Date().toISOString();
+    const user: User = { ...insertUser, id, createdAt: now, updatedAt: now };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    const updated = { ...user, ...updates, updatedAt: new Date().toISOString() };
+    this.users.set(id, updated);
+    return updated;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    return this.users.delete(id);
+  }
+
+  async getAllUsers(role?: string): Promise<User[]> {
+    const users = Array.from(this.users.values());
+    if (role) return users.filter(u => u.role === role);
+    return users;
+  }
+
+  async getSpecialization(id: string): Promise<Specialization | undefined> {
+    return this.specializations.get(id);
+  }
+
+  async getAllSpecializations(): Promise<Specialization[]> {
+    return Array.from(this.specializations.values());
+  }
+
+  async createSpecialization(spec: InsertSpecialization): Promise<Specialization> {
+    const id = randomUUID();
+    const specialization: Specialization = { ...spec, id };
+    this.specializations.set(id, specialization);
+    return specialization;
+  }
+
+  async updateSpecialization(id: string, updates: Partial<InsertSpecialization>): Promise<Specialization | undefined> {
+    const spec = this.specializations.get(id);
+    if (!spec) return undefined;
+    const updated = { ...spec, ...updates };
+    this.specializations.set(id, updated);
+    return updated;
+  }
+
+  async deleteSpecialization(id: string): Promise<boolean> {
+    return this.specializations.delete(id);
+  }
+
+  async getHospital(id: string): Promise<Hospital | undefined> {
+    return this.hospitals.get(id);
+  }
+
+  async getAllHospitals(): Promise<Hospital[]> {
+    return Array.from(this.hospitals.values());
+  }
+
+  async getHospitalsByCity(city: string): Promise<Hospital[]> {
+    return Array.from(this.hospitals.values()).filter(h => 
+      h.city.toLowerCase().includes(city.toLowerCase())
+    );
+  }
+
+  async createHospital(hospital: InsertHospital): Promise<Hospital> {
+    const id = randomUUID();
+    const h: Hospital = { ...hospital, id };
+    this.hospitals.set(id, h);
+    return h;
+  }
+
+  async updateHospital(id: string, updates: Partial<InsertHospital>): Promise<Hospital | undefined> {
+    const hospital = this.hospitals.get(id);
+    if (!hospital) return undefined;
+    const updated = { ...hospital, ...updates };
+    this.hospitals.set(id, updated);
+    return updated;
+  }
+
+  async deleteHospital(id: string): Promise<boolean> {
+    return this.hospitals.delete(id);
+  }
+
+  async getDoctorProfile(id: string): Promise<DoctorProfile | undefined> {
+    return this.doctorProfiles.get(id);
+  }
+
+  async getDoctorProfileByUserId(userId: string): Promise<DoctorProfile | undefined> {
+    return Array.from(this.doctorProfiles.values()).find(p => p.userId === userId);
+  }
+
+  async getDoctorWithDetails(doctorId: string): Promise<DoctorWithDetails | undefined> {
+    const profile = this.doctorProfiles.get(doctorId);
+    if (!profile) return undefined;
+    
+    const user = await this.getUser(profile.userId);
+    if (!user) return undefined;
+
+    const specializations = profile.specializationIds
+      .map(id => this.specializations.get(id))
+      .filter((s): s is Specialization => s !== undefined);
+
+    const hospitals = profile.hospitalIds
+      .map(id => this.hospitals.get(id))
+      .filter((h): h is Hospital => h !== undefined);
+
+    return { ...profile, user, specializations, hospitals };
+  }
+
+  async getAllDoctors(filters?: {
+    specializationId?: string;
+    city?: string;
+    status?: string;
+    minRating?: number;
+    consultationType?: string;
+  }): Promise<DoctorWithDetails[]> {
+    let profiles = Array.from(this.doctorProfiles.values());
+
+    if (filters?.status) {
+      profiles = profiles.filter(p => p.status === filters.status);
+    }
+
+    if (filters?.specializationId) {
+      profiles = profiles.filter(p => p.specializationIds.includes(filters.specializationId!));
+    }
+
+    if (filters?.minRating) {
+      profiles = profiles.filter(p => p.averageRating >= filters.minRating!);
+    }
+
+    if (filters?.consultationType) {
+      profiles = profiles.filter(p => p.consultationTypes.includes(filters.consultationType as any));
+    }
+
+    const doctors: DoctorWithDetails[] = [];
+    for (const profile of profiles) {
+      const doctor = await this.getDoctorWithDetails(profile.id);
+      if (doctor) {
+        if (filters?.city) {
+          if (doctor.user.city?.toLowerCase().includes(filters.city.toLowerCase()) ||
+              doctor.hospitals.some(h => h.city.toLowerCase().includes(filters.city!.toLowerCase()))) {
+            doctors.push(doctor);
+          }
+        } else {
+          doctors.push(doctor);
+        }
+      }
+    }
+
+    return doctors;
+  }
+
+  async getVerifiedDoctors(): Promise<DoctorWithDetails[]> {
+    return this.getAllDoctors({ status: DoctorStatus.VERIFIED });
+  }
+
+  async getPendingDoctors(): Promise<DoctorWithDetails[]> {
+    return this.getAllDoctors({ status: DoctorStatus.PENDING });
+  }
+
+  async createDoctorProfile(profile: InsertDoctorProfile): Promise<DoctorProfile> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const p: DoctorProfile = {
+      ...profile,
+      id,
+      averageRating: 0,
+      totalReviews: 0,
+      totalAppointments: 0,
+      currentQueueNumber: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.doctorProfiles.set(id, p);
+    return p;
+  }
+
+  async updateDoctorProfile(id: string, updates: Partial<InsertDoctorProfile>): Promise<DoctorProfile | undefined> {
+    const profile = this.doctorProfiles.get(id);
+    if (!profile) return undefined;
+    const updated = { ...profile, ...updates, updatedAt: new Date().toISOString() };
+    this.doctorProfiles.set(id, updated);
+    return updated;
+  }
+
+  async updateDoctorStatus(id: string, status: string): Promise<DoctorProfile | undefined> {
+    return this.updateDoctorProfile(id, { status: status as any });
+  }
+
+  async getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {
+    return Array.from(this.doctorSchedules.values()).filter(s => s.doctorId === doctorId);
+  }
+
+  async createDoctorSchedule(schedule: InsertDoctorSchedule): Promise<DoctorSchedule> {
+    const id = randomUUID();
+    const s: DoctorSchedule = { ...schedule, id };
+    this.doctorSchedules.set(id, s);
+    return s;
+  }
+
+  async updateDoctorSchedule(id: string, updates: Partial<InsertDoctorSchedule>): Promise<DoctorSchedule | undefined> {
+    const schedule = this.doctorSchedules.get(id);
+    if (!schedule) return undefined;
+    const updated = { ...schedule, ...updates };
+    this.doctorSchedules.set(id, updated);
+    return updated;
+  }
+
+  async deleteDoctorSchedule(id: string): Promise<boolean> {
+    return this.doctorSchedules.delete(id);
+  }
+
+  async getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined> {
+    return this.appointmentSlots.get(id);
+  }
+
+  async getAvailableSlots(doctorId: string, date: string): Promise<AppointmentSlot[]> {
+    return Array.from(this.appointmentSlots.values()).filter(s => 
+      s.doctorId === doctorId && s.date === date && !s.isBooked && !s.isBlocked
+    );
+  }
+
+  async getDoctorSlots(doctorId: string, startDate: string, endDate: string): Promise<AppointmentSlot[]> {
+    return Array.from(this.appointmentSlots.values()).filter(s => 
+      s.doctorId === doctorId && s.date >= startDate && s.date <= endDate
+    );
+  }
+
+  async createAppointmentSlot(slot: InsertAppointmentSlot): Promise<AppointmentSlot> {
+    const id = randomUUID();
+    const s: AppointmentSlot = { ...slot, id };
+    this.appointmentSlots.set(id, s);
+    return s;
+  }
+
+  async updateAppointmentSlot(id: string, updates: Partial<InsertAppointmentSlot>): Promise<AppointmentSlot | undefined> {
+    const slot = this.appointmentSlots.get(id);
+    if (!slot) return undefined;
+    const updated = { ...slot, ...updates };
+    this.appointmentSlots.set(id, updated);
+    return updated;
+  }
+
+  async blockSlot(slotId: string): Promise<AppointmentSlot | undefined> {
+    return this.updateAppointmentSlot(slotId, { isBlocked: true });
+  }
+
+  async unblockSlot(slotId: string): Promise<AppointmentSlot | undefined> {
+    return this.updateAppointmentSlot(slotId, { isBlocked: false });
+  }
+
+  async getAppointment(id: string): Promise<Appointment | undefined> {
+    return this.appointments.get(id);
+  }
+
+  async getAppointmentWithDetails(id: string): Promise<AppointmentWithDetails | undefined> {
+    const appointment = this.appointments.get(id);
+    if (!appointment) return undefined;
+
+    const patient = await this.getUser(appointment.patientId);
+    const doctor = await this.getDoctorWithDetails(appointment.doctorId);
+    const slot = await this.getAppointmentSlot(appointment.slotId);
+    const hospital = appointment.hospitalId ? await this.getHospital(appointment.hospitalId) : undefined;
+    const payment = await this.getPaymentByAppointment(id);
+    const prescription = await this.getPrescriptionByAppointment(id);
+    const review = await this.getReviewByAppointment(id);
+
+    if (!patient || !doctor || !slot) return undefined;
+
+    return { ...appointment, patient, doctor, slot, hospital, payment, prescription, review };
+  }
+
+  async getPatientAppointments(patientId: string): Promise<AppointmentWithDetails[]> {
+    const appointments = Array.from(this.appointments.values())
+      .filter(a => a.patientId === patientId)
+      .sort((a, b) => new Date(b.appointmentDate).getTime() - new Date(a.appointmentDate).getTime());
+
+    const detailed: AppointmentWithDetails[] = [];
+    for (const apt of appointments) {
+      const details = await this.getAppointmentWithDetails(apt.id);
+      if (details) detailed.push(details);
+    }
+    return detailed;
+  }
+
+  async getDoctorAppointments(doctorId: string, date?: string): Promise<AppointmentWithDetails[]> {
+    let appointments = Array.from(this.appointments.values())
+      .filter(a => a.doctorId === doctorId);
+
+    if (date) {
+      appointments = appointments.filter(a => a.appointmentDate === date);
+    }
+
+    appointments.sort((a, b) => {
+      const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
+      if (dateCompare !== 0) return dateCompare;
+      return a.appointmentTime.localeCompare(b.appointmentTime);
+    });
+
+    const detailed: AppointmentWithDetails[] = [];
+    for (const apt of appointments) {
+      const details = await this.getAppointmentWithDetails(apt.id);
+      if (details) detailed.push(details);
+    }
+    return detailed;
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const a: Appointment = { ...appointment, id, createdAt: now, updatedAt: now };
+    this.appointments.set(id, a);
+
+    await this.updateAppointmentSlot(appointment.slotId, { isBooked: true });
+
+    const profile = await this.getDoctorProfile(appointment.doctorId);
+    if (profile) {
+      await this.updateDoctorProfile(profile.id, {
+        totalAppointments: profile.totalAppointments + 1,
+        currentQueueNumber: profile.currentQueueNumber + 1,
+      });
+    }
+
+    return a;
+  }
+
+  async updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment | undefined> {
+    const appointment = this.appointments.get(id);
+    if (!appointment) return undefined;
+    const updated = { ...appointment, ...updates, updatedAt: new Date().toISOString() };
+    this.appointments.set(id, updated);
+    return updated;
+  }
+
+  async cancelAppointment(id: string, reason: string, cancelledBy: string): Promise<Appointment | undefined> {
+    const appointment = this.appointments.get(id);
+    if (!appointment) return undefined;
+
+    const updated = await this.updateAppointment(id, {
+      status: AppointmentStatus.CANCELLED,
+      cancelReason: reason,
+      cancelledBy: cancelledBy as any,
+    });
+
+    await this.updateAppointmentSlot(appointment.slotId, { isBooked: false });
+
+    return updated;
+  }
+
+  async getPayment(id: string): Promise<Payment | undefined> {
+    return this.payments.get(id);
+  }
+
+  async getPaymentByAppointment(appointmentId: string): Promise<Payment | undefined> {
+    return Array.from(this.payments.values()).find(p => p.appointmentId === appointmentId);
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const p: Payment = { ...payment, id, createdAt: now, updatedAt: now };
+    this.payments.set(id, p);
+    return p;
+  }
+
+  async updatePayment(id: string, updates: Partial<InsertPayment>): Promise<Payment | undefined> {
+    const payment = this.payments.get(id);
+    if (!payment) return undefined;
+    const updated = { ...payment, ...updates, updatedAt: new Date().toISOString() };
+    this.payments.set(id, updated);
+    return updated;
+  }
+
+  async getPrescription(id: string): Promise<Prescription | undefined> {
+    return this.prescriptions.get(id);
+  }
+
+  async getPrescriptionByAppointment(appointmentId: string): Promise<Prescription | undefined> {
+    return Array.from(this.prescriptions.values()).find(p => p.appointmentId === appointmentId);
+  }
+
+  async getPatientPrescriptions(patientId: string): Promise<Prescription[]> {
+    return Array.from(this.prescriptions.values())
+      .filter(p => p.patientId === patientId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createPrescription(prescription: InsertPrescription): Promise<Prescription> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const p: Prescription = { ...prescription, id, createdAt: now };
+    this.prescriptions.set(id, p);
+    return p;
+  }
+
+  async updatePrescription(id: string, updates: Partial<InsertPrescription>): Promise<Prescription | undefined> {
+    const prescription = this.prescriptions.get(id);
+    if (!prescription) return undefined;
+    const updated = { ...prescription, ...updates };
+    this.prescriptions.set(id, updated);
+    return updated;
+  }
+
+  async getReview(id: string): Promise<Review | undefined> {
+    return this.reviews.get(id);
+  }
+
+  async getReviewByAppointment(appointmentId: string): Promise<Review | undefined> {
+    return Array.from(this.reviews.values()).find(r => r.appointmentId === appointmentId);
+  }
+
+  async getDoctorReviews(doctorId: string): Promise<ReviewWithPatient[]> {
+    const reviews = Array.from(this.reviews.values())
+      .filter(r => r.doctorId === doctorId && !r.isHidden)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const detailed: ReviewWithPatient[] = [];
+    for (const review of reviews) {
+      const patient = await this.getUser(review.patientId);
+      if (patient) {
+        detailed.push({ ...review, patient });
+      }
+    }
+    return detailed;
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const r: Review = { ...review, id, createdAt: now, updatedAt: now };
+    this.reviews.set(id, r);
+
+    const profile = await this.getDoctorProfile(review.doctorId);
+    if (profile) {
+      const totalRating = profile.averageRating * profile.totalReviews + review.rating;
+      const newTotalReviews = profile.totalReviews + 1;
+      await this.updateDoctorProfile(profile.id, {
+        averageRating: totalRating / newTotalReviews,
+        totalReviews: newTotalReviews,
+      });
+    }
+
+    return r;
+  }
+
+  async updateReview(id: string, updates: Partial<InsertReview>): Promise<Review | undefined> {
+    const review = this.reviews.get(id);
+    if (!review) return undefined;
+    const updated = { ...review, ...updates, updatedAt: new Date().toISOString() };
+    this.reviews.set(id, updated);
+    return updated;
+  }
+
+  async hideReview(id: string): Promise<Review | undefined> {
+    return this.updateReview(id, { isHidden: true });
+  }
+
+  async getUserNotifications(userId: string): Promise<Notification[]> {
+    return Array.from(this.notifications.values())
+      .filter(n => n.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    return (await this.getUserNotifications(userId)).filter(n => !n.isRead);
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const n: Notification = { ...notification, id, createdAt: now };
+    this.notifications.set(id, n);
+    return n;
+  }
+
+  async markNotificationRead(id: string): Promise<Notification | undefined> {
+    const notification = this.notifications.get(id);
+    if (!notification) return undefined;
+    const updated = { ...notification, isRead: true };
+    this.notifications.set(id, updated);
+    return updated;
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    const userNotifications = await this.getUserNotifications(userId);
+    for (const n of userNotifications) {
+      await this.markNotificationRead(n.id);
+    }
+  }
+
+  async getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats> {
+    const appointments = Array.from(this.appointments.values()).filter(a => a.patientId === patientId);
+    const today = new Date().toISOString().split('T')[0];
+
+    const upcoming = appointments.filter(a => 
+      a.appointmentDate >= today && 
+      [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+    ).length;
+
+    const completed = appointments.filter(a => a.status === AppointmentStatus.COMPLETED).length;
+
+    const payments = Array.from(this.payments.values()).filter(p => 
+      p.patientId === patientId && p.status === PaymentStatus.COMPLETED
+    );
+    const totalSpent = payments.reduce((sum, p) => sum + p.totalAmount, 0);
+
+    const prescriptions = Array.from(this.prescriptions.values()).filter(p => p.patientId === patientId).length;
+
+    return {
+      upcomingAppointments: upcoming,
+      completedAppointments: completed,
+      totalSpent,
+      prescriptionsCount: prescriptions,
+    };
+  }
+
+  async getDoctorDashboardStats(doctorId: string): Promise<DoctorDashboardStats> {
+    const appointments = Array.from(this.appointments.values()).filter(a => a.doctorId === doctorId);
+    const today = new Date().toISOString().split('T')[0];
+
+    const todayApts = appointments.filter(a => a.appointmentDate === today).length;
+    const upcoming = appointments.filter(a => 
+      a.appointmentDate >= today &&
+      [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+    ).length;
+    const completed = appointments.filter(a => a.status === AppointmentStatus.COMPLETED).length;
+
+    const payments = Array.from(this.payments.values()).filter(p => p.doctorId === doctorId);
+    const completedPayments = payments.filter(p => p.status === PaymentStatus.COMPLETED);
+    const pendingPayments = payments.filter(p => p.status === PaymentStatus.PENDING);
+
+    const totalEarnings = completedPayments.reduce((sum, p) => sum + p.doctorEarnings, 0);
+    const pendingEarnings = pendingPayments.reduce((sum, p) => sum + p.doctorEarnings, 0);
+
+    const profile = await this.getDoctorProfile(doctorId);
+
+    return {
+      todayAppointments: todayApts,
+      upcomingAppointments: upcoming,
+      completedAppointments: completed,
+      totalEarnings,
+      pendingEarnings,
+      averageRating: profile?.averageRating || 0,
+      totalReviews: profile?.totalReviews || 0,
+      currentQueueNumber: profile?.currentQueueNumber || 0,
+    };
+  }
+
+  async getAdminDashboardStats(): Promise<AdminDashboardStats> {
+    const patients = Array.from(this.users.values()).filter(u => u.role === UserRole.PATIENT).length;
+    const allDoctors = Array.from(this.doctorProfiles.values());
+    const verified = allDoctors.filter(d => d.status === DoctorStatus.VERIFIED).length;
+    const pending = allDoctors.filter(d => d.status === DoctorStatus.PENDING).length;
+
+    const appointments = Array.from(this.appointments.values());
+    const today = new Date().toISOString().split('T')[0];
+    const todayApts = appointments.filter(a => a.appointmentDate === today).length;
+
+    const payments = Array.from(this.payments.values()).filter(p => p.status === PaymentStatus.COMPLETED);
+    const totalRevenue = payments.reduce((sum, p) => sum + p.totalAmount, 0);
+    const platformEarnings = payments.reduce((sum, p) => sum + p.platformCommission, 0);
+
+    return {
+      totalPatients: patients,
+      totalDoctors: allDoctors.length,
+      verifiedDoctors: verified,
+      pendingDoctors: pending,
+      totalAppointments: appointments.length,
+      todayAppointments: todayApts,
+      totalRevenue,
+      platformEarnings,
+    };
   }
 }
 
