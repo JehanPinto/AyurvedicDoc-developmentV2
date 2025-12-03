@@ -1,0 +1,1315 @@
+Software Requirements Specification (SRS)
+ 
+Ayurvedic Doctor Channeling Platform
+ 
+Document Version: 1.0
+Date: 2024
+Prepared for: Product Owners, Designers, Developers, Testers, and Stakeholders
+ 
+Table of Contents
+ 
+1.	Introduction
+1.1	Purpose
+1.2	Scope
+1.3	Definitions, Acronyms, and Abbreviations
+1.4	References
+1.5	Document Overview
+2.	Overall Description
+2.1	Product Perspective
+2.2	User Roles
+2.3	Platforms
+2.4	Product Functions
+2.5	User Characteristics
+2.6	Constraints
+2.7	Assumptions and Dependencies
+3.	System Architecture
+3.1	Technology Stack
+3.2	System Components
+4.	Functional Requirements
+4.1	Common: Authentication & User Management
+4.2	Patient Module
+4.3	Doctor Module
+4.4	Superadmin Module
+5.	Integrations
+6.	Non-Functional Requirements
+6.1	Security and Privacy
+6.2	Performance
+6.3	Availability and Reliability
+6.4	Usability
+6.5	Scalability
+6.6	Maintainability
+7.	User Interface Requirements
+8.	Data Requirements
+9.	Future Enhancements
+10.	Appendices
+ 
+1.	Introduction
+ 
+1.1	Purpose
+This document describes the functional and non-functional requirements for an Ayurvedic Doctor Channeling Platform consisting of:
+Patient (Customer) Side - Web and Android applications
+Doctor Side - Web and Android applications
+Superadmin Side - Web console
+The platform will be available as:
+Web Application (for all roles)
+This SRS is intended for product owners, designers, developers, testers, and stakeholders to understand the system requirements and guide the development process.
+1.2	Scope
+1.2.1	Patient (Customer) Capabilities
+The system will allow patients to:
+Discover Ayurvedic doctors and clinics
+View doctor profiles, specializations, languages, locations, and consultation types (online, in-person)
+View available time slots and make bookings
+Pay consultation fees online or mark as pay-at-clinic
+Receive reminders, access prescriptions and basic medical history
+Provide ratings and feedback
+Manage appointments (cancel, reschedule)
+Join online consultations via video/audio
+View medical records and prescription history
+1.2.2	Doctor Capabilities
+The system will allow doctors to:
+Create and manage their profiles and clinic locations
+Define consulting schedules and fees
+Accept or reject bookings
+Conduct online consultations through integrated video or audio
+Record visit notes and prescriptions
+Track earnings and payouts
+Manage appointment calendar
+View patient history
+1.2.3	Superadmin Capabilities
+The superadmin will:
+Onboard and verify doctors and clinics
+Manage specializations, treatments, content and configurations
+Handle disputes and refunds (outside payment flow, unless integrated)
+View analytics and export reports
+Manage system settings and master data
+Monitor system performance
+1.2.4	Out of Scope
+The following features are explicitly out of scope for Version 1.0: Better if can integrate
+•	Back office tools like accounting systems
+•	Call center dashboards 
+•	Marketing automation iOS application (planned for future versions) 
+•	In-app chat between patient and doctor
+•	Loyalty points and referral programs
+1.3	Definitions, Acronyms, and Abbreviations
+Term	Definition
+SRS	Software Requirements Specification
+OTP	One-Time Password
+CDR	Call Detail Record (not applicable, but referenced in other docs)
+API	Application Programming Interface
+HTTPS	Hypertext Transfer Protocol Secure
+SMS	Short Message Service
+PDF	Portable Document Format
+CSV	Comma-Separated Values
+NIC	National Identity Card
+QoE	Quality of Experience (referenced in other docs)
+1.4	References
+Local healthcare regulations and data protection laws
+Ayurvedic regulatory body requirements
+Payment gateway documentation Video conferencing platform APIs
+1.5	Document Overview
+This document is organized into sections covering introduction, overall description, system architecture, detailed functional requirements, integrations, non-functional requirements, UI requirements, data requirements, and future enhancements.
+ 
+2.	Overall Description
+ 
+2.1	Product Perspective
+The Ayurvedic Doctor Channeling Platform is a standalone system that integrates with:
+Payment Gateways - For processing online payments
+SMS Gateways - For OTP and notifications
+Email Services - For account and booking communications
+Video Conferencing Platforms - For online consultations
+Maps Services - For location and navigation features
+2.2	User Roles
+The system supports three primary user roles:
+2.2.1	Patient (Customer)
+End users seeking Ayurvedic consultations
+Can browse doctors, book appointments, and manage their health records
+Access via web portal or Android mobile app
+2.2.2	Doctor
+Licensed Ayurvedic practitioners
+Manage profiles, schedules, appointments, and patient records
+Access via web portal or Android mobile app
+Must be verified by superadmin before activation
+2.2.3	Superadmin
+Platform administrators
+Manage doctors, system configuration, and oversight
+Access via web console only
+Full system access for support and compliance
+2.3	Platforms
+2.3.1	Web Application
+Patient Web Portal - Full-featured web interface for patients
+Doctor Web Portal - Full-featured web interface for doctors
+Superadmin Web Console - Administrative dashboard and management tools
+2.3.2	Backend API
+Both web and mobile platforms will share the same RESTful backend API, ensuring consistency across all platforms.
+2.4	Product Functions
+The system provides the following major functions:
+1.	User Authentication & Authorization - Secure login, registration, and role-based access
+2.	Doctor Discovery - Search, filter, and browse Ayurvedic doctors
+3.	Appointment Management - Booking, cancellation, rescheduling
+4.	Payment Processing - Online payment and pay-at-clinic options
+5.	Online Consultations - Video/audio consultations
+6.	Prescription Management - Digital prescriptions and medical records
+7.	Notifications - SMS, email, and in-app notifications
+8.	Reviews & Ratings - Patient feedback system
+9.	Admin Management - Doctor verification, system configuration, reporting
+2.5	User Characteristics
+2.5.1	Patients
+Varying levels of technical proficiency
+May prefer mobile or web based on convenience
+Need simple, intuitive interface
+Require multilingual support (Sinhala, Tamil, English)
+2.5.2	Doctors
+Moderate to high technical proficiency
+Need efficient tools for managing appointments and patients
+May prefer web for detailed work, mobile for quick access
+Require professional interface
+2.5.3	Superadmin
+High technical proficiency
+Need comprehensive administrative tools
+Require detailed reporting and analytics
+2.6	Constraints
+1.	Regulatory Compliance - Must comply with local healthcare data protection laws
+2.	Internet Connectivity - Online consultations require stable internet
+3.	Payment Gateway - Dependent on third-party payment service availability (koko payments)
+4.	Device Compatibility - Android app must support Android 6.0+ (API level 23+)
+5.	Browser Support - Web app must support modern browsers (Chrome, Firefox, Safari, Edge)
+2.7	Assumptions and Dependencies
+2.7.1	Assumptions
+Patients and doctors have stable internet connections for online consultations
+Local laws regarding storage of medical information and Ayurvedic prescriptions will be observed
+Users have access to smartphones or computers
+Payment gateway integration will support local currency and cards, and optionally mobile wallets SMS and email gateways are available for OTP and notifications
+2.7.2	Dependencies
+  Payment gateway service provider
+ 
+3.	System Architecture
+ 
+3.1	Technology Stack
+Note: Technology stack is subject to final decision by development team.
+3.1.1	Backend
+Framework: Laravel 
+Database: MySQL 
+API: RESTful API
+Authentication: JWT (JSON Web Tokens)
+3.1.2	Web Frontend
+Framework: React 
+State Management: Redux 
+UI Framework: Material-UI / Vuetify / Ant Design 
+3.1.3	Third-Party Services
+Video Calls: Jitsi / Zoom / Twilio / google meet
+Notifications: Firebase Cloud Messaging (FCM)
+SMS: Local SMS provider
+Email: SMTP service provider
+Maps: Google Maps API
+3.2	System Components
+┌─────────────────────────────────────────────────────────┐
+│                    Client Applications                   │
+│  ┌──────────────┐  						 │
+│  │  Web App     │  						│
+│  │ (Patient)    │   						│
+│  └──────────────┘   						│
+│  ┌──────────────┐  ┌──────────────┐                    │
+│  │  Web App     │  │ Admin Console│                    │
+│  │  (Doctor)    │  │ (Superadmin) │                    │
+│  └──────────────┘  └──────────────┘                    │ └─────────────────────────────────────────────────────────┘
+                        │
+                        │ HTTPS/REST API
+                        │
+┌─────────────────────────────────────────────────────────┐
+│                    Backend Server                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │   API Layer  │  │ Business     │  │   Database   │  │
+│  │              │  │   Logic      │  │              │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │ └─────────────────────────────────────────────────────────┘
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+┌───────▼──────┐ ┌─────▼──────┐ ┌─────▼──────┐
+│   Payment    │ │    SMS     │ │   Video    │
+│   Gateway    │ │  Gateway   │ │  Platform  │
+└──────────────┘ └────────────┘ └────────────┘
+4.	Functional Requirements
+ 
+Throughout this document, requirement identifiers use the format: REQ_<MODULE>_<NN>
+4.1	Common: Authentication & User Management
+4.1.1	Sign Up and Login
+Patients
+  REQ_AUTH_01: The system shall allow a patient to create an account using:
+Mobile number Email address   Social login (Google, Apple)
+  REQ_AUTH_02: The system shall validate mobile number or email using:
+OTP (One-Time Password) sent via SMS or email
+Email verification link
+  REQ_AUTH_03: The system shall allow login using:
+Email or mobile number plus password
+"Continue with Google" option
+"Continue with Apple" option (on supported devices)
+Doctors
+  REQ_AUTH_04: The system shall allow doctors to create accounts, but keep them in "Pending verification" status until approved by superadmin.
+Superadmin
+  REQ_AUTH_05: Superadmin users shall only be created and managed from the admin console. No public registration for superadmin role.
+4.1.2	Password Management
+  REQ_AUTH_06: The system shall provide "Forgot password" functionality with:
+OTP sent to registered mobile/email
+Password reset link sent via email
+Enforcement of strong password rules:
+Minimum 8 characters
+At least one uppercase letter
+At least one lowercase letter
+At least one number
+At least one special character
+  REQ_AUTH_07: After password reset, the user shall be able to log in with the new password only. Old password shall be invalidated.
+4.1.3	Session Management
+  REQ_AUTH_08: The system shall maintain user sessions with configurable timeout (default: 30 minutes of inactivity).
+  REQ_AUTH_09: The system shall allow users to log out from all devices.
+  REQ_AUTH_10: The system shall support "Remember Me" functionality for extended sessions.
+4.1.4	Profile Types and Onboarding
+Patients
+  REQ_PAT_01: The system shall collect the following patient information during registration:
+Full name (required)
+Mobile number (required, verified)
+Email (optional if mobile used)
+Gender (optional)
+Date of birth (required)
+Preferred language(s) (required, at least one)
+  REQ_PAT_02: The patient shall be able to update profile details except:
+Verified mobile number (requires re-verification)
+Verified email (requires re-verification)
+Doctors
+  REQ_DOC_01: The system shall collect the following doctor information during registration:
+Full name (required)
+Clinic or practice name (required)
+Registration number with Ayurvedic regulatory body (required) Specializations (should be in a dropdown)  (required, at least one):
+Panchakarma
+Pediatrics
+General Medicine
+Women's Health
+Geriatrics
+Others (customizable by admin)
+Years of experience (required)
+Languages spoken (required, at least one)
+Consultation types (required, at least one):
+In-person
+Online
+  Home visits
+Per-consultation fees and currencies for each location/type (required)
+Bank details for payouts (required for approval)
+  REQ_DOC_02: The system shall require upload of supporting documents for verification:
+Registration certificate
+National Identity Card (NIC) or equivalent
+Professional photo
+Additional documents as required by regulatory body
+ 
+4.2	Patient Module
+4.2.1	Browse and Search Doctors
+  REQ_PAT_10: The system shall allow patients to search doctors by:
+Name
+Specialization
+City or location
+Language
+Consultation type (online, in-person)
+Rating (minimum rating filter)
+  REQ_PAT_11: The system shall display a doctor list with key information:
+Doctor name
+Profile photo
+Specialization(s)
+Average rating (out of 5)
+Number of reviews
+Location/City
+Starting consultation fee
+Available consultation types (icons)
+  REQ_PAT_12: The patient shall be able to open a detailed doctor profile page showing:
+Biography and qualifications
+All specializations
+Treatments offered
+Clinic addresses with maps integration
+Available time slots by date (next 30 days)
+Patient reviews and average rating
+Years of experience
+Languages spoken
+Consultation fees by type and location
+  REQ_PAT_13: The system shall support filtering and sorting:
+Filter by: specialization, location, consultation type, rating, fee range
+Sort by: rating, fee (low to high, high to low), distance (if location enabled)
+4.2.2	Appointment Booking
+  REQ_PAT_20: The patient shall be able to choose:
+Doctor
+Location (for in-person) or online option
+Date (from available dates)
+Available time slot
+  REQ_PAT_21: The system shall prevent selection of:
+Past dates and times
+Already booked slots
+Slots marked as unavailable by doctor
+  REQ_PAT_22: The booking form shall collect:
+Patient details (pre-filled if logged in)
+Chief complaint / reason for visit (required)
+Booking for self or dependent (if applicable)
+  REQ_PAT_23: The system shall support two payment flows:
+Online payment before confirmation: Patient pays immediately via payment gateway
+Pay at clinic: Booking confirmed without pre-payment (depends on doctor settings)
+  REQ_PAT_24: For bookings that require pre-payment:
+Appointment status shall be "Pending payment" until payment success is confirmed
+Payment must be completed within 15 minutes or booking is automatically cancelled
+Slot is held temporarily during payment process
+  REQ_PAT_25: On payment success:
+Booking is confirmed
+Appointment status changes to "Confirmed"
+Notifications sent via SMS, email, and in-app
+Calendar reminder created (if applicable)
+  REQ_PAT_26: The system shall allow patients to book for:
+Themselves
+Dependents (children, parents, family members) by capturing dependent details:
+Name
+Date of birth
+Gender
+Contact number
+  REQ_PAT_27: The system shall send booking confirmation to both patient and doctor.
+4.2.3	Appointment Management
+  REQ_PAT_30: The patient shall be able to view:
+List of upcoming appointments
+List of past appointments
+Appointment details including:
+Doctor name and photo
+Date and time
+Location or online link
+Status (Confirmed, Completed, Cancelled, No-show)
+Payment status
+  Reason for visit
+  REQ_PAT_31: The patient shall be able to:
+Cancel appointments (subject to doctor cancellation rules and time limits)
+View cancellation policy before cancelling
+  REQ_PAT_32: On cancellation:
+System marks the slot as available again (if allowed by configuration)
+Refund processed according to cancellation policy
+Notifications sent to doctor
+Patient receives confirmation of cancellation
+  REQ_PAT_33: For prepaid appointments:
+•	Refund automatically processed via integrated gateway refund 
+•	Refund timeline displayed to patient
+  REQ_PAT_34: The system shall send appointment reminders:
+24 hours before appointment
+2 hours before appointment
+15 minutes before online consultation
+4.2.4	Online Consultation
+  REQ_PAT_40: For online bookings:
+Patient sees a "Join consultation" button
+Button becomes active 10 minutes before scheduled time
+Button remains active until consultation ends or is cancelled
+  REQ_PAT_41: The consultation shall:
+Open in an integrated video or audio room
+Support video and audio modes
+Allow screen sharing 
+Display consultation timer
+  REQ_PAT_42: The system shall:
+  Not record video or audio by default (unless explicitly required by regulation and configured)
+ 
+Display recording indicator if recording is enabled
+Require consent before recording 
+  REQ_PAT_43: The system shall handle consultation issues:
+Connection problems (reconnection option)
+Doctor not available (notify patient)
+Technical failures (support contact information)
+4.2.5	Prescriptions and Medical Records
+  REQ_PAT_51: The patient shall have a "My Records" section listing:
+Previous visits with date, doctor, and chief complaint
+
+4.2.6	Ratings and Feedback
+  REQ_PAT_60: After a completed appointment:
+Patient is prompted to rate the doctor (1-5 scale)
+Patient can optionally leave a written comment
+Rating can be submitted immediately or later (within 30 days)
+  REQ_PAT_61: The system shall:
+Display doctor average rating and number of reviews
+Show individual reviews (with date and rating)
+Hide comments flagged by admin/doctor as inappropriate
+Allow patients to edit their own reviews (within 7 days)
+ 
+4.3	Doctor Module
+4.3.1	Profile and Clinic Management
+  REQ_DOC_10: The doctor shall be able to manage:
+Profile details (name, bio, qualifications)
+Profile photos (at least one required)
+Clinic information
+Specializations
+Languages spoken
+Years of experience
+  REQ_DOC_11: The doctor shall be able to add multiple clinic locations with:
+Clinic name
+Complete address
+Map location (GPS coordinates)
+Contact phone number
+In-clinic consulting hours (day-wise schedule)
+Per-clinic consultation fee
+Parking availability (optional)
+Directions/landmarks (optional)
+  REQ_DOC_12: The doctor shall be able to:
+Mark profile as temporarily unavailable (hides all future slots)
+Set availability status (Available, Busy, On Leave)
+Update availability status in real-time
+  REQ_DOC_13: Profile changes (except basic info) may require superadmin approval if significant (e.g., registration number change).
+4.3.2	Schedule and Slots
+  REQ_DOC_20: The doctor shall be able to create:
+Recurring time slots (daily, weekly patterns)
+One-time time slots
+For each clinic location
+For online consulting channel
+Different slot durations (15, 30, 45, 60 minutes)
+  REQ_DOC_21: The system shall:
+Prevent creation of overlapping slots within the same doctor schedule
+Validate slot times against clinic hours
+Allow bulk slot creation (e.g., create slots for entire month)
+  REQ_DOC_22: The doctor shall be able to:
+Create, edit, and delete future slots that are not yet booked
+Cancel existing booked slots (with patient notification)
+Set buffer time between appointments
+Block specific dates/times (holidays, personal time)
+  REQ_DOC_23: The system shall display a calendar view with:
+Available slots (green)
+Booked appointments (blue)
+Canceled sessions (red)
+ 
+Blocked time (gray)
+Current date indicator
+REQ_DOC_24: The doctor can set:
+Maximum advance booking period (e.g., 3 months)
+Minimum booking notice (e.g., 2 hours before)
+Slot availability rules (e.g., only show slots for next 7 days)
+4.3.3	Appointment Handling
+  REQ_DOC_30: The doctor shall be able to view:
+All upcoming appointments (with filters)
+All past appointments Filters by:
+Date range
+Location (clinic or online)
+Status
+Patient name
+  REQ_DOC_31: For each appointment, the doctor shall see:
+Patient details (name, age, gender, contact)
+Reason for visit / chief complaint
+Previous visit history (within this platform)
+Payment status
+Appointment type (in-person, online, home visit)
+  REQ_DOC_32: The doctor shall be able to mark appointments as:
+Confirmed (default for new bookings)
+Completed (after consultation)
+No-show (if patient doesn't attend)
+Canceled by doctor (with reason)
+
+
+  REQ_DOC_33: The system shall:
+  Notify patients when doctor cancels 
+Allow doctor to add notes before/during/after appointment
+Show appointment history and patterns
+4.3.4	Online Consultation
+  REQ_DOC_40: For online appointments:
+Doctor sees a "Start consultation" button for each upcoming booking
+Button becomes active 10 minutes before scheduled time
+Doctor can start consultation early (with patient notification)
+  REQ_DOC_41: Starting the consultation shall:
+Open the video room
+Mark appointment as "In progress"
+Notify patient that doctor has joined
+Start consultation timer
+  REQ_DOC_42: On ending the consultation:
+Appointment marked as "Completed"
+Doctor can enter notes 
+Consultation duration recorded
+Patient receives notification
+  REQ_DOC_43: During consultation, doctor can:
+End consultation early (with reason)
+  REQ_DOC_60: The doctor shall have an "Earnings" dashboard showing:
+Total fees earned (by period: daily, weekly, monthly, yearly)
+Platform commission deducted
+Net earnings (doctor's share) Paid amounts
+Pending/unpaid amounts
+Payout history with dates and amounts
+ 
+  REQ_DOC_61: The system shall:
+Calculate doctor share based on admin configurable commission rules
+Display commission percentage
+Show breakdown per appointment
+Support different commission rates for different consultation types (if configured)
+  REQ_DOC_62: Payout management:
+Doctor can view payout schedule (e.g., weekly, bi-weekly, monthly)
+Doctor can view payout status (Pending, Processing, Completed)
+Doctor can update bank details (requires verification)
+Payout history with transaction IDs
+ 
+4.4	Superadmin Module
+4.4.1	Dashboard and Overview
+  REQ_ADM_10: The superadmin shall have a dashboard displaying:
+Total registered doctors
+Pending doctor verifications Active doctor profiles
+Suspended doctor profiles
+Total registered patients
+Total appointments (today, this week, this month)
+Revenue metrics (today, this week, this month)
+System health indicators
+  REQ_ADM_11: Dashboard widgets:
+Recent appointments
+Pending verifications (quick access)
+System alerts and notifications
+Quick action buttons
+4.4.2	Doctor and Clinic Management
+  REQ_ADM_12: The superadmin shall be able to:
+View all doctor applications
+Approve doctor registrations
+Reject doctor registrations (with reason and notification)
+Request additional documents/information
+View all submitted documents
+  REQ_ADM_13: Doctor profile management:
+Suspend doctor accounts (temporary or permanent)
+Restore suspended accounts
+Edit doctor profiles (with audit log) View doctor activity and statistics
+Deactivate doctor accounts
+  REQ_ADM_14: Clinic management:
+Approve/reject clinic locations
+Edit clinic information
+Suspend specific clinic locations
+View clinic statistics
+4.4.3	Patient Management
+  REQ_ADM_20: The superadmin shall be able to:
+View all registered patients
+Search patients by name, email, mobile
+View patient profiles (limited medical data access)
+Suspend patient accounts (for violations)
+Restore suspended accounts
+View patient activity and booking history   REQ_ADM_21: Patient support:
+  Access patient booking history for support
+View patient complaints/feedback
+Assist with account issues
+4.4.4	Specializations and Master Data
+  REQ_ADM_30: The superadmin shall manage master data:
+  Specialization list:
+Add new specializations
+Edit existing specializations
+Deactivate specializations (with data preservation)
+  Treatments list:
+Add common Ayurvedic treatments
+Edit treatment names and descriptions
+Organize by category
+  Cities and regions:
+Add new cities/locations
+Edit location names
+Set location hierarchy (country, state, city)
+  Supported languages:
+Add/remove supported languages
+Set default language
+  REQ_ADM_31: Master data features:
+Bulk import (CSV)
+Export master data
+Data validation rules
+Audit log for changes
+4.4.5	Appointment Oversight
+  REQ_ADM_40: The superadmin shall be able to search and view appointments by:
+Date range
+Doctor
+Patient
+Clinic
+Status
+Payment status
+Consultation type
+  REQ_ADM_41: For each appointment, superadmin can see:
+Complete appointment details
+Payment status and transaction details
+Refund flags and history
+Dispute notes
+Cancellation reasons
+Consultation duration (for online)
+Prescription status
+  REQ_ADM_42: Appointment management:
+Cancel appointments (with reason)
+Add notes/comments
+Flag for review
+Export appointment data
+4.4.6	Financials and Reports
+  REQ_ADM_50: The superadmin shall be able to generate reports:
+  Booking reports:
+Daily bookings
+Weekly bookings
+Monthly bookings
+By doctor
+By clinic
+By consultation type   Revenue reports:
+Revenue by doctor
+Revenue by clinic
+ 
+Revenue by period
+Commission earned
+Refund statistics   Operational reports:
+No-show statistics
+Cancellation rates
+Average consultation duration
+Patient retention metrics
+Doctor performance metrics
+  REQ_ADM_51: Reports features:
+Export to CSV or Excel
+Export to PDF
+Schedule automated reports (email)
+Custom date ranges
+Filtering and sorting
+Graphical charts and visualizations   REQ_ADM_52: Financial management:
+View all transactions
+Process refunds
+View payout history
+Commission configuration
+Payment gateway reconciliation
+4.4.7	Content and Configuration
+  REQ_ADM_60: The superadmin shall manage:
+  Static pages:
+About Us
+Terms and Conditions
+Privacy Policy
+Help/FAQ
+Contact Us
+Banners and promotions:
+Homepage banners
+Promotional banners
+Announcements
+  Notification templates:
+SMS templates
+Email templates
+In-app notification templates
+Support for variables (e.g., {patient_name}, {appointment_date})
+  REQ_ADM_61: The superadmin shall configure:
+  Commission settings:
+Default commission percentage/ amount
+Commission by doctor tier (if applicable)
+
+  Cancellation policies:
+Cancellation windows (e.g., 24 hours before)
+Refund rules
+No-show policies
+ALL THE FOLLOWING as e-chanelling MUST BE CHANGED TO AyurvedicDoctor
+Terms and Conditions
+Please read carefully!
+The booking fee charged by AyurvedicDoctor PLC is non-refundable.
+In the event of the cancelation done by institute, rescheduling will happen based on institute rules and regulations.
+No refunds or cancellations under any circumstances.
+All the payment related information is collected & kept with the relevant banks while the rest of the information that is collected here is for relevant institute use only.
+Your payments will be proceed through industry standard Secure Sockets Layer (SSL) with 128-bit encryption key ensuring high safety & security online.
+
+These terms and conditions as revised and updated by AyurvedicDoctor PLC from time to time (hereinafter referred to as “General Terms and Conditions” or “GTC”) shall constitute a legally binding agreement made between you, (“Customer” or “you”) and AyurvedicDoctor PLC (“ECL”, “we,” “us” or “our”), concerning your use of AyurvedicDoctor Services (defined below). By accessing and using the Services you unequivocally accept and agree to be bound by the General Terms and Conditions. IF YOU DO NOT AGREE WITH ALL OF THE TERMS AND CONDITIONS HEREIN, YOU SHOULD NOT USE THE SERVICES.
+1. DEFINITION
+1.1
+Unless the context otherwise requires, the different terms and expression used in these General Terms and Conditions shall have the meaning assigned to them in the following paragraph.
+“Agreement” means these General Terms and Conditions, any policies/guidelines formulated by ECL from time to time in respect of the Services and any amendments made thereto by ECL from time to time.
+“ECL Services” or “Services” means the channelling services offered by ECL to Customers utilizing the System which facilitates Customers to (a) channel medical doctors, specialists and consultants visiting Healthcare Establishments and (b) place appointments for medical check-ups at Healthcare Establishments and (c) procure other affiliated services of ECL;
+“ECL System or System”means the software, hardware and infrastructure developed and owned by ECL or licensed to ECL, through which ECL Services are provided to Customers;
+“ECL Service Fee” means the fee charged by ECL from Customers for the Services provided to Customers.
+“Healthcare Establishment(s)” mans the hospitals, medical and health centers which have collaborated with ECL to make available ECL Services at the respective hospital, medical and health center
+2. MODIFICATIONS TO GTC
+2.1
+You agree that ECL at its sole discretion may revise these General Terms and Conditions at any time without assigning any reasons therefore and you agree to be bound by all such revisions made by ECL from time to time. It is your responsibility to periodically review the latest version of the General Terms and Conditions uploaded on the ECL official website (www.echannelling.com) (the ‘Website’) to stay informed of updates and revisions. You undertake to reread the General Terms and Conditions on the Website on a regular basis. You will be subject to, and will be deemed to have been made aware of and to have accepted, the changes in any revised General Terms and Conditions by your continued use of the Services after the date such revised General Terms and Conditions are posted. You hereby waive any right to receive specific notice of such changes/revisions. If you do not accept the changes, you should not use the Services.
+3. USE OF SERVICE
+3.1
+You shall strictly use the Services only in accordance with the provisions of the Agreement.
+3.2
+ECL Services are available only at the Healthcare Establishments published on the ECL Website and updated by ECL from time to time.
+3.3
+You shall ensure that all information you furnish to avail the Services are true, accurate, complete and up-to-date. You shall not obtain the Services through impersonation or by furnishing incorrect or false information.
+3.4
+You shall ensure that you have the required equipment and connectivity (including but not limited to) to access and use the Services.
+3.5
+You shall bear the full responsibility for the usage of the Services and any charges whatsoever incurred through the use of the services.
+3.6
+You shall not do or permit any third party to do any of the following;
+a
+Use the Services for any unethical, obscene, defamatory, scandalous, nuisance or any illegal activity or purpose.
+b
+Use the Services through unauthorized interfaces or protocols;
+c
+Use the Service to transmit any content that is abusive, pornographic, violent, racist, discriminatory, offensive, vulgar, obscene, defamatory, invasive of personal privacy, harassing, threatening, or otherwise objectionable;
+d
+Translate, reverse-engineer, reverse compile, decompile, disassemble, or modify the Services or make derivative works from the Services;
+e
+Translate, reverse-engineer, reverse compile, decompile, disassemble, reformat or modify the ECL System or make derivative works from the ECL System;
+f
+To sub-license, re-sell or re-distribute the Services, in whole or in part.
+g
+To interfere or tamper or to attempt to interfere or tamper with the integrity or security of the Services and/or the ECL System.
+h
+Take any action that imposes an unreasonable or large load on ECL System;
+i
+Upload invalid data, viruses, worms, or other harmful software to the Services and/or to the ECL System;
+j
+Use automated means, including spiders, robots, crawlers, data mining tools, or the like to download data from the ECL System, unless expressly permitted by ECL;
+k
+Use the Services in a way that disables the Services or prevents or inhibits anyone from using the Services; or
+l
+Impersonate any person or entity in order to use, or through use of, the Services.
+4. PRICING
+4.1
+You understand that your use of the Services shall be subject to charges.
+4.2
+You agree that the Healthcare Establishment has the right to determine and revise the Healthcare Establishment’s fee, the medical practitioner’s fee and the fee applicable for Medical check-ups.
+4.3
+ECL reserves the right, at any time and at its sole discretion to revise the ECL Service Fee without any notification to the Customer. ECL may publish changes to ECL’s Service fee on its Website.
+4.4
+The Customer is required to bear all taxes and levies applicable on the Services availed by the Customer.
+5. CANCELLATION OR RE-SCHEDULING AN APPOINTMENT
+5.1
+If you are unable to honour the scheduled appointment you shall promptly notify the Healthcare Establishment.
+5.2
+If you wish to reschedule a scheduled appointment you shall directly contact the Healthcare Establishment which shall have the sole discretion to determine whether to reschedule the scheduled appointment. As part of rescheduling the appointment the Healthcare Establishment may charge an extra fee from you.
+5.3
+If you have not opted for the No Show Refund Service of ECL but wish to cancel the scheduled appointment you shall directly contact the Healthcare Establishment which shall have the sole discretion to determine whether to refund the Healthcare Establishment’s fee and/or the medical practitioner’s fee. Even if you have opted for the No Show Refund Service of ECL the Healthcare Establishment’s fee, the medical practitioner’s fee and ECL Service Fee will be refunded to you ONLY if you inform ECL that you wish to cancel the scheduled appointment before the session start time and comply with all other terms and conditions and procedures applicable for the No Show Refund Service of ECL.
+5.4
+In the event of the medical practitioner canceling an appointment, the Healthcare Establishment will give a fresh appointment or shall refund the Healthcare Establishment’s fee and the medical practitioner’s fee according to the Healthcare Establishment’s rules and regulations. Provided however if you have opted for the No Show Refund Service of ECL the Healthcare Establishment’s fee, the medical practitioner’s fee and ECL Service Fee will be refunded to you provided you have acted in compliance with the terms and conditions and procedure relating to the No Show Refund Service of ECL.
+5.5
+ECL Service Fee is non-refundable. ECL Service fee is not refundable even if the scheduled appointment is subsequently cancelled or rescheduled. This is due to the reason that ECL is a company engaged in providing channeling services and provides its channeling services to the Customer in consideration of the ECL Service Fee paid by the Customer. Therefore, if the channeled appointment is subsequently cancelled due to any reason subsequently, ECL would have already provided its services to the Customer by channeling the doctor at the Customer’s request or providing an appointment number to the Customer to undergo a medical check-up at a Healthcare Establishment at the Customer’s request. ECL Service is not a cost free service to ECL and various cost are involved in providing the ECL Service to the Customer which without limitation includes infrastructure maintenance cost, call center operation and administration cost, network usage cost etc. Provided however if the Customer has availed the No Show Refund Service of ECL, the ECL Service Fee will be refunded to the Customer subject to the terms and conditions applicable for the No Show Service and the Customer’s compliance with the same.
+5.6
+ECL bears no responsibility for delays in medical practitioners attending scheduled sessions or for failure of the medical practitioner to attend the scheduled session. The same should be directly dealt with the Healthcare Establishment.
+5.7
+Rescheduling and cancellation of Scheduled appointments and refunds (in case ECL No Show Refund Service does not apply) will be facilitated or done by the Healthcare Establishment at its sole discretion in accordance with its respective rules and regulations and ECL bears no liability for the same.
+5.8
+If in the event the Customer has not opted for the ECL No Show Refund Service or has opted for the No Show Refund Service but has failed to comply with the terms and conditions and/or procedure relating thereto, it shall be the responsibility of the Customer to directly liaise with the Healthcare Establishment to obtain a refund. If the Healthcare Establishment agrees to a refund, the refund should be collected by the Customer directly from the respective Healthcare Establishment. The Customer cannot collect the refund from ECL, ECL agents through which the channeling was done or through any bank.
+5.9
+For some "selected hospitals" online transfer refunds are available. However, the customer same mobile number that was used to make the appointment should be presented when requesting online refunds. Any other terms and conditions are subject to change.
+5.10
+ECL No Show Refund Service (NSR)
+5.10.1
+The NSR Service will be available in the following two instances:
+a
+If the Customer decides to cancel the scheduled appointment
+b
+If the medical practitioner fails to attend the session
+5.10.2
+The No show refund claim request of the Customer will be accepted only if the Customer has complied with the following procedure:
+Claim requests need to come before the session start time and the refund will be made in two (2) working days.
+The Claim requests will not be accepted after the session start time and ECL is not liable for any refunds pertaining to Customer’s appointment after this time.
+No show refund claim can be requested online or by calling ECL call center (Hotline number - 0710 225 225)
+The No Show Refund fee is non-refundable and if the Customer is unable to comply with the above procedure, the Customer should not opt for the NSR service and/or pay the applicable fee relating thereto
+5.10.3
+The refund will be limited to the following;
+Doctor's fee
+Hospital’s fee
+ECL Service Fee
+5.10.4
+No show refund service does not include the refund of any other fee which is not specified above.
+5.10.5
+A charge of Rs.275/- net is applicable for this service.
+5.10.6
+Foreign patients will not be able to obtain NSR if they cannot provide a local Bank account number, due to foreign remittance regulations of Sri Lanka.
+5.10.7
+The No Show Refund Service does not include the following:
+a
+The No Show Refund Service does NOT facilitate the Customer to reschedule an appointment.
+b
+The No Show Refund Service does NOT include ECL instructing the Healthcare Establishment(s) to cease and/or refrain from sending reminders (via calls, SMS or other means) to the Customer of the scheduled appointment. The Customer should duly inform the Healthcare Establishment(s) that he/she intends to cancel the scheduled appointment and should instruct the Healthcare Establishment to cease sending reminders to the Customer if the Customer so desires.
+c
+The No Show Refund Service does NOT include any service which is not explicitly undertaken by ECL in this GTC.
+5.10.8
+The ECL No Show Refund Service (NSR) is available only for channeling appointments placed through ECL for consultation of selected doctors, specialists and consultants visiting selected Healthcare Establishments.
+5.10.9
+The ECL No Show Refund Service (NSR) is NOT available for any appointments placed through ECL for medical check-ups, PCR Testing, Rapid Antigen tests and/or any other medical examinations and/or testing. Refunds pertaining to medical check-ups, PCR Testing, Rapid Antigen tests and/or any other medical examinations and/or tests are not handled by ECL. The Customer should directly contact the Healthcare Establishment and obtain the refund from the Healthcare Establishment and ECL is not responsible for the same. In such situations the ECL Service Fee will not be refunded.
+5.11
+ECL Running Number Service
+The following additional terms and conditions apply for ECL Running Number Service;
+5.11.1
+The Customer is required to check the running number by accessing the 'Running Number' feature on the ECL Website or the ECL Mobile App. In order to view the ongoing number, the Customers has to first register as a member and thereafter login to the ECL Website or ECL Mobile Application to view the ongoing number.
+5.11.2
+ECL shall not be responsible for the accuracy of the Running Number displayed on the ECL Website or the ECL Mobile App. The accuracy and completeness of the running number would be dependent on the information entered into the System by Healthcare Establishment during the session.
+5.11.3
+ECL Running Number Service is currently provided free of charge to the Customers who place the appointment for the session through ECL.
+5.11.4
+The ECL Running Number Service is available only in Healthcare Establishments in which the running number system has been installed and operated.
+6. CHANGES TO THE SERVICES
+6.1
+ECL reserves the right to change, modify, update, upgrade, suspend or discontinue the Services in its entirety or any portion thereof at any time without any notification to you.
+6.2
+ECL reserves the right to amend and update the list of Healthcare Establishments without any notification to the Customer.
+6.3
+ECL has the right to assign any rights, licenses, or obligations arising out of or relating to this Agreement and the Services without any restriction and without any notification to the Customer.
+7. INTELLECTUAL PROPERTY
+7.1
+All forms of intellectual property rights and protections that may be obtained for, or may pertain to, the ECL System and the ECL Services including without limitation, all right, title and interest arising under Sri Lankan law and the laws of other countries to all (a) patents and filed, pending or potential applications for patents including any re-issue, re-examination, division, continuation or continuation-in-part applications throughout the world now or hereafter filed and (b)trade secrets and equivalent rights and (c) copyrights, other literary, property or author’s rights, whether or not protected by copyright or as a mask work and (d) proprietary indicia, tradenames, symbols, logos and brand names; shall belong to and exclusively vest with ECL and its licensors. (hereinafter collectively called the “Intellectual Property Rights”)
+7.2
+The Customer undertakes not to cause or permit any action that may damage the Intellectual Property Rights of ECL or endanger ECL’s title to its Intellectual Property Rights. The Intellectual Property Rights of ECL shall remain with ECL and its licensors and no right or license whatsoever, either expressed or implied is granted to the Customer pursuant to this Agreement;
+7.3
+ECL Services and ECL System shall not be used, copied, reproduced, distributed, transmitted, broadcast, displayed, sold, licensed, or otherwise exploited for any other purposes whatsoever without the prior written consent of ECL.
+7.4
+This Clause 7 shall survive the termination or expiry of this Agreement.
+8. DATA PROTECTION AND PRIVACY
+8.1
+By using the Services, the Customer consents to ECL collecting, processing, storing and disseminating to third parties such personal data provided by the Customer or generated by ECL in the course of making the Services available to the Customer, for the following purposes:
+a
+Provision of Services to the Customer,
+b
+Market research and Customer-profiling based on usage and preferences for the purpose of initiating information, promotions and/or marketing campaigns associated with ECL’s Services unless the Customer has explicitly opted out,
+c
+Credit profiling of Customer to ascertain his/her creditworthiness,
+d
+Prevention and detection of fraud, money laundering and terrorist financing,
+e
+Compliance with applicable laws and regulations.
+8.2
+Customer consents to ECL sharing personal data of the Customer with the Healthcare Establishment to enable the Healthcare Establishment to contact the Customer and the Customer consents to being contacted by the Healthcare Establishment, for purposes of confirming the Customer’s appointment or for other reasons relating to the Customer’s appointment.
+8.3
+The Customer consents to receive promotional and informational SMS from ECL and/or from the respective Healthcare Establishment. The Customer may opt-out of this service by contacting ECL.
+9. DISCLAIMERS AND LIMITATION OF LIABILITY
+9.1
+ECL Services and ECL System are made available "as is" or "as available" and ECL, its directors, employees and agents do not make any representation or warranty, express or implied in relation to the Service quality, availability, security, timeliness, accessibility, uninterrupted use, accuracy, speed or completeness, merchantability, satisfactory quality, non-infringement or fit for the particular purpose of a Customer.
+9.2
+ECL does not guarantee that Customers will be able to access the Services at all times or places, that the ECL Services and ECL System will have adequate capacity for all users, or that the ECL Services and ECL System will be operable/compatible with the Customer’s equipment.
+9.3
+ECL shall not be liable in any manner whatsoever to the Customer in respect of any loss or damage (including consequential loss or damage) however caused, which may be suffered or incurred or which may arise directly or indirectly in respect of the Service, or the failure or omission on the part of ECL.
+9.4
+ECL disclaims responsibility and liability for any damages, loss, pain, mental distress or suffering incurred or experienced by a Customer or by any third as a result of the Services.
+9.5
+The Customer is responsible for the Customer’s use of the Service and the Customer agrees that the Service is used at the Customer’s risk.
+9.6
+ECL is only providing a channeling service and is not the Healthcare Establishment or the medical practitioner providing health services to the Customer and therefore ECL has no control over the services or decisions taken by the Healthcare Establishment and the medical practitioners. Accordingly, ECL disclaims all liability
+9.6.1
+For the services provided by Healthcare Establishments
+9.6.2
+For the services provided by medical practitioners.
+9.6.3
+For the actions and omission of Healthcare Establishments and medical practitioners including medical negligence
+9.6.4
+For any cancellation or rescheduling of appointments
+9.6.5
+For any decision taken by the Healthcare Establishment to refuse or allow the Customer to cancel or reschedule appointments or refund any payments to the Customer
+9.6.6
+For any reminders (by call, SMS or other means) sent and/or made by the Healthcare Establishment(s) to the Customer reminding the Customer of the scheduled appointment;
+9.6.7
+Any inconvenience, mental distress and/or financial loss caused and/or suffered by the Customer due to the actions and/or omissions of the Healthcare Establishment(s) and/or medical practitioner(s);
+9.7
+ECL does not warrant, endorse, guarantee, or assume responsibility for any product or services provided, advertised or offered by Healthcare Establishments and medical practitioners or any product or services provided, advertised or offered through any website linked or features in the ECL Website.
+9.8
+Unless otherwise explicitly stated, the inclusion of any hypertext links to the ECL Website does not imply any endorsement by ECL of the material on such website or the services provided from such website or any association with the owners or operators of such website.
+9.9
+ECL shall under no circumstances whatsoever be liable to the Customer or to any third party for any indirect damages, consequential damages, special damages, incidental damages, punitive damages, loss of profit, loss of revenue, and the like under or in connection with this Agreement. Similarly, liability for corruption, destruction, breach or loss of any data is likewise excluded. Notwithstanding anything to the contrary, ECL’s total and aggregate liability under this Agreement shall be limited to Fifty percent (50%) of the total ECL Service Fee (excluding taxes) paid by the Customer to ECL in respect of the particular appointment which is the subject matter of the dispute.
+9.10
+The disclaimers in this clause 9 and the liabilities limited by the foregoing Clause 9.9 apply:
+a
+To liability for negligence;
+b
+Regardless of the form of action whether in contract, tort, strict liability, indemnity or otherwise;
+c
+Even if ECL is advised in advance of the possibility of damages in question or that the damages were foreseeable, and
+d
+Even if the Customer’s or a third party’s remedies fail of their essential purpose.
+9.10
+If applicable law limits the application of the provision of this clause 9, ECL’s liability will be limited to the maximum extent possible.
+9.10
+The Customer shall be responsible for all damages, losses, claims and liabilities whether direct, indirect or consequential and loss of revenue and loss of profits suffered by ECL as a result of the breach by the Customer of this Agreement.
+9.10
+This Clause 9 shall survive the termination or expiry of this Agreement.
+10. INDEMNITY
+10.1
+The Customer shall indemnify and hold harmless ECL, and its holding company, subsidiaries, affiliates, successors, assigns, and its officers, directors, shareholders, employees and agents from and against any and all claims, losses, damages, liabilities, demands, suits, proceedings, costs, expenses, actual or alleged arising out of and/or in any way connected with
+a
+breach of any representation, warranty, term or condition in this Agreement by the Customer or
+b
+any illegal or unauthorized activity, breach of statutory obligation carried out by the Customer or
+c
+any claims, demands and/or allegations of fraud, duplication, malpractice committed by the Customer or
+d
+any claims and/or allegations of infringement of intellectual property rights of any third party by the Customer.
+In the event of any such action being brought against ECL by any third party, the Customer shall compensate ECL in respect of all expenses and losses arising out of the same, inclusive of any indirect and consequential damages, legal costs and any cost of settlement to which ECL shall enter into with such third party.
+10.2
+This Clause 10 shall survive the termination or expiry of this Agreement.
+11. TERMINATION OF THE SERVICES
+11.1
+Without prejudice to the rights accrued to ECL under this Agreement, ECL may suspend or disconnect the Customer’s access to the Service partially or fully due to non-payment of amounts payable in respect of the Services.
+11.2
+Without prejudice to the rights accrued to ECL under this Agreement, ECL may suspend or disconnect the Customer’s access to the Service partially or fully if the Customer in ECL’s opinion has misused the Services or has breached any of the terms and conditions in this Agreement.
+11.3
+ECL reserves the right to suspend or cancel the Services without adducing any reasons thereof and without any compensation to Customers or any third party.
+11.4
+ECL reserves the right to refuse Customer’s to access ECL Services without assigning any reasons thereof.
+11.5
+The provisions of clause 9, clause 11.5, clause 11.6, all representations and warranties, and ECL’s rights and remedies in this Agreement and any other clause which by its nature or context is intended to survive shall survive expiry or termination of this Agreement.
+11.6
+Termination or expiry of this Agreement shall be made without prejudice to the accrued rights and liabilities of the parties at the date of termination or expiry, unless waived in writing mutually by the parties.
+12. MISCELLANEOUS :
+12.1
+Confidentiality: The Customer shall keep in strict confidence all information obtained from ECL irrespective of whether the information is marked as Confidential or with a similar legend.
+12.2
+Assignment: The Customer shall not assign or transfer his/her rights and obligations under this Agreement without the prior written approval of ECL. ECL has the right to assign any rights, licenses, or obligations arising out of or relating to this Agreement and the Services without any restriction and without any notification to the Customer.
+12.3
+No Waiver: No decision of ECL to refrain from exercising or enforcing, or failure to exercise or enforce, its rights under any provision of this Agreement shall constitute a waiver thereof, or a waiver of the right of ECL to enforce any other provision of this Agreement, and no waiver by ECL of any violation of any provision or stipulation of this Agreement shall be deemed to be a waiver of any violation of any other provision or stipulation thereof.
+12.4
+Amendments. This Agreement is subject to change from time to time by ECL at its sole discretion and the Customer undertakes to abide by such changes.
+12.5
+Severance:
+a
+If a court or any other competent authority finds that any provision of the Agreement (or part of any provision) is invalid, illegal or unenforceable, that provision or part-provision shall, to the extent required, be deemed deleted, and the validity and enforceability of the other provisions of the Agreement shall not be affected.
+b
+If any invalid, unenforceable or illegal provision of the Agreement would be valid, enforceable and legal if some part of it were deleted, the provision shall apply with the minimum modification necessary to make it legal, valid and enforceable.
+12.6
+No partnership: Nothing in this Agreement is intended to, or shall be deemed to, constitute a partnership or joint venture of any kind between any of the parties, nor constitute any party the agent of another party for any purpose. No party shall have authority to act as agent for, or to bind, the other party in any way.
+12.7
+Set off : ECL reserves the right to set off any outstanding payments due for the Service from any other contract entered into between ECL and the Customer and to recover the outstanding payment due from another contract from the amounts paid by Customer under this Agreement;
+12.8
+Governing law and jurisd iction:The Agreement, and any dispute or claim arising out of or in connection with it or its subject matter or formation (including non-contractual disputes or claims), shall be governed by, and construed in accordance with, the law of Sri Lanka, and the parties irrevocably submit to the exclusive jurisdiction of the courts of Sri Lanka.
+12.9
+ECL reserves all rights not expressly granted in this Agreement.
+13. Membership Terms and Conditions for eChannelling Rewards :
+13.1
+The membership of the eChannelling Rewards Loyalty Program is open to any eChannelling member bearing the web or mobile app.
+13.2
+eChannelling Rewards membership will be offered based on a mobile number and can be registered via downloading the (app link) web/app.
+13.3
+eChannelling Rewards Loyalty Program is a property of eChannelling PLC (ECL), having right to introduce, decline and withdraw the loyalty program anytime OR terminate the eChannelling Rewards Loyalty Program without prior notice.
+13.4
+One (01) eRewards Point is equivalent to Rs. 100 (Hundred Rupees).
+13.5
+Points can be earned by simply using eChannelling services via Web or App as an eChannelling General/ premium member. Any transaction done as a guest won’t be entitle for the member points.
+13.6
+Accumulated points can be redeem, while logged in to the member account via web or app.
+13.7
+Points accumulated have a validity period of minimum one year and the points exceeding the said period will expire on 31st December.
+13.8
+Points accumulated cannot be exchanged for cash and cannot be pooled with any other eChannelling Rewards Member.
+13.9
+Points are not awarded for any purchase made before the eChannelling Rewards Membership is granted.
+13.10
+Offers on the eChannelling Rewards Program cannot be combined with any other ongoing promotion.
+13.11
+There is no minimum balance to be maintained to obtain the service. However, if the appointment fee only contains the eChannelling service fee, he/she can redeem up to 90% of the total fee, or a minimum transaction value of LKR 10 has to be maintained during the transaction.
+13.12
+Reversal of redeemed points are not facilitated. Under no circumstances cash will be exchanged for the amount of such redeemed points.
+13.13
+The information provided in the registration form will be utilized to communicated to eChannelling Rewards Member on promotions and offers executed by the loyalty program.
+13.14
+eChannelling Rewards Member shall notify ECL of any change of personal details, the mobile number in particular, at the first reasonable opportunity after such change. Customer has to contact eChannelling Hot line (0710 225 225) or email info@echannelling.com to inform such changes.
+13.15
+This agreement is governed by and shall be construed in accordance with the laws of the Republic of Sri Lanka.
+13.16
+eChannelling Rewards Member’s privileges and rights to enjoy the offers are governed by the terms and conditions here under and such terms and conditions laid down by the participating establishments. Failure to comply with such terms and conditions shall result in the refusal of such offers by the participating establishments, and/ or the cancellation of the Membership by ECL.
+13.17
+The standard terms and conditions of the eChannelling Loyalty program shall be applicable.
+
+
+
+
+
+
+  Reminder settings:
+Reminder timings (24h, 2h, 15min before)
+Reminder channels (SMS, email, push)
+  System settings:
+Maximum file upload size
+Session timeout
+Booking advance period limits
+Minimum booking notice
+  REQ_ADM_62: Configuration management:
+Version control for configuration changes
+Audit log for all configuration changes
+Rollback capability
+Environment-specific settings (dev, staging, production)
+4.4.8	User Management (Superadmin)
+  REQ_ADM_70: The superadmin shall manage superadmin users:
+Create new superadmin accounts
+Assign roles and permissions
+Deactivate superadmin accounts
+View superadmin activity logs
+  REQ_ADM_71: Role-based access control:
+Define roles (e.g., Super Admin, Support Admin, Finance Admin)
+Assign permissions to roles
+Assign users to roles
+Audit access and actions
+4.4.9	System Monitoring and Logs
+  REQ_ADM_80: The superadmin shall have access to:
+System logs
+Error logs
+API access logs
+User activity logs
+Security event logs
+ 
+5.	Integrations
+ 
+5.1	Payment Gateway Integration
+ 
+  REQ_INT_01: Integrate with one or more payment gateways that support:
+Local currency
+Credit/debit cards
+Mobile wallets (optional)
+Bank transfers (optional)
+  REQ_INT_02: Payment gateway features:
+Secure payment processing
+Payment status webhooks
+Refund processing
+Transaction history
+Payment receipts
+5.2	SMS Gateway Integration
+  REQ_INT_03: Integrate with SMS gateway for:
+OTP delivery
+Booking confirmations
+Appointment reminders
+Cancellation notifications
+Password reset codes
+  REQ_INT_04: SMS features:
+Delivery status tracking
+Template management
+Multi-language support
+Cost tracking
+5.3	Email Service Integration
+  REQ_INT_05: Integrate with email provider for:
+Account verification
+Booking confirmations
+Appointment reminders Password reset links System notifications
+  Marketing emails (optional)
+  REQ_INT_06: Email features:
+HTML email templates
+Delivery status tracking
+Bounce handling
+Unsubscribe management
+5.4	Video Conferencing Integration
+  REQ_INT_07: Integrate with video platform (Jitsi / Zoom / Twilio/ google meets) for:
+Online consultations
+Video and audio calls
+Screen sharing (if supported)
+Waiting room functionality
+Call recording 
+  REQ_INT_08: Video platform features:
+Secure room creation
+Room access control
+Call quality monitoring Connection stability handling
+5.5	Maps Integration
+  REQ_INT_09: Integrate with maps service (Google Maps or similar) for:
+Clinic location display
+Address geocoding
+Directions to clinics
+Distance calculation
+Map markers for clinics
+5.6	Push Notification Integration
+  REQ_INT_10: Integrate with Firebase Cloud Messaging (FCM) for:
+  In-app notifications
+ 
+6.	Non-Functional Requirements
+ 
+6.1	Security and Privacy
+REQ_NF_01: All communication between client apps and server shall use HTTPS (TLS 1.2 or higher).
+REQ_NF_02: Passwords and sensitive data shall be stored using:
+Strong hashing algorithms (bcrypt, Argon2, or equivalent)
+Encryption at rest for sensitive data
+Encryption in transit (HTTPS)
+  REQ_NF_03: Access control shall ensure:
+Patients cannot see other patients' data
+Doctors only see records of their own patients within the platform
+Superadmin can access data for support and compliance only
+Role-based access control (RBAC) implemented
+Principle of least privilege enforced
+  REQ_NF_04: The system shall log admin actions on sensitive operations:
+Doctor approval/rejection
+Refunds
+Account suspensions
+Configuration changes
+Data exports
+  REQ_NF_05: Data privacy compliance:
+Comply with local data protection laws
+Implement data retention policies
+Provide data export functionality for users
+Support data deletion requests (where legally allowed)
+Privacy policy and terms of service clearly displayed
+  REQ_NF_06: Security measures:
+Protection against SQL injection
+Protection against XSS (Cross-Site Scripting)
+Protection against CSRF (Cross-Site Request Forgery)
+Rate limiting on API endpoints
+Input validation and sanitization
+Regular security audits
+6.2	Performance
+  REQ_NF_10: For normal load, the system shall respond to typical API requests within 2 seconds on average (95th percentile).
+REQ_NF_11: Calendar and slot views shall load in under 3 seconds for a one-month range.
+REQ_NF_12: Page load times:
+Web app initial load: under 3 seconds
+Subsequent page navigation: under 1 second
+Mobile app initial load: under 4 seconds
+  REQ_NF_13: Database performance:
+Query optimization for common operations
+Indexing on frequently queried fields
+Connection pooling
+Query caching where appropriate
+  REQ_NF_14: File upload/download:
+Support files up to 10MB per file
+Maximum 5 files per upload
+Upload progress indication
+File type validation
+6.3	Availability and Reliability
+  REQ_NF_20: The system shall be designed for at least 99% uptime monthly, excluding planned maintenance.
+  REQ_NF_21: Regular backups:
+Daily database backups
+Weekly full system backups
+Backup retention: 30 days minimum
+Recovery procedures documented and tested   REQ_NF_22: Error handling:
+Graceful error handling
+User-friendly error messages
+Error logging and monitoring
+Automatic retry for transient failures   REQ_NF_23: Disaster recovery:
+Disaster recovery plan documented
+Recovery Time Objective (RTO): 4 hours
+Recovery Point Objective (RPO): 24 hours
+6.4	Usability
+  REQ_NF_30: The Android app and web UI shall support:
+Sinhala
+Tamil
+English
+Easy language switching
+Right-to-left (RTL) support if needed   REQ_NF_31: Accessibility:
+Legible fonts (minimum 12pt for body text)
+Sufficient color contrast (WCAG AA compliance)
+Large tap targets (minimum 44x44 pixels)
+Keyboard navigation support
+Screen reader compatibility (basic)   REQ_NF_32: User interface:
+Intuitive navigation
+Consistent design patterns
+Clear call-to-action buttons
+Helpful error messages
+Loading indicators for async operations
+Responsive design (mobile, tablet, desktop)   REQ_NF_33: User onboarding:
+Clear registration process
+Helpful tooltips and guides
+FAQ section
+Support contact information easily accessible
+6.5	Scalability
+  REQ_NF_40: The system shall be designed to handle:
+10,000+ registered users
+1,000+ concurrent users
+1,000+ appointments per day
+Horizontal scaling capability
+  REQ_NF_41: Database scalability:
+Support for database replication
+Read/write separation capability
+Efficient query patterns
+  REQ_NF_42: API scalability:
+Stateless API design
+Caching strategies
+CDN for static assets Load balancing support
+6.6	Maintainability
+  REQ_NF_50: Code quality:
+Follow coding standards and best practices
+Comprehensive code documentation
+Unit test coverage (minimum 70%)
+Integration test coverage for critical paths
+ 
+  REQ_NF_51: Documentation:
+API documentation (OpenAPI/Swagger)
+Database schema documentation
+Deployment documentation
+User guides
+ 
+7.	User Interface Requirements
+ 
+7.1	Web Application UI
+  REQ_UI_01: Responsive design:
+Mobile-first approach
+Support for desktop (1920x1080), tablet (768x1024), and mobile (375x667) viewports
+Touch-friendly interface for mobile devices
+  REQ_UI_02: Design consistency:
+Consistent color scheme and branding
+Consistent typography
+Consistent iconography
+Consistent spacing and layout
+  REQ_UI_03: Navigation:
+Clear navigation menu
+Breadcrumbs for deep pages
+Back button functionality
+Search functionality easily accessible
+7.2	Common UI Elements
+  REQ_UI_20: Forms:
+Clear labels and placeholders
+Inline validation
+Error messages near relevant fields
+Success confirmations   REQ_UI_21: Data display:
+Pagination for long lists
+Search and filter options
+Sortable columns (where applicable)
+Empty states with helpful messages
+ 
+8.	Data Requirements
+8.1	Data Models
+8.1.1	User Data
+User accounts (patients, doctors, admins)
+Authentication credentials (hashed)
+Profile information
+Preferences and settings
+8.1.2	Medical Data
+Appointments
+Prescriptions
+Consultation notes
+Medical records
+8.1.3	Business Data
+Doctor profiles and clinics
+Schedules and time slots
+Payments and transactions
+Reviews and ratings
+Earnings and payouts
+8.1.4	System Data
+Master data (specializations, treatments, locations)
+Configuration settings
+Audit logs System notifications
+8.2	Data Storage
+  REQ_DATA_01: Database:
+Relational database (MySQL)
+Normalized schema design Foreign key constraints Indexes on frequently queried fields
+  REQ_DATA_02: File storage:
+Secure file storage for documents and images
+Organized folder structure
+File access control
+File size and type validation   REQ_DATA_03: Data backup:
+Automated daily backups
+Backup verification
+Offsite backup storage
+Backup restoration testing
+8.3	Data Privacy and Retention
+  REQ_DATA_10: Data retention:
+User accounts: Until account deletion request
+Audit logs: 2 years minimum
+Transaction records: 7 years (financial compliance)
+  REQ_DATA_11: Data deletion:
+Support user data deletion requests
+Anonymize data where deletion not possible
+Maintain audit trail of deletions
+Comply with legal requirements
+ 
+9.	Future Enhancements
+ 
+The following features are planned for future versions but are out of scope for Version 1.0:
+9.1	Communication Features
+In-app chat between patient and doctor
+Voice call integration (separate from video)
+9.2	Business Features
+Loyalty points and referral programs
+Subscription plans for patients
+Package deals and promotions
+Gift cards/vouchers
+9.3	Platform Expansion
+iOS application
+Tablet-optimized interfaces Progressive Web App (PWA) support
+9.4	Advanced Features
+Telemedicine enhancements (remote monitoring)
+Health analytics dashboard for patients
+Doctor analytics and insights
+Multi-language video consultation support
+Automated appointment scheduling suggestions
+9.5	Administrative Features
+ 
+ 
+10.	Appendices
+ 
+			
+10.1	Glossary
+Term	Definition
+Channeling	Appointment booking system for medical consultations
+Ayurvedic	Traditional system of medicine from India
+Panchakarma	Ayurvedic detoxification and purification therapy
+Dependent	Family member for whom a patient can book appointments
+No-show	Patient who does not attend scheduled appointment
+Payout	Transfer of earnings from platform to doctor's bank account
+10.2	Assumptions
+Users have basic smartphone or computer literacy
+Stable internet connectivity available for online features
+Payment gateway services are reliable and available
+Regulatory compliance requirements are clearly defined
+10.3	Open Issues
+Final decision on video conferencing platform
+Final decision on payment gateway provider
+Final decision on technology stack
+Regulatory approval requirements (to be confirmed)
+10.4	Change History
+Version	Date	Author	Changes
+1.0	2024	TBD	Initial SRS document
+Document End
