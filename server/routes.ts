@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { randomUUID } from "crypto";
 import { createHash } from "crypto";
 import bcrypt from "bcrypt";
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import {
   insertUserSchema, loginSchema, insertDoctorProfileSchema,
   insertAppointmentSchema, insertPaymentSchema, insertPrescriptionSchema,
@@ -172,6 +174,89 @@ export async function registerRoutes(
       res.status(500).json({ error: "Login failed" });
     }
   });
+
+  // Google OAuth Configuration
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+  
+  if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+    passport.use(new GoogleStrategy({
+      clientID: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
+      callbackURL: "/api/auth/google/callback",
+      scope: ["profile", "email"],
+    }, async (accessToken, refreshToken, profile, done) => {
+      try {
+        const email = profile.emails?.[0]?.value;
+        if (!email) {
+          return done(new Error("No email found in Google profile"), undefined);
+        }
+
+        let user = await storage.getUserByEmail(email);
+        
+        if (!user) {
+          const randomPassword = randomUUID();
+          const hashedPassword = await hashPassword(randomPassword);
+          user = await storage.createUser({
+            email,
+            fullName: profile.displayName || email.split("@")[0],
+            password: hashedPassword,
+            role: UserRole.PATIENT,
+            phone: "",
+            profileImage: profile.photos?.[0]?.value || null,
+            googleId: profile.id,
+          });
+        } else if (!user.googleId) {
+          await storage.updateUser(user.id, { googleId: profile.id });
+          user = { ...user, googleId: profile.id };
+        }
+        
+        done(null, user);
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    }));
+
+    passport.serializeUser((user: any, done) => {
+      done(null, user);
+    });
+
+    passport.deserializeUser((user: any, done) => {
+      done(null, user);
+    });
+
+    app.use(passport.initialize());
+
+    app.get("/api/auth/google", passport.authenticate("google", { 
+      scope: ["profile", "email"],
+      session: false,
+    }));
+
+    app.get("/api/auth/google/callback", 
+      passport.authenticate("google", { 
+        failureRedirect: "/login?error=google_auth_failed",
+        session: false,
+      }),
+      (req: Request, res: Response) => {
+        const user = req.user as any;
+        if (!user) {
+          return res.redirect("/login?error=google_auth_failed");
+        }
+        
+        const token = generateToken({ 
+          id: user.id, 
+          email: user.email, 
+          role: user.role, 
+          fullName: user.fullName 
+        });
+        
+        const { password: _, ...userWithoutPassword } = user;
+        const userJson = encodeURIComponent(JSON.stringify(userWithoutPassword));
+        
+        res.redirect(`/auth/callback?token=${token}&user=${userJson}`);
+      }
+    );
+  }
 
   app.get("/api/auth/me", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {

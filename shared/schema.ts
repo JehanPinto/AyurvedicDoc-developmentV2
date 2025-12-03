@@ -83,6 +83,7 @@ export const users = pgTable("users", {
   city: varchar("city", { length: 100 }),
   isEmailVerified: boolean("is_email_verified").default(false),
   isPhoneVerified: boolean("is_phone_verified").default(false),
+  googleId: varchar("google_id", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

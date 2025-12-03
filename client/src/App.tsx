@@ -12,6 +12,7 @@ import { UserRole } from "@shared/schema";
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
+import AuthCallbackPage from "@/pages/auth-callback";
 import DoctorsPage from "@/pages/doctors";
 import DoctorProfilePage from "@/pages/doctor-profile";
 import BookAppointmentPage from "@/pages/book-appointment";
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/auth/callback" component={AuthCallbackPage} />
       <Route path="/doctors" component={DoctorsPage} />
       <Route path="/doctors/:id" component={DoctorProfilePage} />
       <Route path="/book/:doctorId">
