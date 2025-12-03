@@ -478,6 +478,123 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/doctor/patients", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile) {
+        return res.status(404).json({ error: "Doctor profile not found" });
+      }
+      
+      const patients = await storage.getDoctorPatients(profile.id);
+      res.json(patients);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get patients" });
+    }
+  });
+
+  app.get("/api/doctor/reviews", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile) {
+        return res.status(404).json({ error: "Doctor profile not found" });
+      }
+      
+      const reviews = await storage.getDoctorReviews(profile.id);
+      res.json(reviews);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get reviews" });
+    }
+  });
+
+  app.patch("/api/doctor/reviews/:id/respond", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { response } = req.body;
+      if (!response || typeof response !== 'string') {
+        return res.status(400).json({ error: "Response is required" });
+      }
+      
+      const review = await storage.getReview(req.params.id);
+      if (!review) {
+        return res.status(404).json({ error: "Review not found" });
+      }
+      
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile || review.doctorId !== profile.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      
+      const updatedReview = await storage.respondToReview(req.params.id, response);
+      res.json(updatedReview);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to respond to review" });
+    }
+  });
+
+  app.get("/api/doctor/earnings", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile) {
+        return res.status(404).json({ error: "Doctor profile not found" });
+      }
+      
+      const summary = await storage.getDoctorEarningsSummary(profile.id);
+      const payments = await storage.getDoctorPayments(profile.id);
+      
+      res.json({ summary, payments });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get earnings" });
+    }
+  });
+
+  app.patch("/api/doctor/appointments/:id/call", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const appointment = await storage.getAppointment(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile || appointment.doctorId !== profile.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      
+      const updated = await storage.markAppointmentAsCalled(req.params.id);
+      
+      if (updated) {
+        await storage.createNotification({
+          userId: updated.patientId,
+          title: "You're Being Called",
+          message: "The doctor is ready for you. Please proceed to the consultation room.",
+          type: "appointment",
+          relatedId: updated.id,
+        });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark appointment as called" });
+    }
+  });
+
+  app.patch("/api/doctor/appointments/:id/no-show", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const appointment = await storage.getAppointment(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile || appointment.doctorId !== profile.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      
+      const updated = await storage.markAppointmentNoShow(req.params.id);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to mark appointment as no-show" });
+    }
+  });
+
   app.post("/api/appointments", authMiddleware, roleMiddleware(UserRole.PATIENT), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const bookingData = bookingSchema.parse(req.body);

@@ -104,6 +104,22 @@ export interface IStorage {
 
   getAllAppointments(): Promise<AppointmentWithDetails[]>;
   getAllPayments(): Promise<(Payment & { appointment?: AppointmentWithDetails })[]>;
+
+  getDoctorPatients(doctorId: string): Promise<{ patient: User; lastVisit: string; totalVisits: number; appointments: AppointmentWithDetails[] }[]>;
+  getDoctorPayments(doctorId: string): Promise<(Payment & { appointment?: AppointmentWithDetails })[]>;
+  getDoctorEarningsSummary(doctorId: string): Promise<{
+    totalEarnings: number;
+    pendingEarnings: number;
+    completedPayments: number;
+    pendingPayments: number;
+    thisMonthEarnings: number;
+    lastMonthEarnings: number;
+  }>;
+  respondToReview(reviewId: string, response: string): Promise<Review | undefined>;
+  markAppointmentAsCalled(appointmentId: string): Promise<Appointment | undefined>;
+  completeAppointment(appointmentId: string, consultationNotes?: string): Promise<Appointment | undefined>;
+  confirmAppointment(appointmentId: string): Promise<Appointment | undefined>;
+  markAppointmentNoShow(appointmentId: string): Promise<Appointment | undefined>;
 }
 
 export class MemStorage implements IStorage {

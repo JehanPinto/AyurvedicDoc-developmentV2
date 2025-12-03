@@ -231,6 +231,8 @@ export const reviews = pgTable("reviews", {
   doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
   rating: integer("rating").notNull(),
   comment: text("comment"),
+  doctorResponse: text("doctor_response"),
+  doctorRespondedAt: timestamp("doctor_responded_at"),
   isHidden: boolean("is_hidden").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -548,6 +550,8 @@ export type InsertReview = z.infer<typeof insertReviewSchema>;
 
 export interface Review extends InsertReview {
   id: string;
+  doctorResponse?: string;
+  doctorRespondedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
