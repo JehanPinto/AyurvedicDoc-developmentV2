@@ -560,6 +560,10 @@ export interface ReviewWithPatient extends Review {
   patient: User;
 }
 
+export interface ReviewWithDoctor extends Review {
+  doctor: DoctorWithDetails;
+}
+
 export const insertNotificationSchema = z.object({
   userId: z.string(),
   title: z.string(),

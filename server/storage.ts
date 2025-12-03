@@ -11,7 +11,7 @@ import {
   type Prescription, type InsertPrescription,
   type Review, type InsertReview,
   type Notification, type InsertNotification,
-  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient,
+  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
   type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
 } from "@shared/schema";
@@ -88,6 +88,7 @@ export interface IStorage {
   getReview(id: string): Promise<Review | undefined>;
   getReviewByAppointment(appointmentId: string): Promise<Review | undefined>;
   getDoctorReviews(doctorId: string): Promise<ReviewWithPatient[]>;
+  getPatientReviews(patientId: string): Promise<ReviewWithDoctor[]>;
   createReview(review: InsertReview): Promise<Review>;
   updateReview(id: string, updates: Partial<InsertReview>): Promise<Review | undefined>;
   hideReview(id: string): Promise<Review | undefined>;
@@ -814,6 +815,21 @@ export class MemStorage implements IStorage {
       const patient = await this.getUser(review.patientId);
       if (patient) {
         detailed.push({ ...review, patient });
+      }
+    }
+    return detailed;
+  }
+
+  async getPatientReviews(patientId: string): Promise<ReviewWithDoctor[]> {
+    const reviews = Array.from(this.reviews.values())
+      .filter(r => r.patientId === patientId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const detailed: ReviewWithDoctor[] = [];
+    for (const review of reviews) {
+      const doctor = await this.getDoctorWithDetails(review.doctorId);
+      if (doctor) {
+        detailed.push({ ...review, doctor });
       }
     }
     return detailed;

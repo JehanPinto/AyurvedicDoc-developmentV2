@@ -901,6 +901,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/patient/reviews", authMiddleware, roleMiddleware(UserRole.PATIENT), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const reviews = await storage.getPatientReviews(req.user!.id);
+      res.json(reviews);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get reviews" });
+    }
+  });
+
   app.get("/api/notifications", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const notifications = await storage.getUserNotifications(req.user!.id);

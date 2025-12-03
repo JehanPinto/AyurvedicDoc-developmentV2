@@ -14,7 +14,7 @@ import {
   type Prescription, type InsertPrescription,
   type Review, type InsertReview,
   type Notification, type InsertNotification,
-  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient,
+  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
   type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
 } from "@shared/schema";
@@ -611,6 +611,26 @@ export class DbStorage implements IStorage {
       }
     }
     return reviewsWithPatient;
+  }
+
+  async getPatientReviews(patientId: string): Promise<ReviewWithDoctor[]> {
+    const result = await db.select().from(reviews)
+      .where(eq(reviews.patientId, patientId))
+      .orderBy(desc(reviews.createdAt));
+    
+    const reviewsWithDoctor: ReviewWithDoctor[] = [];
+    for (const r of result) {
+      const doctor = await this.getDoctorWithDetails(r.doctorId);
+      if (doctor) {
+        reviewsWithDoctor.push({
+          ...r,
+          createdAt: toISOString(r.createdAt),
+          updatedAt: toISOString(r.updatedAt),
+          doctor,
+        } as ReviewWithDoctor);
+      }
+    }
+    return reviewsWithDoctor;
   }
 
   async createReview(review: InsertReview): Promise<Review> {
