@@ -38,6 +38,12 @@ The platform supports multilingual content (English, Sinhala, Tamil) and handles
 - **Reviews Management** (/doctor/reviews): View patient reviews with ratings, respond to reviews, filter by rating/response status
 - **Earnings Overview** (/doctor/earnings): Total/pending earnings, monthly breakdown, payment history with filters, export functionality
 
+### Patient Dashboard Features (Completed)
+- **Dashboard** (/patient): Overview with stats (upcoming/completed appointments, prescriptions, total spent), upcoming and recent appointments
+- **Appointments** (/patient/appointments): View all appointments with status filters, appointment details
+- **My Reviews** (/patient/reviews): View reviews written for doctors, rating summary, edit/delete reviews, see doctor responses
+- **Settings** (/patient/settings): Profile management (name, phone, address, language), password change, notification preferences (email/SMS toggles)
+
 ### In Progress / Pending
 - Video consultation integration
 - Payment gateway integration (UI ready, needs Stripe integration)
