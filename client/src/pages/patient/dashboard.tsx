@@ -8,7 +8,8 @@ import {
   ArrowRight,
   Video,
   Building2,
-  Plus
+  Plus,
+  AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,81 +19,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingPage } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth-context";
-import type { AppointmentWithDetails, PatientDashboardStats } from "@shared/schema";
+import type { PatientDashboardStats, AppointmentWithDetails } from "@shared/schema";
 
-const mockStats: PatientDashboardStats = {
-  upcomingAppointments: 2,
-  completedAppointments: 8,
-  totalSpent: 18500,
-  prescriptionsCount: 5,
-};
-
-const mockUpcomingAppointments: Partial<AppointmentWithDetails>[] = [
-  {
-    id: "1",
-    appointmentDate: "2024-12-05",
-    appointmentTime: "10:00",
-    consultationType: "in_person",
-    status: "confirmed",
-    doctor: {
-      id: "d1",
-      user: { fullName: "Ananda Perera" },
-      specializations: [{ name: "Panchakarma" }],
-      hospitals: [{ name: "Ayurveda Wellness Center", city: "Colombo" }],
-    } as any,
-  },
-  {
-    id: "2",
-    appointmentDate: "2024-12-08",
-    appointmentTime: "14:30",
-    consultationType: "online",
-    status: "confirmed",
-    doctor: {
-      id: "d2",
-      user: { fullName: "Kumari Silva" },
-      specializations: [{ name: "Women's Health" }],
-    } as any,
-  },
-];
-
-const mockRecentAppointments: Partial<AppointmentWithDetails>[] = [
-  {
-    id: "3",
-    appointmentDate: "2024-11-20",
-    appointmentTime: "09:30",
-    consultationType: "in_person",
-    status: "completed",
-    doctor: {
-      id: "d1",
-      user: { fullName: "Ananda Perera" },
-      specializations: [{ name: "Panchakarma" }],
-    } as any,
-  },
-  {
-    id: "4",
-    appointmentDate: "2024-11-15",
-    appointmentTime: "11:00",
-    consultationType: "online",
-    status: "completed",
-    doctor: {
-      id: "d3",
-      user: { fullName: "Rajith Fernando" },
-      specializations: [{ name: "General Medicine" }],
-    } as any,
-  },
-];
+interface DashboardData {
+  stats: PatientDashboardStats;
+  upcomingAppointments: AppointmentWithDetails[];
+  recentAppointments: AppointmentWithDetails[];
+}
 
 export default function PatientDashboard() {
   const { user } = useAuth();
 
-  const { data: stats, isLoading: statsLoading } = useQuery<PatientDashboardStats>({
-    queryKey: ["/api/patient/stats"],
-    queryFn: async () => mockStats,
-  });
-
-  const { data: upcomingAppointments, isLoading: appointmentsLoading } = useQuery({
-    queryKey: ["/api/patient/appointments/upcoming"],
-    queryFn: async () => mockUpcomingAppointments,
+  const { data: dashboardData, isLoading, isError } = useQuery<DashboardData>({
+    queryKey: ["/api/patient/dashboard"],
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
   const formatFee = (fee: number) => {
@@ -104,12 +45,27 @@ export default function PatientDashboard() {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return "DR";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  if (statsLoading) {
+  if (isLoading) {
     return <LoadingPage message="Loading dashboard..." />;
   }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <p className="text-muted-foreground">Failed to load dashboard. Please try again.</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  const stats = dashboardData?.stats || { upcomingAppointments: 0, completedAppointments: 0, totalSpent: 0, prescriptionsCount: 0 };
+  const upcomingAppointments = dashboardData?.upcomingAppointments || [];
+  const recentAppointments = dashboardData?.recentAppointments || [];
 
   return (
     <div className="space-y-6">
@@ -138,7 +94,7 @@ export default function PatientDashboard() {
                 <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats?.upcomingAppointments}</p>
+                <p className="text-2xl font-bold">{stats.upcomingAppointments}</p>
                 <p className="text-xs text-muted-foreground">Upcoming</p>
               </div>
             </div>
@@ -151,7 +107,7 @@ export default function PatientDashboard() {
                 <Clock className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats?.completedAppointments}</p>
+                <p className="text-2xl font-bold">{stats.completedAppointments}</p>
                 <p className="text-xs text-muted-foreground">Completed</p>
               </div>
             </div>
@@ -164,7 +120,7 @@ export default function PatientDashboard() {
                 <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats?.prescriptionsCount}</p>
+                <p className="text-2xl font-bold">{stats.prescriptionsCount}</p>
                 <p className="text-xs text-muted-foreground">Prescriptions</p>
               </div>
             </div>
@@ -177,7 +133,7 @@ export default function PatientDashboard() {
                 <Star className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatFee(stats?.totalSpent || 0)}</p>
+                <p className="text-2xl font-bold">{formatFee(stats.totalSpent || 0)}</p>
                 <p className="text-xs text-muted-foreground">Total Spent</p>
               </div>
             </div>
@@ -189,7 +145,7 @@ export default function PatientDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle>Upcoming Appointments</CardTitle>
-            <Link href="/appointments">
+            <Link href="/patient/appointments">
               <Button variant="ghost" size="sm" className="gap-1">
                 View All
                 <ArrowRight className="h-4 w-4" />
@@ -197,15 +153,16 @@ export default function PatientDashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            {upcomingAppointments && upcomingAppointments.length > 0 ? (
+            {upcomingAppointments.length > 0 ? (
               <div className="space-y-4">
-                {upcomingAppointments.map((appointment) => (
+                {upcomingAppointments.slice(0, 3).map((appointment) => (
                   <div 
                     key={appointment.id}
                     className="flex items-center gap-4 p-4 rounded-lg border hover-elevate transition-all"
                     data-testid={`card-upcoming-appointment-${appointment.id}`}
                   >
                     <Avatar className="h-12 w-12 rounded-lg">
+                      <AvatarImage src={appointment.doctor?.user?.profileImage} />
                       <AvatarFallback className="rounded-lg bg-primary/10 text-primary">
                         {getInitials(appointment.doctor?.user?.fullName || "")}
                       </AvatarFallback>
@@ -215,11 +172,11 @@ export default function PatientDashboard() {
                         Dr. {appointment.doctor?.user?.fullName}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {appointment.doctor?.specializations?.[0]?.name}
+                        {appointment.doctor?.specializations?.[0]?.name || "Specialist"}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <Badge variant="outline" className="text-xs">
-                          {format(new Date(appointment.appointmentDate!), "MMM d")} at {appointment.appointmentTime}
+                          {format(new Date(appointment.appointmentDate), "MMM d")} at {appointment.appointmentTime}
                         </Badge>
                         {appointment.consultationType === "online" ? (
                           <Badge variant="secondary" className="text-xs gap-1">
@@ -235,7 +192,7 @@ export default function PatientDashboard() {
                       </div>
                     </div>
                     <div className="shrink-0">
-                      <StatusBadge status={appointment.status!} type="appointment" />
+                      <StatusBadge status={appointment.status} type="appointment" />
                     </div>
                   </div>
                 ))}
@@ -257,7 +214,7 @@ export default function PatientDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle>Recent Activity</CardTitle>
-            <Link href="/records">
+            <Link href="/patient/appointments">
               <Button variant="ghost" size="sm" className="gap-1">
                 View Records
                 <ArrowRight className="h-4 w-4" />
@@ -265,14 +222,15 @@ export default function PatientDashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            {mockRecentAppointments.length > 0 ? (
+            {recentAppointments.length > 0 ? (
               <div className="space-y-4">
-                {mockRecentAppointments.map((appointment) => (
+                {recentAppointments.slice(0, 3).map((appointment) => (
                   <div 
                     key={appointment.id}
                     className="flex items-center gap-4 p-4 rounded-lg border"
                   >
                     <Avatar className="h-12 w-12 rounded-lg">
+                      <AvatarImage src={appointment.doctor?.user?.profileImage} />
                       <AvatarFallback className="rounded-lg bg-muted">
                         {getInitials(appointment.doctor?.user?.fullName || "")}
                       </AvatarFallback>
@@ -282,13 +240,13 @@ export default function PatientDashboard() {
                         Dr. {appointment.doctor?.user?.fullName}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {appointment.doctor?.specializations?.[0]?.name}
+                        {appointment.doctor?.specializations?.[0]?.name || "Specialist"}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(appointment.appointmentDate!), "MMM d, yyyy")}
+                        {format(new Date(appointment.appointmentDate), "MMM d, yyyy")}
                       </p>
                     </div>
-                    <StatusBadge status={appointment.status!} type="appointment" />
+                    <StatusBadge status={appointment.status} type="appointment" />
                   </div>
                 ))}
               </div>
@@ -314,19 +272,19 @@ export default function PatientDashboard() {
                 <span>Find Doctors</span>
               </Button>
             </Link>
-            <Link href="/appointments">
+            <Link href="/patient/appointments">
               <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
                 <Clock className="h-6 w-6" />
                 <span>My Appointments</span>
               </Button>
             </Link>
-            <Link href="/records">
+            <Link href="/patient/prescriptions">
               <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
                 <FileText className="h-6 w-6" />
-                <span>Medical Records</span>
+                <span>Prescriptions</span>
               </Button>
             </Link>
-            <Link href="/settings">
+            <Link href="/patient/reviews">
               <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
                 <Star className="h-6 w-6" />
                 <span>My Reviews</span>

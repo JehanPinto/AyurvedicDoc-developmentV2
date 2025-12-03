@@ -18,83 +18,24 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { LoadingPage } from "@/components/ui/loading-spinner";
 import { useAuth } from "@/lib/auth-context";
-import type { AdminDashboardStats } from "@shared/schema";
+import type { AdminDashboardStats, DoctorWithDetails } from "@shared/schema";
 
-const mockStats: AdminDashboardStats = {
-  totalPatients: 5420,
-  totalDoctors: 156,
-  verifiedDoctors: 142,
-  pendingDoctors: 14,
-  totalAppointments: 18750,
-  todayAppointments: 245,
-  totalRevenue: 4250000,
-  platformEarnings: 425000,
-};
-
-const mockPendingDoctors = [
-  {
-    id: "d1",
-    fullName: "Dr. Nimal Jayasuriya",
-    email: "nimal@example.com",
-    specialization: "Panchakarma",
-    registrationNumber: "AYU-2024-001",
-    submittedAt: "2024-12-01",
-  },
-  {
-    id: "d2",
-    fullName: "Dr. Kamini Wijesekara",
-    email: "kamini@example.com",
-    specialization: "Women's Health",
-    registrationNumber: "AYU-2024-002",
-    submittedAt: "2024-11-30",
-  },
-  {
-    id: "d3",
-    fullName: "Dr. Suresh Kumar",
-    email: "suresh@example.com",
-    specialization: "General Medicine",
-    registrationNumber: "AYU-2024-003",
-    submittedAt: "2024-11-29",
-  },
-];
-
-const mockRecentActivity = [
-  {
-    id: "1",
-    type: "doctor_verified",
-    message: "Dr. Ananda Perera was verified",
-    time: "2 hours ago",
-  },
-  {
-    id: "2",
-    type: "appointment_completed",
-    message: "45 appointments completed today",
-    time: "3 hours ago",
-  },
-  {
-    id: "3",
-    type: "new_doctor",
-    message: "New doctor registration from Kandy",
-    time: "5 hours ago",
-  },
-  {
-    id: "4",
-    type: "refund",
-    message: "Refund processed for appointment #12456",
-    time: "1 day ago",
-  },
-];
+interface DashboardData {
+  stats: AdminDashboardStats;
+  pendingDoctors: DoctorWithDetails[];
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth();
 
-  const { data: stats, isLoading } = useQuery<AdminDashboardStats>({
-    queryKey: ["/api/admin/stats"],
-    queryFn: async () => mockStats,
+  const { data: dashboardData, isLoading, isError } = useQuery<DashboardData>({
+    queryKey: ["/api/admin/dashboard"],
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
   const formatFee = (fee: number) => {
@@ -107,6 +48,7 @@ export default function AdminDashboard() {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return "DR";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
@@ -114,7 +56,30 @@ export default function AdminDashboard() {
     return <LoadingPage message="Loading dashboard..." />;
   }
 
-  const verificationRate = stats 
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <p className="text-muted-foreground">Failed to load dashboard. Please try again.</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  const stats = dashboardData?.stats || {
+    totalPatients: 0,
+    totalDoctors: 0,
+    verifiedDoctors: 0,
+    pendingDoctors: 0,
+    totalAppointments: 0,
+    todayAppointments: 0,
+    totalRevenue: 0,
+    platformEarnings: 0,
+  };
+
+  const pendingDoctors = dashboardData?.pendingDoctors || [];
+
+  const verificationRate = stats.totalDoctors > 0
     ? Math.round((stats.verifiedDoctors / stats.totalDoctors) * 100) 
     : 0;
 
@@ -129,11 +94,11 @@ export default function AdminDashboard() {
             {format(new Date(), "EEEE, MMMM d, yyyy")}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link href="/admin/doctors/pending">
             <Button variant="outline">
               <Clock className="h-4 w-4 mr-2" />
-              Pending: {stats?.pendingDoctors}
+              Pending: {stats.pendingDoctors}
             </Button>
           </Link>
           <Link href="/admin/reports">
@@ -151,10 +116,10 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Patients</p>
-                <p className="text-2xl font-bold">{stats?.totalPatients.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{stats.totalPatients.toLocaleString()}</p>
                 <p className="text-xs text-green-600 flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" />
-                  +12% this month
+                  Registered users
                 </p>
               </div>
               <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30">
@@ -168,9 +133,9 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Doctors</p>
-                <p className="text-2xl font-bold">{stats?.totalDoctors}</p>
+                <p className="text-2xl font-bold">{stats.totalDoctors}</p>
                 <p className="text-xs text-muted-foreground">
-                  {stats?.verifiedDoctors} verified
+                  {stats.verifiedDoctors} verified
                 </p>
               </div>
               <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30">
@@ -184,9 +149,9 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Today's Appointments</p>
-                <p className="text-2xl font-bold">{stats?.todayAppointments}</p>
+                <p className="text-2xl font-bold">{stats.todayAppointments}</p>
                 <p className="text-xs text-muted-foreground">
-                  {stats?.totalAppointments.toLocaleString()} total
+                  {stats.totalAppointments.toLocaleString()} total
                 </p>
               </div>
               <div className="p-3 rounded-full bg-purple-100 dark:bg-purple-900/30">
@@ -200,10 +165,9 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Platform Revenue</p>
-                <p className="text-2xl font-bold">{formatFee(stats?.platformEarnings || 0)}</p>
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" />
-                  +8% this month
+                <p className="text-2xl font-bold">{formatFee(stats.platformEarnings)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Total: {formatFee(stats.totalRevenue)}
                 </p>
               </div>
               <div className="p-3 rounded-full bg-amber-100 dark:bg-amber-900/30">
@@ -221,53 +185,63 @@ export default function AdminDashboard() {
               <Clock className="h-5 w-5 text-amber-500" />
               Pending Doctor Verifications
             </CardTitle>
-            <Badge variant="secondary">{stats?.pendingDoctors} pending</Badge>
+            <Badge variant="secondary">{stats.pendingDoctors} pending</Badge>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockPendingDoctors.map((doctor) => (
-                <div 
-                  key={doctor.id}
-                  className="flex items-center gap-4 p-4 rounded-lg border hover-elevate transition-all"
-                  data-testid={`card-pending-doctor-${doctor.id}`}
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      {getInitials(doctor.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium">{doctor.fullName}</p>
-                    <p className="text-sm text-muted-foreground">{doctor.specialization}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
-                        {doctor.registrationNumber}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        Submitted: {format(new Date(doctor.submittedAt), "MMM d, yyyy")}
-                      </span>
+            {pendingDoctors.length > 0 ? (
+              <div className="space-y-4">
+                {pendingDoctors.slice(0, 3).map((doctor) => (
+                  <div 
+                    key={doctor.id}
+                    className="flex items-center gap-4 p-4 rounded-lg border hover-elevate transition-all"
+                    data-testid={`card-pending-doctor-${doctor.id}`}
+                  >
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={doctor.user?.profileImage} />
+                      <AvatarFallback className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        {getInitials(doctor.user?.fullName || "")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">{doctor.user?.fullName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {doctor.specializations?.map(s => s.name).join(", ") || "General"}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge variant="outline" className="text-xs">
+                          {doctor.registrationNumber}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Applied: {format(new Date(doctor.createdAt), "MMM d, yyyy")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button size="sm" variant="outline" className="text-destructive">
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm">
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Verify
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-destructive">
-                      <XCircle className="h-4 w-4" />
+                ))}
+                {stats.pendingDoctors > 3 && (
+                  <Link href="/admin/doctors/pending">
+                    <Button variant="outline" className="w-full">
+                      View All Pending ({stats.pendingDoctors})
+                      <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
-                    <Button size="sm">
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Verify
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {stats?.pendingDoctors && stats.pendingDoctors > 3 && (
-                <Link href="/admin/doctors/pending">
-                  <Button variant="outline" className="w-full">
-                    View All Pending ({stats.pendingDoctors})
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </Link>
-              )}
-            </div>
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-3" />
+                <p className="text-muted-foreground">All doctors have been verified</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -285,11 +259,11 @@ export default function AdminDashboard() {
                 <Progress value={verificationRate} className="h-3" />
                 <div className="grid grid-cols-2 gap-4 text-center">
                   <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
-                    <p className="text-xl font-bold text-green-600">{stats?.verifiedDoctors}</p>
+                    <p className="text-xl font-bold text-green-600">{stats.verifiedDoctors}</p>
                     <p className="text-xs text-green-600">Verified</p>
                   </div>
                   <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20">
-                    <p className="text-xl font-bold text-amber-600">{stats?.pendingDoctors}</p>
+                    <p className="text-xl font-bold text-amber-600">{stats.pendingDoctors}</p>
                     <p className="text-xs text-amber-600">Pending</p>
                   </div>
                 </div>
@@ -301,30 +275,47 @@ export default function AdminDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
-                Recent Activity
+                Platform Overview
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockRecentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-3">
-                    <div className={`p-1.5 rounded-full shrink-0 ${
-                      activity.type === "doctor_verified" ? "bg-green-100 dark:bg-green-900/30" :
-                      activity.type === "new_doctor" ? "bg-blue-100 dark:bg-blue-900/30" :
-                      activity.type === "refund" ? "bg-amber-100 dark:bg-amber-900/30" :
-                      "bg-purple-100 dark:bg-purple-900/30"
-                    }`}>
-                      {activity.type === "doctor_verified" && <CheckCircle className="h-3 w-3 text-green-600" />}
-                      {activity.type === "new_doctor" && <UserPlus className="h-3 w-3 text-blue-600" />}
-                      {activity.type === "refund" && <DollarSign className="h-3 w-3 text-amber-600" />}
-                      {activity.type === "appointment_completed" && <Calendar className="h-3 w-3 text-purple-600" />}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-full bg-green-100 dark:bg-green-900/30">
+                      <CheckCircle className="h-3 w-3 text-green-600" />
                     </div>
-                    <div>
-                      <p className="text-sm">{activity.message}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time}</p>
-                    </div>
+                    <span className="text-sm">Verified Doctors</span>
                   </div>
-                ))}
+                  <span className="font-medium">{stats.verifiedDoctors}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                      <Users className="h-3 w-3 text-blue-600" />
+                    </div>
+                    <span className="text-sm">Total Patients</span>
+                  </div>
+                  <span className="font-medium">{stats.totalPatients}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                      <Calendar className="h-3 w-3 text-purple-600" />
+                    </div>
+                    <span className="text-sm">Appointments Today</span>
+                  </div>
+                  <span className="font-medium">{stats.todayAppointments}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30">
+                      <DollarSign className="h-3 w-3 text-amber-600" />
+                    </div>
+                    <span className="text-sm">Total Bookings</span>
+                  </div>
+                  <span className="font-medium">{stats.totalAppointments}</span>
+                </div>
               </div>
             </CardContent>
           </Card>

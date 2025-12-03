@@ -48,16 +48,19 @@ export default function LoginPage() {
         description: "You have successfully logged in.",
       });
       
-      switch (data.user.role) {
-        case UserRole.ADMIN:
-          setLocation("/admin");
-          break;
-        case UserRole.DOCTOR:
-          setLocation("/doctor");
-          break;
-        default:
-          setLocation("/patient");
-      }
+      // Use setTimeout to ensure state is updated before navigation
+      setTimeout(() => {
+        switch (data.user.role) {
+          case UserRole.ADMIN:
+            setLocation("/admin");
+            break;
+          case UserRole.DOCTOR:
+            setLocation("/doctor");
+            break;
+          default:
+            setLocation("/patient");
+        }
+      }, 100);
     },
     onError: (error: Error) => {
       toast({

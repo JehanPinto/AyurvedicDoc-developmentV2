@@ -17,103 +17,26 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { LoadingPage } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth-context";
 import type { DoctorDashboardStats, AppointmentWithDetails } from "@shared/schema";
 
-const mockStats: DoctorDashboardStats = {
-  todayAppointments: 5,
-  upcomingAppointments: 12,
-  completedAppointments: 156,
-  totalEarnings: 385000,
-  pendingEarnings: 25000,
-  averageRating: 4.9,
-  totalReviews: 128,
-  currentQueueNumber: 3,
-};
-
-const mockTodayAppointments: Partial<AppointmentWithDetails>[] = [
-  {
-    id: "1",
-    appointmentTime: "09:00",
-    consultationType: "in_person",
-    status: "confirmed",
-    symptoms: "Chronic back pain and fatigue",
-    queueNumber: 1,
-    patient: {
-      id: "p1",
-      fullName: "Sanduni Wickramasinghe",
-      phone: "+94771234567",
-      gender: "female",
-    } as any,
-  },
-  {
-    id: "2",
-    appointmentTime: "09:30",
-    consultationType: "in_person",
-    status: "confirmed",
-    symptoms: "Digestive issues",
-    queueNumber: 2,
-    patient: {
-      id: "p2",
-      fullName: "Mahesh Jayawardena",
-      phone: "+94772345678",
-      gender: "male",
-    } as any,
-  },
-  {
-    id: "3",
-    appointmentTime: "10:00",
-    consultationType: "online",
-    status: "confirmed",
-    symptoms: "Follow-up consultation for Panchakarma treatment",
-    queueNumber: 3,
-    patient: {
-      id: "p3",
-      fullName: "Priya Nanayakkara",
-      phone: "+94773456789",
-      gender: "female",
-    } as any,
-  },
-  {
-    id: "4",
-    appointmentTime: "10:30",
-    consultationType: "in_person",
-    status: "pending",
-    symptoms: "Stress and anxiety",
-    queueNumber: 4,
-    patient: {
-      id: "p4",
-      fullName: "Kasun Fernando",
-      phone: "+94774567890",
-      gender: "male",
-    } as any,
-  },
-  {
-    id: "5",
-    appointmentTime: "14:00",
-    consultationType: "online",
-    status: "confirmed",
-    symptoms: "Skin allergy consultation",
-    queueNumber: 5,
-    patient: {
-      id: "p5",
-      fullName: "Dilani Perera",
-      phone: "+94775678901",
-      gender: "female",
-    } as any,
-  },
-];
+interface DashboardData {
+  stats: DoctorDashboardStats;
+  todayAppointments: AppointmentWithDetails[];
+  upcomingAppointments: AppointmentWithDetails[];
+}
 
 export default function DoctorDashboard() {
   const { user } = useAuth();
 
-  const { data: stats, isLoading } = useQuery<DoctorDashboardStats>({
-    queryKey: ["/api/doctor/stats"],
-    queryFn: async () => mockStats,
+  const { data: dashboardData, isLoading, isError } = useQuery<DashboardData>({
+    queryKey: ["/api/doctor/dashboard"],
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
   const formatFee = (fee: number) => {
@@ -125,12 +48,37 @@ export default function DoctorDashboard() {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return "PT";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
   if (isLoading) {
     return <LoadingPage message="Loading dashboard..." />;
   }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <p className="text-muted-foreground">Failed to load dashboard. Please try again.</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  const stats = dashboardData?.stats || { 
+    todayAppointments: 0, 
+    upcomingAppointments: 0, 
+    completedAppointments: 0, 
+    totalEarnings: 0, 
+    pendingEarnings: 0, 
+    averageRating: 0, 
+    totalReviews: 0, 
+    currentQueueNumber: 0 
+  };
+  const todayAppointments = dashboardData?.todayAppointments || [];
+
+  const monthlyGoalPercent = stats.totalEarnings > 0 ? Math.min(100, Math.round((stats.totalEarnings / 500000) * 100)) : 0;
 
   return (
     <div className="space-y-6">
@@ -143,17 +91,17 @@ export default function DoctorDashboard() {
             {format(new Date(), "EEEE, MMMM d, yyyy")}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link href="/doctor/schedule">
             <Button variant="outline">
               <Calendar className="h-4 w-4 mr-2" />
               Manage Schedule
             </Button>
           </Link>
-          <Link href="/doctor/queue">
+          <Link href="/doctor/appointments">
             <Button>
               <Users className="h-4 w-4 mr-2" />
-              Current Queue: {stats?.currentQueueNumber}
+              View Queue
             </Button>
           </Link>
         </div>
@@ -166,7 +114,7 @@ export default function DoctorDashboard() {
               <div>
                 <p className="text-sm text-blue-600 dark:text-blue-400">Today</p>
                 <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">
-                  {stats?.todayAppointments}
+                  {stats.todayAppointments}
                 </p>
                 <p className="text-xs text-blue-600 dark:text-blue-400">appointments</p>
               </div>
@@ -180,7 +128,7 @@ export default function DoctorDashboard() {
               <div>
                 <p className="text-sm text-green-600 dark:text-green-400">Completed</p>
                 <p className="text-3xl font-bold text-green-700 dark:text-green-300">
-                  {stats?.completedAppointments}
+                  {stats.completedAppointments}
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400">total</p>
               </div>
@@ -194,10 +142,10 @@ export default function DoctorDashboard() {
               <div>
                 <p className="text-sm text-amber-600 dark:text-amber-400">Rating</p>
                 <p className="text-3xl font-bold text-amber-700 dark:text-amber-300">
-                  {stats?.averageRating}
+                  {stats.averageRating.toFixed(1)}
                 </p>
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  ({stats?.totalReviews} reviews)
+                  ({stats.totalReviews} reviews)
                 </p>
               </div>
               <Star className="h-10 w-10 text-amber-500/50" />
@@ -210,9 +158,9 @@ export default function DoctorDashboard() {
               <div>
                 <p className="text-sm text-purple-600 dark:text-purple-400">Earnings</p>
                 <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                  {formatFee(stats?.totalEarnings || 0)}
+                  {formatFee(stats.totalEarnings)}
                 </p>
-                <p className="text-xs text-purple-600 dark:text-purple-400">this month</p>
+                <p className="text-xs text-purple-600 dark:text-purple-400">total</p>
               </div>
               <TrendingUp className="h-10 w-10 text-purple-500/50" />
             </div>
@@ -232,66 +180,74 @@ export default function DoctorDashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {mockTodayAppointments.map((appointment, index) => (
-                <div 
-                  key={appointment.id}
-                  className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
-                    index === stats?.currentQueueNumber! - 1 
-                      ? "bg-primary/5 border-primary" 
-                      : "hover-elevate"
-                  }`}
-                  data-testid={`card-appointment-${appointment.id}`}
-                >
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold">
-                    {appointment.queueNumber}
-                  </div>
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                      {getInitials(appointment.patient?.fullName || "")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium truncate">
-                        {appointment.patient?.fullName}
-                      </p>
-                      {index === stats?.currentQueueNumber! - 1 && (
-                        <Badge className="bg-primary">Current</Badge>
-                      )}
+            {todayAppointments.length > 0 ? (
+              <div className="space-y-3">
+                {todayAppointments.map((appointment, index) => (
+                  <div 
+                    key={appointment.id}
+                    className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                      index === 0 
+                        ? "bg-primary/5 border-primary" 
+                        : "hover-elevate"
+                    }`}
+                    data-testid={`card-appointment-${appointment.id}`}
+                  >
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold">
+                      {appointment.queueNumber || (index + 1)}
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {appointment.symptoms}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className="font-medium">{appointment.appointmentTime}</p>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        {appointment.consultationType === "online" ? (
-                          <>
-                            <Video className="h-3 w-3" />
-                            Online
-                          </>
-                        ) : (
-                          <>
-                            <Building2 className="h-3 w-3" />
-                            In Person
-                          </>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={appointment.patient?.profileImage} />
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                        {getInitials(appointment.patient?.fullName || "")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium truncate">
+                          {appointment.patient?.fullName}
+                        </p>
+                        {index === 0 && (
+                          <Badge className="bg-primary">Current</Badge>
                         )}
                       </div>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {appointment.symptoms}
+                      </p>
                     </div>
-                    {index === stats?.currentQueueNumber! - 1 ? (
-                      <Button size="sm">
-                        {appointment.consultationType === "online" ? "Start Call" : "Mark Called"}
-                      </Button>
-                    ) : (
-                      <StatusBadge status={appointment.status!} type="appointment" />
-                    )}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <p className="font-medium">{appointment.appointmentTime}</p>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          {appointment.consultationType === "online" ? (
+                            <>
+                              <Video className="h-3 w-3" />
+                              Online
+                            </>
+                          ) : (
+                            <>
+                              <Building2 className="h-3 w-3" />
+                              In Person
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {index === 0 ? (
+                        <Button size="sm">
+                          {appointment.consultationType === "online" ? "Start Call" : "Mark Called"}
+                        </Button>
+                      ) : (
+                        <StatusBadge status={appointment.status} type="appointment" />
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No appointments scheduled for today</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -306,20 +262,20 @@ export default function DoctorDashboard() {
             <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">Monthly Goal</span>
-                  <span className="text-sm font-medium">75%</span>
+                  <span className="text-sm text-muted-foreground">Monthly Goal (LKR 500,000)</span>
+                  <span className="text-sm font-medium">{monthlyGoalPercent}%</span>
                 </div>
-                <Progress value={75} className="h-2" />
+                <Progress value={monthlyGoalPercent} className="h-2" />
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total Earnings</span>
-                  <span className="font-medium">{formatFee(stats?.totalEarnings || 0)}</span>
+                  <span className="font-medium">{formatFee(stats.totalEarnings)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Pending Payout</span>
                   <span className="font-medium text-amber-600">
-                    {formatFee(stats?.pendingEarnings || 0)}
+                    {formatFee(stats.pendingEarnings)}
                   </span>
                 </div>
               </div>
@@ -342,10 +298,10 @@ export default function DoctorDashboard() {
                   Manage Schedule
                 </Button>
               </Link>
-              <Link href="/doctor/patients">
+              <Link href="/doctor/prescriptions">
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <Users className="h-4 w-4" />
-                  Patient Records
+                  Prescriptions
                 </Button>
               </Link>
               <Link href="/doctor/profile">
@@ -357,26 +313,28 @@ export default function DoctorDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20">
-            <CardContent className="p-4">
-              <div className="flex gap-3">
-                <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                    Pending Reviews
-                  </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
-                    You have 3 pending patient reviews to respond to.
-                  </p>
-                  <Link href="/doctor/reviews">
-                    <Button variant="link" size="sm" className="h-auto p-0 mt-2 text-amber-700">
-                      View Reviews
-                    </Button>
-                  </Link>
+          {stats.upcomingAppointments > 0 && (
+            <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
+              <CardContent className="p-4">
+                <div className="flex gap-3">
+                  <Clock className="h-5 w-5 text-blue-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                      Upcoming Appointments
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                      You have {stats.upcomingAppointments} upcoming appointments to manage.
+                    </p>
+                    <Link href="/doctor/appointments">
+                      <Button variant="link" size="sm" className="h-auto p-0 mt-2 text-blue-700">
+                        View Appointments
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { pgTable, text, varchar, boolean, integer, real, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 
 // ================== ENUMS ==================
 export const UserRole = {
@@ -62,7 +65,252 @@ export const Language = {
   TAMIL: "tamil",
 } as const;
 
-// ================== USER SCHEMA ==================
+// ================== DRIZZLE TABLES ==================
+
+export const users = pgTable("users", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  password: varchar("password", { length: 255 }).notNull(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("patient"),
+  nic: varchar("nic", { length: 20 }),
+  gender: varchar("gender", { length: 10 }),
+  dateOfBirth: varchar("date_of_birth", { length: 10 }),
+  preferredLanguages: text("preferred_languages").array().default(sql`ARRAY['english']::text[]`),
+  profileImage: text("profile_image"),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  isEmailVerified: boolean("is_email_verified").default(false),
+  isPhoneVerified: boolean("is_phone_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const specializations = pgTable("specializations", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  icon: varchar("icon", { length: 50 }),
+});
+
+export const hospitals = pgTable("hospitals", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  address: text("address").notNull(),
+  city: varchar("city", { length: 100 }).notNull(),
+  contactNumber: varchar("contact_number", { length: 20 }).notNull(),
+  email: varchar("email", { length: 255 }),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  parkingAvailable: boolean("parking_available").default(false),
+  directions: text("directions"),
+});
+
+export const doctorProfiles = pgTable("doctor_profiles", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 50 }).notNull().references(() => users.id),
+  registrationNumber: varchar("registration_number", { length: 50 }).notNull().unique(),
+  qualifications: text("qualifications").notNull(),
+  biography: text("biography"),
+  experienceYears: integer("experience_years").notNull().default(0),
+  specializationIds: text("specialization_ids").array().default(sql`ARRAY[]::text[]`),
+  languagesSpoken: text("languages_spoken").array().default(sql`ARRAY['english']::text[]`),
+  consultationTypes: text("consultation_types").array().default(sql`ARRAY['in_person']::text[]`),
+  hospitalIds: text("hospital_ids").array().default(sql`ARRAY[]::text[]`),
+  consultationFee: integer("consultation_fee").notNull().default(0),
+  onlineConsultationFee: integer("online_consultation_fee"),
+  homeVisitFee: integer("home_visit_fee"),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  verificationDocuments: text("verification_documents").array().default(sql`ARRAY[]::text[]`),
+  bankName: varchar("bank_name", { length: 100 }),
+  bankAccountNumber: varchar("bank_account_number", { length: 50 }),
+  bankBranch: varchar("bank_branch", { length: 100 }),
+  isAvailable: boolean("is_available").default(true),
+  maxAdvanceBookingDays: integer("max_advance_booking_days").default(30),
+  minBookingNoticeHours: integer("min_booking_notice_hours").default(2),
+  slotDurationMinutes: integer("slot_duration_minutes").default(30),
+  bufferTimeMinutes: integer("buffer_time_minutes").default(10),
+  averageRating: real("average_rating").default(0),
+  totalReviews: integer("total_reviews").default(0),
+  totalAppointments: integer("total_appointments").default(0),
+  currentQueueNumber: integer("current_queue_number").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const doctorSchedules = pgTable("doctor_schedules", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  hospitalId: varchar("hospital_id", { length: 50 }),
+  dayOfWeek: varchar("day_of_week", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  consultationType: varchar("consultation_type", { length: 20 }).notNull(),
+  isActive: boolean("is_active").default(true),
+});
+
+export const appointmentSlots = pgTable("appointment_slots", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  hospitalId: varchar("hospital_id", { length: 50 }),
+  date: varchar("date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  consultationType: varchar("consultation_type", { length: 20 }).notNull(),
+  isBooked: boolean("is_booked").default(false),
+  isBlocked: boolean("is_blocked").default(false),
+});
+
+export const appointments = pgTable("appointments", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  slotId: varchar("slot_id", { length: 50 }).notNull().references(() => appointmentSlots.id),
+  hospitalId: varchar("hospital_id", { length: 50 }),
+  appointmentDate: varchar("appointment_date", { length: 10 }).notNull(),
+  appointmentTime: varchar("appointment_time", { length: 5 }).notNull(),
+  consultationType: varchar("consultation_type", { length: 20 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  symptoms: text("symptoms").notNull(),
+  queueNumber: integer("queue_number"),
+  isCalled: boolean("is_called").default(false),
+  isForDependent: boolean("is_for_dependent").default(false),
+  dependentName: varchar("dependent_name", { length: 255 }),
+  dependentAge: integer("dependent_age"),
+  dependentGender: varchar("dependent_gender", { length: 10 }),
+  dependentContact: varchar("dependent_contact", { length: 20 }),
+  consultationNotes: text("consultation_notes"),
+  videoSessionId: varchar("video_session_id", { length: 100 }),
+  cancelReason: text("cancel_reason"),
+  cancelledBy: varchar("cancelled_by", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const payments = pgTable("payments", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  appointmentId: varchar("appointment_id", { length: 50 }).notNull().references(() => appointments.id),
+  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  consultationFee: integer("consultation_fee").notNull(),
+  bookingCharges: integer("booking_charges").default(0),
+  tax: integer("tax").default(0),
+  platformCommission: integer("platform_commission").default(0),
+  doctorEarnings: integer("doctor_earnings").notNull(),
+  totalAmount: integer("total_amount").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  method: varchar("method", { length: 20 }).notNull(),
+  transactionId: varchar("transaction_id", { length: 100 }),
+  refundAmount: integer("refund_amount"),
+  refundReason: text("refund_reason"),
+  refundDate: varchar("refund_date", { length: 10 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const prescriptions = pgTable("prescriptions", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  appointmentId: varchar("appointment_id", { length: 50 }).notNull().references(() => appointments.id),
+  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  diagnosis: text("diagnosis").notNull(),
+  medications: jsonb("medications").notNull().default(sql`'[]'::jsonb`),
+  treatments: text("treatments").array().default(sql`ARRAY[]::text[]`),
+  dietaryAdvice: text("dietary_advice"),
+  lifestyleAdvice: text("lifestyle_advice"),
+  followUpDate: varchar("follow_up_date", { length: 10 }),
+  additionalNotes: text("additional_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const reviews = pgTable("reviews", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  appointmentId: varchar("appointment_id", { length: 50 }).notNull().references(() => appointments.id),
+  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  isHidden: boolean("is_hidden").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 50 }).notNull().references(() => users.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  type: varchar("type", { length: 20 }).notNull(),
+  isRead: boolean("is_read").default(false),
+  relatedId: varchar("related_id", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ================== DRIZZLE INSERT SCHEMAS ==================
+
+export const insertUserSchemaDb = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSpecializationSchemaDb = createInsertSchema(specializations).omit({
+  id: true,
+});
+
+export const insertHospitalSchemaDb = createInsertSchema(hospitals).omit({
+  id: true,
+});
+
+export const insertDoctorProfileSchemaDb = createInsertSchema(doctorProfiles).omit({
+  id: true,
+  averageRating: true,
+  totalReviews: true,
+  totalAppointments: true,
+  currentQueueNumber: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDoctorScheduleSchemaDb = createInsertSchema(doctorSchedules).omit({
+  id: true,
+});
+
+export const insertAppointmentSlotSchemaDb = createInsertSchema(appointmentSlots).omit({
+  id: true,
+});
+
+export const insertAppointmentSchemaDb = createInsertSchema(appointments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPaymentSchemaDb = createInsertSchema(payments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPrescriptionSchemaDb = createInsertSchema(prescriptions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertReviewSchemaDb = createInsertSchema(reviews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertNotificationSchemaDb = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
+// ================== ZOD VALIDATION SCHEMAS (for API) ==================
+
 export const insertUserSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -88,7 +336,6 @@ export interface User extends InsertUser {
   updatedAt: string;
 }
 
-// ================== SPECIALIZATION SCHEMA ==================
 export const insertSpecializationSchema = z.object({
   name: z.string().min(2, "Specialization name required"),
   description: z.string().optional(),
@@ -101,7 +348,6 @@ export interface Specialization extends InsertSpecialization {
   id: string;
 }
 
-// ================== HOSPITAL/CLINIC SCHEMA ==================
 export const insertHospitalSchema = z.object({
   name: z.string().min(2, "Hospital name required"),
   address: z.string().min(5, "Address required"),
@@ -120,7 +366,6 @@ export interface Hospital extends InsertHospital {
   id: string;
 }
 
-// ================== DOCTOR PROFILE SCHEMA ==================
 export const insertDoctorProfileSchema = z.object({
   userId: z.string(),
   registrationNumber: z.string().min(5, "Registration number required"),
@@ -158,19 +403,17 @@ export interface DoctorProfile extends InsertDoctorProfile {
   updatedAt: string;
 }
 
-// Extended doctor with user info for display
 export interface DoctorWithDetails extends DoctorProfile {
   user: User;
   specializations: Specialization[];
   hospitals: Hospital[];
 }
 
-// ================== DOCTOR SCHEDULE SCHEMA ==================
 export const insertDoctorScheduleSchema = z.object({
   doctorId: z.string(),
   hospitalId: z.string().optional(),
   dayOfWeek: z.enum([DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY]),
-  startTime: z.string(), // HH:mm format
+  startTime: z.string(),
   endTime: z.string(),
   consultationType: z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT]),
   isActive: z.boolean().default(true),
@@ -182,12 +425,11 @@ export interface DoctorSchedule extends InsertDoctorSchedule {
   id: string;
 }
 
-// ================== APPOINTMENT SLOT SCHEMA ==================
 export const insertAppointmentSlotSchema = z.object({
   doctorId: z.string(),
   hospitalId: z.string().optional(),
-  date: z.string(), // YYYY-MM-DD format
-  startTime: z.string(), // HH:mm format
+  date: z.string(),
+  startTime: z.string(),
   endTime: z.string(),
   consultationType: z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT]),
   isBooked: z.boolean().default(false),
@@ -200,7 +442,6 @@ export interface AppointmentSlot extends InsertAppointmentSlot {
   id: string;
 }
 
-// ================== APPOINTMENT SCHEMA ==================
 export const insertAppointmentSchema = z.object({
   patientId: z.string(),
   doctorId: z.string(),
@@ -232,7 +473,6 @@ export interface Appointment extends InsertAppointment {
   updatedAt: string;
 }
 
-// Extended appointment with related data
 export interface AppointmentWithDetails extends Appointment {
   patient: User;
   doctor: DoctorWithDetails;
@@ -243,7 +483,6 @@ export interface AppointmentWithDetails extends Appointment {
   review?: Review;
 }
 
-// ================== PAYMENT SCHEMA ==================
 export const insertPaymentSchema = z.object({
   appointmentId: z.string(),
   patientId: z.string(),
@@ -270,7 +509,6 @@ export interface Payment extends InsertPayment {
   updatedAt: string;
 }
 
-// ================== PRESCRIPTION SCHEMA ==================
 export const insertPrescriptionSchema = z.object({
   appointmentId: z.string(),
   patientId: z.string(),
@@ -297,7 +535,6 @@ export interface Prescription extends InsertPrescription {
   createdAt: string;
 }
 
-// ================== REVIEW SCHEMA ==================
 export const insertReviewSchema = z.object({
   appointmentId: z.string(),
   patientId: z.string(),
@@ -315,12 +552,10 @@ export interface Review extends InsertReview {
   updatedAt: string;
 }
 
-// Extended review with patient info
 export interface ReviewWithPatient extends Review {
   patient: User;
 }
 
-// ================== NOTIFICATION SCHEMA ==================
 export const insertNotificationSchema = z.object({
   userId: z.string(),
   title: z.string(),

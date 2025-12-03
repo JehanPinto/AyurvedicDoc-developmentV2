@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { randomUUID } from "crypto";
 import { createHash } from "crypto";
+import bcrypt from "bcrypt";
 import {
   insertUserSchema, loginSchema, insertDoctorProfileSchema,
   insertAppointmentSchema, insertPaymentSchema, insertPrescriptionSchema,
@@ -50,12 +51,12 @@ function verifyToken(token: string): { id: string; email: string; role: string; 
   }
 }
 
-function hashPassword(password: string): string {
-  return createHash("sha256").update(password + JWT_SECRET).digest("hex");
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10);
 }
 
-function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
 }
 
 function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -98,7 +99,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email already registered" });
       }
       
-      const hashedPassword = hashPassword(data.password);
+      const hashedPassword = await hashPassword(data.password);
       const user = await storage.createUser({ ...data, password: hashedPassword });
       
       const token = generateToken({ id: user.id, email: user.email, role: user.role, fullName: user.fullName });
@@ -122,7 +123,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email already registered" });
       }
       
-      const hashedPassword = hashPassword(userData.password);
+      const hashedPassword = await hashPassword(userData.password);
       const user = await storage.createUser({ ...userData, password: hashedPassword });
       
       const doctorData = insertDoctorProfileSchema.parse({
@@ -156,7 +157,7 @@ export async function registerRoutes(
       const { email, password } = loginSchema.parse(req.body);
       
       const user = await storage.getUserByEmail(email);
-      if (!user || !verifyPassword(password, user.password)) {
+      if (!user || !(await verifyPassword(password, user.password))) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
       
@@ -458,7 +459,20 @@ export async function registerRoutes(
       }
       
       const stats = await storage.getDoctorDashboardStats(profile.id);
-      res.json(stats);
+      const today = new Date().toISOString().split('T')[0];
+      const todayAppointments = await storage.getDoctorAppointments(profile.id, today);
+      const upcomingAppointments = await storage.getDoctorAppointments(profile.id);
+      
+      res.json({
+        stats,
+        todayAppointments: todayAppointments.filter(a => 
+          [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+        ),
+        upcomingAppointments: upcomingAppointments.filter(a => 
+          a.appointmentDate >= today && 
+          [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+        ).slice(0, 10),
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to get dashboard stats" });
     }
@@ -748,7 +762,23 @@ export async function registerRoutes(
   app.get("/api/patient/dashboard", authMiddleware, roleMiddleware(UserRole.PATIENT), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const stats = await storage.getPatientDashboardStats(req.user!.id);
-      res.json(stats);
+      const allAppointments = await storage.getPatientAppointments(req.user!.id);
+      
+      const today = new Date().toISOString().split('T')[0];
+      const upcomingAppointments = allAppointments.filter(a => 
+        a.appointmentDate >= today && 
+        [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+      ).slice(0, 5);
+      
+      const recentAppointments = allAppointments.filter(a => 
+        a.status === AppointmentStatus.COMPLETED
+      ).slice(0, 5);
+      
+      res.json({
+        stats,
+        upcomingAppointments,
+        recentAppointments,
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to get dashboard stats" });
     }
@@ -793,7 +823,12 @@ export async function registerRoutes(
   app.get("/api/admin/dashboard", authMiddleware, roleMiddleware(UserRole.ADMIN), async (_req: Request, res: Response) => {
     try {
       const stats = await storage.getAdminDashboardStats();
-      res.json(stats);
+      const pendingDoctors = await storage.getPendingDoctors();
+      
+      res.json({
+        stats,
+        pendingDoctors: pendingDoctors.slice(0, 5),
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to get dashboard stats" });
     }
@@ -925,11 +960,11 @@ export async function registerRoutes(
       const { currentPassword, newPassword } = req.body;
       
       const user = await storage.getUser(req.user!.id);
-      if (!user || !verifyPassword(currentPassword, user.password)) {
+      if (!user || !(await verifyPassword(currentPassword, user.password))) {
         return res.status(400).json({ error: "Current password is incorrect" });
       }
       
-      const hashedPassword = hashPassword(newPassword);
+      const hashedPassword = await hashPassword(newPassword);
       await storage.updateUser(req.user!.id, { password: hashedPassword });
       
       res.json({ success: true });

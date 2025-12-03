@@ -1,0 +1,803 @@
+import { eq, and, gte, lte, desc, sql, or, ilike, inArray } from "drizzle-orm";
+import { db } from "./db";
+import {
+  users, specializations, hospitals, doctorProfiles, doctorSchedules,
+  appointmentSlots, appointments, payments, prescriptions, reviews, notifications,
+  type User, type InsertUser,
+  type Specialization, type InsertSpecialization,
+  type Hospital, type InsertHospital,
+  type DoctorProfile, type InsertDoctorProfile,
+  type DoctorSchedule, type InsertDoctorSchedule,
+  type AppointmentSlot, type InsertAppointmentSlot,
+  type Appointment, type InsertAppointment,
+  type Payment, type InsertPayment,
+  type Prescription, type InsertPrescription,
+  type Review, type InsertReview,
+  type Notification, type InsertNotification,
+  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient,
+  type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
+  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
+} from "@shared/schema";
+import type { IStorage } from "./storage";
+
+function toISOString(date: Date | null): string {
+  return date ? date.toISOString() : new Date().toISOString();
+}
+
+function mapUser(row: any): User {
+  return {
+    id: row.id,
+    email: row.email,
+    password: row.password,
+    fullName: row.fullName,
+    phone: row.phone,
+    role: row.role,
+    nic: row.nic || undefined,
+    gender: row.gender || undefined,
+    dateOfBirth: row.dateOfBirth || undefined,
+    preferredLanguages: row.preferredLanguages || ["english"],
+    profileImage: row.profileImage || undefined,
+    address: row.address || undefined,
+    city: row.city || undefined,
+    isEmailVerified: row.isEmailVerified || false,
+    isPhoneVerified: row.isPhoneVerified || false,
+    createdAt: toISOString(row.createdAt),
+    updatedAt: toISOString(row.updatedAt),
+  };
+}
+
+function mapDoctorProfile(row: any): DoctorProfile {
+  return {
+    id: row.id,
+    userId: row.userId,
+    registrationNumber: row.registrationNumber,
+    qualifications: row.qualifications,
+    biography: row.biography || undefined,
+    experienceYears: row.experienceYears || 0,
+    specializationIds: row.specializationIds || [],
+    languagesSpoken: row.languagesSpoken || ["english"],
+    consultationTypes: row.consultationTypes || ["in_person"],
+    hospitalIds: row.hospitalIds || [],
+    consultationFee: row.consultationFee || 0,
+    onlineConsultationFee: row.onlineConsultationFee || undefined,
+    homeVisitFee: row.homeVisitFee || undefined,
+    status: row.status || "pending",
+    verificationDocuments: row.verificationDocuments || [],
+    bankName: row.bankName || undefined,
+    bankAccountNumber: row.bankAccountNumber || undefined,
+    bankBranch: row.bankBranch || undefined,
+    isAvailable: row.isAvailable ?? true,
+    maxAdvanceBookingDays: row.maxAdvanceBookingDays || 30,
+    minBookingNoticeHours: row.minBookingNoticeHours || 2,
+    slotDurationMinutes: row.slotDurationMinutes || 30,
+    bufferTimeMinutes: row.bufferTimeMinutes || 10,
+    averageRating: row.averageRating || 0,
+    totalReviews: row.totalReviews || 0,
+    totalAppointments: row.totalAppointments || 0,
+    currentQueueNumber: row.currentQueueNumber || 0,
+    createdAt: toISOString(row.createdAt),
+    updatedAt: toISOString(row.updatedAt),
+  };
+}
+
+export class DbStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0] ? mapUser(result[0]) : undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0] ? mapUser(result[0]) : undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await db.insert(users).values({
+      email: insertUser.email,
+      password: insertUser.password,
+      fullName: insertUser.fullName,
+      phone: insertUser.phone,
+      role: insertUser.role,
+      nic: insertUser.nic,
+      gender: insertUser.gender,
+      dateOfBirth: insertUser.dateOfBirth,
+      preferredLanguages: insertUser.preferredLanguages,
+      profileImage: insertUser.profileImage,
+      address: insertUser.address,
+      city: insertUser.city,
+      isEmailVerified: insertUser.isEmailVerified,
+      isPhoneVerified: insertUser.isPhoneVerified,
+    }).returning();
+    return mapUser(result[0]);
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0] ? mapUser(result[0]) : undefined;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAllUsers(role?: string): Promise<User[]> {
+    let query = db.select().from(users);
+    if (role) {
+      query = query.where(eq(users.role, role)) as any;
+    }
+    const result = await query;
+    return result.map(mapUser);
+  }
+
+  async getSpecialization(id: string): Promise<Specialization | undefined> {
+    const result = await db.select().from(specializations).where(eq(specializations.id, id)).limit(1);
+    return result[0] as Specialization | undefined;
+  }
+
+  async getAllSpecializations(): Promise<Specialization[]> {
+    const result = await db.select().from(specializations);
+    return result as Specialization[];
+  }
+
+  async createSpecialization(spec: InsertSpecialization): Promise<Specialization> {
+    const result = await db.insert(specializations).values(spec).returning();
+    return result[0] as Specialization;
+  }
+
+  async updateSpecialization(id: string, updates: Partial<InsertSpecialization>): Promise<Specialization | undefined> {
+    const result = await db.update(specializations).set(updates).where(eq(specializations.id, id)).returning();
+    return result[0] as Specialization | undefined;
+  }
+
+  async deleteSpecialization(id: string): Promise<boolean> {
+    const result = await db.delete(specializations).where(eq(specializations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getHospital(id: string): Promise<Hospital | undefined> {
+    const result = await db.select().from(hospitals).where(eq(hospitals.id, id)).limit(1);
+    return result[0] as Hospital | undefined;
+  }
+
+  async getAllHospitals(): Promise<Hospital[]> {
+    const result = await db.select().from(hospitals);
+    return result as Hospital[];
+  }
+
+  async getHospitalsByCity(city: string): Promise<Hospital[]> {
+    const result = await db.select().from(hospitals).where(ilike(hospitals.city, `%${city}%`));
+    return result as Hospital[];
+  }
+
+  async createHospital(hospital: InsertHospital): Promise<Hospital> {
+    const result = await db.insert(hospitals).values(hospital).returning();
+    return result[0] as Hospital;
+  }
+
+  async updateHospital(id: string, updates: Partial<InsertHospital>): Promise<Hospital | undefined> {
+    const result = await db.update(hospitals).set(updates).where(eq(hospitals.id, id)).returning();
+    return result[0] as Hospital | undefined;
+  }
+
+  async deleteHospital(id: string): Promise<boolean> {
+    const result = await db.delete(hospitals).where(eq(hospitals.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getDoctorProfile(id: string): Promise<DoctorProfile | undefined> {
+    const result = await db.select().from(doctorProfiles).where(eq(doctorProfiles.id, id)).limit(1);
+    return result[0] ? mapDoctorProfile(result[0]) : undefined;
+  }
+
+  async getDoctorProfileByUserId(userId: string): Promise<DoctorProfile | undefined> {
+    const result = await db.select().from(doctorProfiles).where(eq(doctorProfiles.userId, userId)).limit(1);
+    return result[0] ? mapDoctorProfile(result[0]) : undefined;
+  }
+
+  async getDoctorWithDetails(doctorId: string): Promise<DoctorWithDetails | undefined> {
+    const profile = await this.getDoctorProfile(doctorId);
+    if (!profile) return undefined;
+
+    const user = await this.getUser(profile.userId);
+    if (!user) return undefined;
+
+    const allSpecs = await this.getAllSpecializations();
+    const specializationsData = allSpecs.filter(s => profile.specializationIds.includes(s.id));
+
+    const allHospitals = await this.getAllHospitals();
+    const hospitalsData = allHospitals.filter(h => profile.hospitalIds.includes(h.id));
+
+    return { ...profile, user, specializations: specializationsData, hospitals: hospitalsData };
+  }
+
+  async getAllDoctors(filters?: {
+    specializationId?: string;
+    city?: string;
+    status?: string;
+    minRating?: number;
+    consultationType?: string;
+  }): Promise<DoctorWithDetails[]> {
+    let query = db.select().from(doctorProfiles);
+    
+    const conditions: any[] = [];
+    if (filters?.status) {
+      conditions.push(eq(doctorProfiles.status, filters.status));
+    }
+    if (filters?.minRating) {
+      conditions.push(gte(doctorProfiles.averageRating, filters.minRating));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    const profiles = await query;
+    const doctors: DoctorWithDetails[] = [];
+
+    for (const profile of profiles) {
+      const mappedProfile = mapDoctorProfile(profile);
+      
+      if (filters?.specializationId && !mappedProfile.specializationIds.includes(filters.specializationId)) {
+        continue;
+      }
+      if (filters?.consultationType && !mappedProfile.consultationTypes.includes(filters.consultationType as any)) {
+        continue;
+      }
+
+      const doctor = await this.getDoctorWithDetails(mappedProfile.id);
+      if (doctor) {
+        if (filters?.city) {
+          if (doctor.user.city?.toLowerCase().includes(filters.city.toLowerCase()) ||
+              doctor.hospitals.some(h => h.city.toLowerCase().includes(filters.city!.toLowerCase()))) {
+            doctors.push(doctor);
+          }
+        } else {
+          doctors.push(doctor);
+        }
+      }
+    }
+
+    return doctors;
+  }
+
+  async getVerifiedDoctors(): Promise<DoctorWithDetails[]> {
+    return this.getAllDoctors({ status: DoctorStatus.VERIFIED });
+  }
+
+  async getPendingDoctors(): Promise<DoctorWithDetails[]> {
+    return this.getAllDoctors({ status: DoctorStatus.PENDING });
+  }
+
+  async createDoctorProfile(profile: InsertDoctorProfile): Promise<DoctorProfile> {
+    const result = await db.insert(doctorProfiles).values({
+      userId: profile.userId,
+      registrationNumber: profile.registrationNumber,
+      qualifications: profile.qualifications,
+      biography: profile.biography,
+      experienceYears: profile.experienceYears,
+      specializationIds: profile.specializationIds,
+      languagesSpoken: profile.languagesSpoken,
+      consultationTypes: profile.consultationTypes,
+      hospitalIds: profile.hospitalIds,
+      consultationFee: profile.consultationFee,
+      onlineConsultationFee: profile.onlineConsultationFee,
+      homeVisitFee: profile.homeVisitFee,
+      status: profile.status,
+      verificationDocuments: profile.verificationDocuments,
+      bankName: profile.bankName,
+      bankAccountNumber: profile.bankAccountNumber,
+      bankBranch: profile.bankBranch,
+      isAvailable: profile.isAvailable,
+      maxAdvanceBookingDays: profile.maxAdvanceBookingDays,
+      minBookingNoticeHours: profile.minBookingNoticeHours,
+      slotDurationMinutes: profile.slotDurationMinutes,
+      bufferTimeMinutes: profile.bufferTimeMinutes,
+    }).returning();
+    return mapDoctorProfile(result[0]);
+  }
+
+  async updateDoctorProfile(id: string, updates: Partial<InsertDoctorProfile>): Promise<DoctorProfile | undefined> {
+    const result = await db.update(doctorProfiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(doctorProfiles.id, id))
+      .returning();
+    return result[0] ? mapDoctorProfile(result[0]) : undefined;
+  }
+
+  async updateDoctorStatus(id: string, status: string): Promise<DoctorProfile | undefined> {
+    return this.updateDoctorProfile(id, { status: status as any });
+  }
+
+  async getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {
+    const result = await db.select().from(doctorSchedules).where(eq(doctorSchedules.doctorId, doctorId));
+    return result as DoctorSchedule[];
+  }
+
+  async createDoctorSchedule(schedule: InsertDoctorSchedule): Promise<DoctorSchedule> {
+    const result = await db.insert(doctorSchedules).values(schedule).returning();
+    return result[0] as DoctorSchedule;
+  }
+
+  async updateDoctorSchedule(id: string, updates: Partial<InsertDoctorSchedule>): Promise<DoctorSchedule | undefined> {
+    const result = await db.update(doctorSchedules).set(updates).where(eq(doctorSchedules.id, id)).returning();
+    return result[0] as DoctorSchedule | undefined;
+  }
+
+  async deleteDoctorSchedule(id: string): Promise<boolean> {
+    const result = await db.delete(doctorSchedules).where(eq(doctorSchedules.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined> {
+    const result = await db.select().from(appointmentSlots).where(eq(appointmentSlots.id, id)).limit(1);
+    return result[0] as AppointmentSlot | undefined;
+  }
+
+  async getAvailableSlots(doctorId: string, date: string): Promise<AppointmentSlot[]> {
+    const result = await db.select().from(appointmentSlots)
+      .where(and(
+        eq(appointmentSlots.doctorId, doctorId),
+        eq(appointmentSlots.date, date),
+        eq(appointmentSlots.isBooked, false),
+        eq(appointmentSlots.isBlocked, false)
+      ));
+    return result as AppointmentSlot[];
+  }
+
+  async getDoctorSlots(doctorId: string, startDate: string, endDate: string): Promise<AppointmentSlot[]> {
+    const result = await db.select().from(appointmentSlots)
+      .where(and(
+        eq(appointmentSlots.doctorId, doctorId),
+        gte(appointmentSlots.date, startDate),
+        lte(appointmentSlots.date, endDate)
+      ));
+    return result as AppointmentSlot[];
+  }
+
+  async createAppointmentSlot(slot: InsertAppointmentSlot): Promise<AppointmentSlot> {
+    const result = await db.insert(appointmentSlots).values(slot).returning();
+    return result[0] as AppointmentSlot;
+  }
+
+  async updateAppointmentSlot(id: string, updates: Partial<InsertAppointmentSlot>): Promise<AppointmentSlot | undefined> {
+    const result = await db.update(appointmentSlots).set(updates).where(eq(appointmentSlots.id, id)).returning();
+    return result[0] as AppointmentSlot | undefined;
+  }
+
+  async blockSlot(slotId: string): Promise<AppointmentSlot | undefined> {
+    return this.updateAppointmentSlot(slotId, { isBlocked: true });
+  }
+
+  async unblockSlot(slotId: string): Promise<AppointmentSlot | undefined> {
+    return this.updateAppointmentSlot(slotId, { isBlocked: false });
+  }
+
+  async getAppointment(id: string): Promise<Appointment | undefined> {
+    const result = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Appointment;
+  }
+
+  async getAppointmentWithDetails(id: string): Promise<AppointmentWithDetails | undefined> {
+    const appointment = await this.getAppointment(id);
+    if (!appointment) return undefined;
+
+    const patient = await this.getUser(appointment.patientId);
+    const doctor = await this.getDoctorWithDetails(appointment.doctorId);
+    const slot = await this.getAppointmentSlot(appointment.slotId);
+    const hospital = appointment.hospitalId ? await this.getHospital(appointment.hospitalId) : undefined;
+    const payment = await this.getPaymentByAppointment(id);
+    const prescription = await this.getPrescriptionByAppointment(id);
+    const review = await this.getReviewByAppointment(id);
+
+    if (!patient || !doctor || !slot) return undefined;
+
+    return {
+      ...appointment,
+      patient,
+      doctor,
+      slot,
+      hospital,
+      payment,
+      prescription,
+      review,
+    };
+  }
+
+  async getPatientAppointments(patientId: string): Promise<AppointmentWithDetails[]> {
+    const result = await db.select().from(appointments)
+      .where(eq(appointments.patientId, patientId))
+      .orderBy(desc(appointments.appointmentDate));
+    
+    const detailed: AppointmentWithDetails[] = [];
+    for (const apt of result) {
+      const details = await this.getAppointmentWithDetails(apt.id);
+      if (details) detailed.push(details);
+    }
+    return detailed;
+  }
+
+  async getDoctorAppointments(doctorId: string, date?: string): Promise<AppointmentWithDetails[]> {
+    let query = db.select().from(appointments).where(eq(appointments.doctorId, doctorId));
+    if (date) {
+      query = query.where(and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, date))) as any;
+    }
+    const result = await query.orderBy(appointments.appointmentTime);
+    
+    const detailed: AppointmentWithDetails[] = [];
+    for (const apt of result) {
+      const details = await this.getAppointmentWithDetails(apt.id);
+      if (details) detailed.push(details);
+    }
+    return detailed;
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const result = await db.insert(appointments).values(appointment).returning();
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Appointment;
+  }
+
+  async updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment | undefined> {
+    const result = await db.update(appointments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(appointments.id, id))
+      .returning();
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Appointment;
+  }
+
+  async cancelAppointment(id: string, reason: string, cancelledBy: string): Promise<Appointment | undefined> {
+    return this.updateAppointment(id, {
+      status: AppointmentStatus.CANCELLED,
+      cancelReason: reason,
+      cancelledBy: cancelledBy as any,
+    });
+  }
+
+  async getPayment(id: string): Promise<Payment | undefined> {
+    const result = await db.select().from(payments).where(eq(payments.id, id)).limit(1);
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Payment;
+  }
+
+  async getPaymentByAppointment(appointmentId: string): Promise<Payment | undefined> {
+    const result = await db.select().from(payments).where(eq(payments.appointmentId, appointmentId)).limit(1);
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Payment;
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    const result = await db.insert(payments).values(payment).returning();
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Payment;
+  }
+
+  async updatePayment(id: string, updates: Partial<InsertPayment>): Promise<Payment | undefined> {
+    const result = await db.update(payments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(payments.id, id))
+      .returning();
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Payment;
+  }
+
+  async getPrescription(id: string): Promise<Prescription | undefined> {
+    const result = await db.select().from(prescriptions).where(eq(prescriptions.id, id)).limit(1);
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      medications: result[0].medications as any,
+      treatments: result[0].treatments || [],
+      createdAt: toISOString(result[0].createdAt),
+    } as Prescription;
+  }
+
+  async getPrescriptionByAppointment(appointmentId: string): Promise<Prescription | undefined> {
+    const result = await db.select().from(prescriptions).where(eq(prescriptions.appointmentId, appointmentId)).limit(1);
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      medications: result[0].medications as any,
+      treatments: result[0].treatments || [],
+      createdAt: toISOString(result[0].createdAt),
+    } as Prescription;
+  }
+
+  async getPatientPrescriptions(patientId: string): Promise<Prescription[]> {
+    const result = await db.select().from(prescriptions)
+      .where(eq(prescriptions.patientId, patientId))
+      .orderBy(desc(prescriptions.createdAt));
+    return result.map(p => ({
+      ...p,
+      medications: p.medications as any,
+      treatments: p.treatments || [],
+      createdAt: toISOString(p.createdAt),
+    })) as Prescription[];
+  }
+
+  async createPrescription(prescription: InsertPrescription): Promise<Prescription> {
+    const result = await db.insert(prescriptions).values({
+      ...prescription,
+      medications: prescription.medications as any,
+    }).returning();
+    return {
+      ...result[0],
+      medications: result[0].medications as any,
+      treatments: result[0].treatments || [],
+      createdAt: toISOString(result[0].createdAt),
+    } as Prescription;
+  }
+
+  async updatePrescription(id: string, updates: Partial<InsertPrescription>): Promise<Prescription | undefined> {
+    const result = await db.update(prescriptions)
+      .set(updates as any)
+      .where(eq(prescriptions.id, id))
+      .returning();
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      medications: result[0].medications as any,
+      treatments: result[0].treatments || [],
+      createdAt: toISOString(result[0].createdAt),
+    } as Prescription;
+  }
+
+  async getReview(id: string): Promise<Review | undefined> {
+    const result = await db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Review;
+  }
+
+  async getReviewByAppointment(appointmentId: string): Promise<Review | undefined> {
+    const result = await db.select().from(reviews).where(eq(reviews.appointmentId, appointmentId)).limit(1);
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Review;
+  }
+
+  async getDoctorReviews(doctorId: string): Promise<ReviewWithPatient[]> {
+    const result = await db.select().from(reviews)
+      .where(and(eq(reviews.doctorId, doctorId), eq(reviews.isHidden, false)))
+      .orderBy(desc(reviews.createdAt));
+    
+    const reviewsWithPatient: ReviewWithPatient[] = [];
+    for (const r of result) {
+      const patient = await this.getUser(r.patientId);
+      if (patient) {
+        reviewsWithPatient.push({
+          ...r,
+          createdAt: toISOString(r.createdAt),
+          updatedAt: toISOString(r.updatedAt),
+          patient,
+        } as ReviewWithPatient);
+      }
+    }
+    return reviewsWithPatient;
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const result = await db.insert(reviews).values(review).returning();
+    
+    const doctorReviews = await db.select().from(reviews)
+      .where(and(eq(reviews.doctorId, review.doctorId), eq(reviews.isHidden, false)));
+    const totalRating = doctorReviews.reduce((sum, r) => sum + r.rating, 0);
+    const avgRating = doctorReviews.length > 0 ? totalRating / doctorReviews.length : 0;
+    
+    await db.update(doctorProfiles)
+      .set({ averageRating: avgRating, totalReviews: doctorReviews.length })
+      .where(eq(doctorProfiles.id, review.doctorId));
+    
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Review;
+  }
+
+  async updateReview(id: string, updates: Partial<InsertReview>): Promise<Review | undefined> {
+    const result = await db.update(reviews)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(reviews.id, id))
+      .returning();
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Review;
+  }
+
+  async hideReview(id: string): Promise<Review | undefined> {
+    return this.updateReview(id, { isHidden: true });
+  }
+
+  async getUserNotifications(userId: string): Promise<Notification[]> {
+    const result = await db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+    return result.map(n => ({
+      ...n,
+      createdAt: toISOString(n.createdAt),
+    })) as Notification[];
+  }
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    const result = await db.select().from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)))
+      .orderBy(desc(notifications.createdAt));
+    return result.map(n => ({
+      ...n,
+      createdAt: toISOString(n.createdAt),
+    })) as Notification[];
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const result = await db.insert(notifications).values(notification).returning();
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+    } as Notification;
+  }
+
+  async markNotificationRead(id: string): Promise<Notification | undefined> {
+    const result = await db.update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, id))
+      .returning();
+    if (!result[0]) return undefined;
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+    } as Notification;
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.userId, userId));
+  }
+
+  async getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const allAppointments = await db.select().from(appointments)
+      .where(eq(appointments.patientId, patientId));
+    
+    const upcomingCount = allAppointments.filter(a => 
+      a.appointmentDate >= today && 
+      [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+    ).length;
+    
+    const completedCount = allAppointments.filter(a => 
+      a.status === AppointmentStatus.COMPLETED
+    ).length;
+    
+    const patientPayments = await db.select().from(payments)
+      .where(and(eq(payments.patientId, patientId), eq(payments.status, PaymentStatus.COMPLETED)));
+    const totalSpent = patientPayments.reduce((sum, p) => sum + p.totalAmount, 0);
+    
+    const patientPrescriptions = await db.select().from(prescriptions)
+      .where(eq(prescriptions.patientId, patientId));
+    
+    return {
+      upcomingAppointments: upcomingCount,
+      completedAppointments: completedCount,
+      totalSpent,
+      prescriptionsCount: patientPrescriptions.length,
+    };
+  }
+
+  async getDoctorDashboardStats(doctorId: string): Promise<DoctorDashboardStats> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const allAppointments = await db.select().from(appointments)
+      .where(eq(appointments.doctorId, doctorId));
+    
+    const todayApts = allAppointments.filter(a => a.appointmentDate === today).length;
+    const upcomingCount = allAppointments.filter(a => 
+      a.appointmentDate >= today && 
+      [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+    ).length;
+    const completedCount = allAppointments.filter(a => 
+      a.status === AppointmentStatus.COMPLETED
+    ).length;
+    
+    const doctorPayments = await db.select().from(payments)
+      .where(eq(payments.doctorId, doctorId));
+    const totalEarnings = doctorPayments
+      .filter(p => p.status === PaymentStatus.COMPLETED)
+      .reduce((sum, p) => sum + p.doctorEarnings, 0);
+    const pendingEarnings = doctorPayments
+      .filter(p => p.status === PaymentStatus.PENDING)
+      .reduce((sum, p) => sum + p.doctorEarnings, 0);
+    
+    const profile = await this.getDoctorProfile(doctorId);
+    
+    const currentTodayApts = allAppointments.filter(a => 
+      a.appointmentDate === today && 
+      a.status === AppointmentStatus.CONFIRMED &&
+      !a.isCalled
+    ).length;
+    
+    return {
+      todayAppointments: todayApts,
+      upcomingAppointments: upcomingCount,
+      completedAppointments: completedCount,
+      totalEarnings,
+      pendingEarnings,
+      averageRating: profile?.averageRating || 0,
+      totalReviews: profile?.totalReviews || 0,
+      currentQueueNumber: currentTodayApts,
+    };
+  }
+
+  async getAdminDashboardStats(): Promise<AdminDashboardStats> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const allUsers = await db.select().from(users);
+    const patients = allUsers.filter(u => u.role === UserRole.PATIENT).length;
+    
+    const allDoctors = await db.select().from(doctorProfiles);
+    const verified = allDoctors.filter(d => d.status === DoctorStatus.VERIFIED).length;
+    const pending = allDoctors.filter(d => d.status === DoctorStatus.PENDING).length;
+    
+    const allAppointments = await db.select().from(appointments);
+    const todayApts = allAppointments.filter(a => a.appointmentDate === today).length;
+    
+    const allPayments = await db.select().from(payments)
+      .where(eq(payments.status, PaymentStatus.COMPLETED));
+    const totalRevenue = allPayments.reduce((sum, p) => sum + p.totalAmount, 0);
+    const platformEarnings = allPayments.reduce((sum, p) => sum + (p.platformCommission || 0), 0);
+    
+    return {
+      totalPatients: patients,
+      totalDoctors: allDoctors.length,
+      verifiedDoctors: verified,
+      pendingDoctors: pending,
+      totalAppointments: allAppointments.length,
+      todayAppointments: todayApts,
+      totalRevenue,
+      platformEarnings,
+    };
+  }
+}
+
+export const dbStorage = new DbStorage();

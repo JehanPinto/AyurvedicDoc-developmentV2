@@ -59,11 +59,17 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
+      <Route path="/patient">
+        <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
+          <DashboardLayout>
+            <PatientDashboard />
+          </DashboardLayout>
+        </ProtectedRoute>
+      </Route>
       <Route path="/patient/:rest*">
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
           <DashboardLayout>
             <Switch>
-              <Route path="/patient" component={PatientDashboard} />
               <Route path="/patient/appointments" component={PatientDashboard} />
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientDashboard} />
@@ -74,11 +80,17 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
+      <Route path="/doctor">
+        <ProtectedRoute allowedRoles={[UserRole.DOCTOR]}>
+          <DashboardLayout>
+            <DoctorDashboard />
+          </DashboardLayout>
+        </ProtectedRoute>
+      </Route>
       <Route path="/doctor/:rest*">
         <ProtectedRoute allowedRoles={[UserRole.DOCTOR]}>
           <DashboardLayout>
             <Switch>
-              <Route path="/doctor" component={DoctorDashboard} />
               <Route path="/doctor/appointments" component={DoctorDashboard} />
               <Route path="/doctor/schedule" component={DoctorDashboard} />
               <Route path="/doctor/patients" component={DoctorDashboard} />
@@ -91,11 +103,17 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
+      <Route path="/admin">
+        <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+          <DashboardLayout>
+            <AdminDashboard />
+          </DashboardLayout>
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin/:rest*">
         <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
           <DashboardLayout>
             <Switch>
-              <Route path="/admin" component={AdminDashboard} />
               <Route path="/admin/doctors" component={AdminDashboard} />
               <Route path="/admin/patients" component={AdminDashboard} />
               <Route path="/admin/appointments" component={AdminDashboard} />

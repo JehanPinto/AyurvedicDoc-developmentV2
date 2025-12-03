@@ -23,15 +23,21 @@ The platform supports multilingual content (English, Sinhala, Tamil) and handles
 - Responsive UI with Ayurvedic green theme
 
 ### In Progress / Pending
-- PostgreSQL database integration (currently using in-memory storage with seed data)
 - Video consultation integration
-- Payment gateway integration
+- Payment gateway integration (UI ready, needs Stripe integration)
 - Email notifications
 - Multi-language UI translations
-- Doctor dashboard
-- Patient dashboard  
-- Admin dashboard
-- Prescription management UI
+- Advanced search and filtering
+- Medical history timeline
+
+### Completed Database Migration
+- PostgreSQL database fully integrated with Drizzle ORM
+- All dashboard APIs return real data from database
+- Seed script available at `server/seed.ts` for development data
+- Test accounts:
+  - Admin: admin@ayurvedicdoctor.lk / password123
+  - Doctor: dr.silva@example.com / password123
+  - Patient: patient@example.com / password123
 
 ## User Preferences
 
@@ -74,7 +80,7 @@ Preferred communication style: Simple, everyday language.
 
 **Session Management**: Designed to support express-session with connect-pg-simple for PostgreSQL-backed sessions.
 
-**Storage Layer**: Abstracted through an `IStorage` interface with a memory-based implementation (`MemStorage`) for development. Production implementation would use the database layer.
+**Storage Layer**: Abstracted through an `IStorage` interface with a PostgreSQL-based implementation (`DbStorage`) using Drizzle ORM. All data is persisted to the database.
 
 ### Data Storage Architecture
 
