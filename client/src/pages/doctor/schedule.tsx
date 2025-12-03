@@ -59,6 +59,15 @@ export default function DoctorSchedule() {
 
   const { data: slots = [], isLoading, isError } = useQuery<AppointmentSlot[]>({
     queryKey: ["/api/doctor/slots", startDate, endDate],
+    queryFn: async () => {
+      const res = await fetch(`/api/doctor/slots?startDate=${startDate}&endDate=${endDate}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to load slots");
+      return res.json();
+    },
     enabled: !!profile,
   });
 
