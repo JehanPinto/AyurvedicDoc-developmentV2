@@ -30,6 +30,14 @@ The platform supports multilingual content (English, Sinhala, Tamil) and handles
 - **Payments Management** (/admin/payments): View payments, process refunds, filter by status/method
 - **Platform Settings** (/admin/settings): Configure commission rates, booking settings, notifications (local state)
 
+### Doctor Dashboard Features (Completed)
+- **Dashboard** (/doctor): Overview with today's stats, quick actions, upcoming appointments
+- **Appointments Management** (/doctor/appointments): View/filter appointments by status (Today, Upcoming, Completed, Cancelled), confirm/complete/cancel appointments, mark patient as called/no-show
+- **Schedule Management** (/doctor/schedule): Weekly calendar view, create/block/delete appointment slots
+- **Patients Roster** (/doctor/patients): View all patients with consultation history, search by name
+- **Reviews Management** (/doctor/reviews): View patient reviews with ratings, respond to reviews, filter by rating/response status
+- **Earnings Overview** (/doctor/earnings): Total/pending earnings, monthly breakdown, payment history with filters, export functionality
+
 ### In Progress / Pending
 - Video consultation integration
 - Payment gateway integration (UI ready, needs Stripe integration)
