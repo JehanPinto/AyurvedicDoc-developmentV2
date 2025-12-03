@@ -932,6 +932,93 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/appointments", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const { status, date, doctorId, patientId } = req.query;
+      const allAppointments = await storage.getAllAppointments();
+      
+      let filtered = allAppointments;
+      if (status) {
+        filtered = filtered.filter(a => a.status === status);
+      }
+      if (date) {
+        filtered = filtered.filter(a => a.appointmentDate === date);
+      }
+      if (doctorId) {
+        filtered = filtered.filter(a => a.doctorId === doctorId);
+      }
+      if (patientId) {
+        filtered = filtered.filter(a => a.patientId === patientId);
+      }
+      
+      res.json(filtered);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get appointments" });
+    }
+  });
+
+  app.get("/api/admin/payments", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const { status, method, startDate, endDate } = req.query;
+      const payments = await storage.getAllPayments();
+      
+      let filtered = payments;
+      if (status) {
+        filtered = filtered.filter(p => p.status === status);
+      }
+      if (method) {
+        filtered = filtered.filter(p => p.method === method);
+      }
+      if (startDate) {
+        filtered = filtered.filter(p => p.createdAt >= (startDate as string));
+      }
+      if (endDate) {
+        filtered = filtered.filter(p => p.createdAt <= (endDate as string));
+      }
+      
+      res.json(filtered);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get payments" });
+    }
+  });
+
+  app.patch("/api/admin/payments/:id/refund", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const { refundAmount, refundReason } = req.body;
+      const payment = await storage.updatePayment(req.params.id, {
+        status: PaymentStatus.REFUNDED,
+        refundAmount,
+        refundReason,
+        refundDate: new Date().toISOString().split('T')[0],
+      });
+      res.json(payment);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to refund payment" });
+    }
+  });
+
+  app.put("/api/admin/specializations/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const data = insertSpecializationSchema.parse(req.body);
+      const specialization = await storage.updateSpecialization(req.params.id, data);
+      res.json(specialization);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update specialization" });
+    }
+  });
+
+  app.delete("/api/admin/specializations/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteSpecialization(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete specialization" });
+    }
+  });
+
   app.put("/api/users/profile", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const allowedUpdates = ["fullName", "phone", "gender", "dateOfBirth", "address", "city", "preferredLanguages", "profileImage"];

@@ -798,6 +798,36 @@ export class DbStorage implements IStorage {
       platformEarnings,
     };
   }
+
+  async getAllAppointments(): Promise<AppointmentWithDetails[]> {
+    const result = await db.select().from(appointments)
+      .orderBy(desc(appointments.appointmentDate), desc(appointments.appointmentTime));
+    
+    const detailed: AppointmentWithDetails[] = [];
+    for (const apt of result) {
+      const details = await this.getAppointmentWithDetails(apt.id);
+      if (details) detailed.push(details);
+    }
+    return detailed;
+  }
+
+  async getAllPayments(): Promise<(Payment & { appointment?: AppointmentWithDetails })[]> {
+    const result = await db.select().from(payments)
+      .orderBy(desc(payments.createdAt));
+    
+    const paymentsWithDetails: (Payment & { appointment?: AppointmentWithDetails })[] = [];
+    for (const p of result) {
+      const payment = {
+        ...p,
+        createdAt: toISOString(p.createdAt),
+        updatedAt: toISOString(p.updatedAt),
+      } as Payment;
+      
+      const appointment = await this.getAppointmentWithDetails(p.appointmentId);
+      paymentsWithDetails.push({ ...payment, appointment: appointment || undefined });
+    }
+    return paymentsWithDetails;
+  }
 }
 
 export const dbStorage = new DbStorage();

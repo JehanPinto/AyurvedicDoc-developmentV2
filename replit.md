@@ -22,6 +22,14 @@ The platform supports multilingual content (English, Sinhala, Tamil) and handles
 - Login and registration pages with form validation
 - Responsive UI with Ayurvedic green theme
 
+### Admin Dashboard Features (Completed)
+- **Doctors Management** (/admin/doctors): View, search, filter, verify/reject/suspend doctors with status badges
+- **Patients Management** (/admin/patients): View and search registered patients with profile details
+- **Appointments Management** (/admin/appointments): View all appointments with status filters and detailed view dialogs
+- **Specializations Management** (/admin/specializations): Full CRUD for Ayurvedic specializations with icon selection
+- **Payments Management** (/admin/payments): View payments, process refunds, filter by status/method
+- **Platform Settings** (/admin/settings): Configure commission rates, booking settings, notifications (local state)
+
 ### In Progress / Pending
 - Video consultation integration
 - Payment gateway integration (UI ready, needs Stripe integration)

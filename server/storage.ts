@@ -101,6 +101,9 @@ export interface IStorage {
   getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats>;
   getDoctorDashboardStats(doctorId: string): Promise<DoctorDashboardStats>;
   getAdminDashboardStats(): Promise<AdminDashboardStats>;
+
+  getAllAppointments(): Promise<AppointmentWithDetails[]>;
+  getAllPayments(): Promise<(Payment & { appointment?: AppointmentWithDetails })[]>;
 }
 
 export class MemStorage implements IStorage {

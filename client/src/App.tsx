@@ -19,6 +19,12 @@ import PatientDashboard from "@/pages/patient/dashboard";
 import PatientAppointmentsPage from "@/pages/patient/appointments";
 import DoctorDashboard from "@/pages/doctor/dashboard";
 import AdminDashboard from "@/pages/admin/dashboard";
+import AdminDoctorsPage from "@/pages/admin/doctors";
+import AdminPatientsPage from "@/pages/admin/patients";
+import AdminAppointmentsPage from "@/pages/admin/appointments";
+import AdminSpecializationsPage from "@/pages/admin/specializations";
+import AdminPaymentsPage from "@/pages/admin/payments";
+import AdminSettingsPage from "@/pages/admin/settings";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ 
@@ -115,12 +121,12 @@ function Router() {
         <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
           <DashboardLayout>
             <Switch>
-              <Route path="/admin/doctors" component={AdminDashboard} />
-              <Route path="/admin/patients" component={AdminDashboard} />
-              <Route path="/admin/appointments" component={AdminDashboard} />
-              <Route path="/admin/specializations" component={AdminDashboard} />
-              <Route path="/admin/payments" component={AdminDashboard} />
-              <Route path="/admin/settings" component={AdminDashboard} />
+              <Route path="/admin/doctors" component={AdminDoctorsPage} />
+              <Route path="/admin/patients" component={AdminPatientsPage} />
+              <Route path="/admin/appointments" component={AdminAppointmentsPage} />
+              <Route path="/admin/specializations" component={AdminSpecializationsPage} />
+              <Route path="/admin/payments" component={AdminPaymentsPage} />
+              <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route component={NotFound} />
             </Switch>
           </DashboardLayout>
