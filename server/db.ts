@@ -1,9 +1,15 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
 import * as schema from "@shared/schema";
+import { config as loadEnv } from "dotenv";
 
-(process as any).loadEnvFile?.();
+// Load environment variables for both Node 18 (dotenv) and Node 20+ (loadEnvFile)
+if (typeof (process as any).loadEnvFile === "function") {
+  (process as any).loadEnvFile();
+} else {
+  loadEnv();
+}
 
 neonConfig.webSocketConstructor = ws;
 
