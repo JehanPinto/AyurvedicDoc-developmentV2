@@ -1,17 +1,32 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
+import dotenv from 'dotenv';
+import path from 'path';
 
-(process as any).loadEnvFile?.();
+// Load .env from project root if present
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-neonConfig.webSocketConstructor = ws;
+// prefer DATABASE_URL; fall back to PG env vars
+const databaseUrl = process.env.DATABASE_URL || (
+  process.env.PGHOST && process.env.PGUSER && process.env.PGDATABASE
+    ? `postgresql://${process.env.PGUSER}:${process.env.PGPASSWORD || ''}@${process.env.PGHOST}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE}`
+    : undefined
+);
 
-if (!process.env.DATABASE_URL) {
+if (!databaseUrl) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "DATABASE_URL must be set (or PGHOST/PGUSER/PGDATABASE).",
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// Log resolved DB host/db (do NOT log password)
+try {
+  const url = new URL(databaseUrl);
+  console.log(`Using database host=${url.hostname} db=${url.pathname.replace('/', '')}`);
+} catch {
+  // ignore
+}
+
+export const pool = new Pool({ connectionString: databaseUrl });
+export const db = drizzle(pool, { schema });
