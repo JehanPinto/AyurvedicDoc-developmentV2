@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Settings, 
   DollarSign,
@@ -9,7 +10,8 @@ import {
   Shield,
   Globe,
   Mail,
-  Save
+  Save,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,13 +27,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { LoadingPage } from "@/components/ui/loading-spinner";
+import type { PlatformSettings } from "@shared/schema";
 
 export default function AdminSettingsPage() {
   const { toast } = useToast();
   const [settings, setSettings] = useState({
     platformCommissionRate: "10",
     bookingCharges: "100",
-    taxRate: "5",
+    taxRate: "4",
     maxAdvanceBookingDays: "30",
     minBookingNoticeHours: "2",
     defaultSlotDuration: "30",
@@ -42,21 +47,99 @@ export default function AdminSettingsPage() {
     autoConfirmAppointments: false,
     requireDoctorVerification: true,
     allowOnlinePayments: true,
-    allowClinicPayments: true,
+    allowClinicPayments: false,
     defaultLanguage: "english",
     maintenanceMode: false,
   });
 
+  // Fetch settings from API
+  const { data: serverSettings, isLoading, isError } = useQuery<PlatformSettings>({
+    queryKey: ["/api/admin/settings"],
+  });
+
+  // Update local state when server settings are loaded
+  useEffect(() => {
+    if (serverSettings) {
+      setSettings({
+        platformCommissionRate: String(serverSettings.platformCommissionRate),
+        bookingCharges: String(serverSettings.bookingCharges),
+        taxRate: String(serverSettings.taxRate),
+        maxAdvanceBookingDays: String(serverSettings.maxAdvanceBookingDays),
+        minBookingNoticeHours: String(serverSettings.minBookingNoticeHours),
+        defaultSlotDuration: String(serverSettings.defaultSlotDuration),
+        defaultBufferTime: String(serverSettings.defaultBufferTime),
+        emailNotifications: serverSettings.emailNotifications,
+        smsNotifications: serverSettings.smsNotifications,
+        pushNotifications: serverSettings.pushNotifications,
+        autoConfirmAppointments: serverSettings.autoConfirmAppointments,
+        requireDoctorVerification: serverSettings.requireDoctorVerification,
+        allowOnlinePayments: serverSettings.allowOnlinePayments,
+        allowClinicPayments: serverSettings.allowClinicPayments,
+        defaultLanguage: serverSettings.defaultLanguage,
+        maintenanceMode: serverSettings.maintenanceMode,
+      });
+    }
+  }, [serverSettings]);
+
+  // Mutation to save settings
+  const saveMutation = useMutation({
+    mutationFn: async (data: Partial<PlatformSettings>) => {
+      const response = await apiRequest("PUT", "/api/admin/settings", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      toast({
+        title: "Settings Saved",
+        description: "Platform settings have been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save settings",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSave = () => {
-    toast({
-      title: "Settings Saved",
-      description: "Platform settings have been updated successfully.",
+    saveMutation.mutate({
+      platformCommissionRate: parseInt(settings.platformCommissionRate) || 10,
+      bookingCharges: parseInt(settings.bookingCharges) || 100,
+      taxRate: parseInt(settings.taxRate) || 4,
+      maxAdvanceBookingDays: parseInt(settings.maxAdvanceBookingDays) || 30,
+      minBookingNoticeHours: parseInt(settings.minBookingNoticeHours) || 2,
+      defaultSlotDuration: parseInt(settings.defaultSlotDuration) || 30,
+      defaultBufferTime: parseInt(settings.defaultBufferTime) || 10,
+      emailNotifications: settings.emailNotifications,
+      smsNotifications: settings.smsNotifications,
+      pushNotifications: settings.pushNotifications,
+      autoConfirmAppointments: settings.autoConfirmAppointments,
+      requireDoctorVerification: settings.requireDoctorVerification,
+      allowOnlinePayments: settings.allowOnlinePayments,
+      allowClinicPayments: settings.allowClinicPayments,
+      defaultLanguage: settings.defaultLanguage,
+      maintenanceMode: settings.maintenanceMode,
     });
   };
 
   const updateSetting = (key: string, value: any) => {
     setSettings({ ...settings, [key]: value });
   };
+
+  if (isLoading) {
+    return <LoadingPage message="Loading settings..." />;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-muted-foreground">Failed to load settings. Please try again.</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -65,9 +148,18 @@ export default function AdminSettingsPage() {
           <h1 className="text-2xl md:text-3xl font-heading font-bold">Platform Settings</h1>
           <p className="text-muted-foreground">Configure platform-wide settings and preferences</p>
         </div>
-        <Button onClick={handleSave} data-testid="button-save">
-          <Save className="h-4 w-4 mr-2" />
-          Save Changes
+        <Button onClick={handleSave} disabled={saveMutation.isPending} data-testid="button-save">
+          {saveMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </>
+          )}
         </Button>
       </div>
 

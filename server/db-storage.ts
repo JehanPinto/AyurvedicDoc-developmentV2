@@ -3,6 +3,7 @@ import { db } from "./db";
 import {
   users, specializations, hospitals, doctorProfiles, doctorSchedules,
   appointmentSlots, appointments, payments, prescriptions, reviews, notifications,
+  platformSettings,
   type User, type InsertUser,
   type Specialization, type InsertSpecialization,
   type Hospital, type InsertHospital,
@@ -14,6 +15,7 @@ import {
   type Prescription, type InsertPrescription,
   type Review, type InsertReview,
   type Notification, type InsertNotification,
+  type PlatformSettings, type InsertPlatformSettings,
   type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
   type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
@@ -992,6 +994,91 @@ export class DbStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return result[0] ? mapUser(result[0]) : undefined;
+  }
+
+  async getPlatformSettings(): Promise<PlatformSettings> {
+    const result = await db.select().from(platformSettings).where(eq(platformSettings.id, 'default'));
+    
+    if (result[0]) {
+      return {
+        id: result[0].id,
+        platformCommissionRate: result[0].platformCommissionRate,
+        bookingCharges: result[0].bookingCharges,
+        taxRate: result[0].taxRate,
+        maxAdvanceBookingDays: result[0].maxAdvanceBookingDays,
+        minBookingNoticeHours: result[0].minBookingNoticeHours,
+        defaultSlotDuration: result[0].defaultSlotDuration,
+        defaultBufferTime: result[0].defaultBufferTime,
+        emailNotifications: result[0].emailNotifications ?? true,
+        smsNotifications: result[0].smsNotifications ?? true,
+        pushNotifications: result[0].pushNotifications ?? false,
+        autoConfirmAppointments: result[0].autoConfirmAppointments ?? false,
+        requireDoctorVerification: result[0].requireDoctorVerification ?? true,
+        allowOnlinePayments: result[0].allowOnlinePayments ?? true,
+        allowClinicPayments: result[0].allowClinicPayments ?? false,
+        defaultLanguage: result[0].defaultLanguage ?? "english",
+        maintenanceMode: result[0].maintenanceMode ?? false,
+        updatedAt: toISOString(result[0].updatedAt),
+      };
+    }
+    
+    // Create default settings if not exists
+    const defaultSettings = {
+      id: 'default',
+      platformCommissionRate: 10,
+      bookingCharges: 100,
+      taxRate: 4,
+      maxAdvanceBookingDays: 30,
+      minBookingNoticeHours: 2,
+      defaultSlotDuration: 30,
+      defaultBufferTime: 10,
+      emailNotifications: true,
+      smsNotifications: true,
+      pushNotifications: false,
+      autoConfirmAppointments: false,
+      requireDoctorVerification: true,
+      allowOnlinePayments: true,
+      allowClinicPayments: false,
+      defaultLanguage: "english",
+      maintenanceMode: false,
+    };
+    
+    const inserted = await db.insert(platformSettings).values(defaultSettings).returning();
+    return {
+      ...defaultSettings,
+      updatedAt: toISOString(inserted[0].updatedAt),
+    };
+  }
+
+  async updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings> {
+    // Ensure settings exist first
+    await this.getPlatformSettings();
+    
+    const result = await db.update(platformSettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(platformSettings.id, 'default'))
+      .returning();
+    
+    return {
+      id: result[0].id,
+      platformCommissionRate: result[0].platformCommissionRate,
+      bookingCharges: result[0].bookingCharges,
+      taxRate: result[0].taxRate,
+      maxAdvanceBookingDays: result[0].maxAdvanceBookingDays,
+      minBookingNoticeHours: result[0].minBookingNoticeHours,
+      defaultSlotDuration: result[0].defaultSlotDuration,
+      defaultBufferTime: result[0].defaultBufferTime,
+      emailNotifications: result[0].emailNotifications ?? true,
+      smsNotifications: result[0].smsNotifications ?? true,
+      pushNotifications: result[0].pushNotifications ?? false,
+      autoConfirmAppointments: result[0].autoConfirmAppointments ?? false,
+      requireDoctorVerification: result[0].requireDoctorVerification ?? true,
+      allowOnlinePayments: result[0].allowOnlinePayments ?? true,
+      allowClinicPayments: result[0].allowClinicPayments ?? false,
+      defaultLanguage: result[0].defaultLanguage ?? "english",
+      maintenanceMode: result[0].maintenanceMode ?? false,
+      updatedAt: toISOString(result[0].updatedAt),
+    };
   }
 }
 

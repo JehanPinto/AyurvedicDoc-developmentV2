@@ -252,6 +252,27 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const platformSettings = pgTable("platform_settings", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`'default'`),
+  platformCommissionRate: integer("platform_commission_rate").notNull().default(10),
+  bookingCharges: integer("booking_charges").notNull().default(100),
+  taxRate: integer("tax_rate").notNull().default(5),
+  maxAdvanceBookingDays: integer("max_advance_booking_days").notNull().default(30),
+  minBookingNoticeHours: integer("min_booking_notice_hours").notNull().default(2),
+  defaultSlotDuration: integer("default_slot_duration").notNull().default(30),
+  defaultBufferTime: integer("default_buffer_time").notNull().default(10),
+  emailNotifications: boolean("email_notifications").default(true),
+  smsNotifications: boolean("sms_notifications").default(true),
+  pushNotifications: boolean("push_notifications").default(false),
+  autoConfirmAppointments: boolean("auto_confirm_appointments").default(false),
+  requireDoctorVerification: boolean("require_doctor_verification").default(true),
+  allowOnlinePayments: boolean("allow_online_payments").default(true),
+  allowClinicPayments: boolean("allow_clinic_payments").default(false),
+  defaultLanguage: varchar("default_language", { length: 20 }).default("english"),
+  maintenanceMode: boolean("maintenance_mode").default(false),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ================== DRIZZLE INSERT SCHEMAS ==================
 
 export const insertUserSchemaDb = createInsertSchema(users).omit({
@@ -312,6 +333,10 @@ export const insertReviewSchemaDb = createInsertSchema(reviews).omit({
 export const insertNotificationSchemaDb = createInsertSchema(notifications).omit({
   id: true,
   createdAt: true,
+});
+
+export const insertPlatformSettingsSchemaDb = createInsertSchema(platformSettings).omit({
+  updatedAt: true,
 });
 
 // ================== ZOD VALIDATION SCHEMAS (for API) ==================
@@ -582,6 +607,32 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export interface Notification extends InsertNotification {
   id: string;
   createdAt: string;
+}
+
+export const insertPlatformSettingsSchema = z.object({
+  id: z.string().default("default"),
+  platformCommissionRate: z.number().min(0).max(100).default(10),
+  bookingCharges: z.number().min(0).default(100),
+  taxRate: z.number().min(0).max(100).default(5),
+  maxAdvanceBookingDays: z.number().min(1).default(30),
+  minBookingNoticeHours: z.number().min(0).default(2),
+  defaultSlotDuration: z.number().min(5).default(30),
+  defaultBufferTime: z.number().min(0).default(10),
+  emailNotifications: z.boolean().default(true),
+  smsNotifications: z.boolean().default(true),
+  pushNotifications: z.boolean().default(false),
+  autoConfirmAppointments: z.boolean().default(false),
+  requireDoctorVerification: z.boolean().default(true),
+  allowOnlinePayments: z.boolean().default(true),
+  allowClinicPayments: z.boolean().default(false),
+  defaultLanguage: z.string().default("english"),
+  maintenanceMode: z.boolean().default(false),
+});
+
+export type InsertPlatformSettings = z.infer<typeof insertPlatformSettingsSchema>;
+
+export interface PlatformSettings extends InsertPlatformSettings {
+  updatedAt: string;
 }
 
 // ================== AUTH SCHEMAS ==================

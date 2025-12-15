@@ -11,6 +11,7 @@ import {
   type Prescription, type InsertPrescription,
   type Review, type InsertReview,
   type Notification, type InsertNotification,
+  type PlatformSettings, type InsertPlatformSettings,
   type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
   type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
@@ -122,6 +123,9 @@ export interface IStorage {
   confirmAppointment(appointmentId: string): Promise<Appointment | undefined>;
   markAppointmentNoShow(appointmentId: string): Promise<Appointment | undefined>;
   updateUserStatus(id: string, isActive: boolean): Promise<User | undefined>;
+
+  getPlatformSettings(): Promise<PlatformSettings>;
+  updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings>;
 }
 
 export class MemStorage implements IStorage {
@@ -1014,6 +1018,40 @@ export class MemStorage implements IStorage {
 
   async markAppointmentNoShow(_appointmentId: string): Promise<Appointment | undefined> {
     return undefined;
+  }
+
+  private platformSettings: PlatformSettings = {
+    id: 'default',
+    platformCommissionRate: 10,
+    bookingCharges: 100,
+    taxRate: 4,
+    maxAdvanceBookingDays: 30,
+    minBookingNoticeHours: 2,
+    defaultSlotDuration: 30,
+    defaultBufferTime: 10,
+    emailNotifications: true,
+    smsNotifications: true,
+    pushNotifications: false,
+    autoConfirmAppointments: false,
+    requireDoctorVerification: true,
+    allowOnlinePayments: true,
+    allowClinicPayments: false,
+    defaultLanguage: "english",
+    maintenanceMode: false,
+    updatedAt: new Date().toISOString(),
+  };
+
+  async getPlatformSettings(): Promise<PlatformSettings> {
+    return this.platformSettings;
+  }
+
+  async updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings> {
+    this.platformSettings = { 
+      ...this.platformSettings, 
+      ...updates,
+      updatedAt: new Date().toISOString() 
+    };
+    return this.platformSettings;
   }
 }
 

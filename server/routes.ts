@@ -1003,9 +1003,11 @@ export async function registerRoutes(
         consultationFee = doctor.homeVisitFee;
       }
       
-      const bookingCharges = 100;
-      const tax = Math.round(consultationFee * 0.05);
-      const platformCommission = Math.round(consultationFee * 0.1);
+      // Get platform settings for fee calculations
+      const platformSettings = await storage.getPlatformSettings();
+      const bookingCharges = platformSettings.bookingCharges;
+      const tax = Math.round(consultationFee * (platformSettings.taxRate / 100));
+      const platformCommission = Math.round(consultationFee * (platformSettings.platformCommissionRate / 100));
       const doctorEarnings = consultationFee - platformCommission;
       const totalAmount = consultationFee + bookingCharges + tax;
       
@@ -1518,6 +1520,27 @@ export async function registerRoutes(
       res.json(payment);
     } catch (error) {
       res.status(500).json({ error: "Failed to refund payment" });
+    }
+  });
+
+  // Platform Settings endpoints
+  app.get("/api/admin/settings", authMiddleware, roleMiddleware(UserRole.ADMIN), async (_req: Request, res: Response) => {
+    try {
+      const settings = await storage.getPlatformSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to get platform settings:", error);
+      res.status(500).json({ error: "Failed to get platform settings" });
+    }
+  });
+
+  app.put("/api/admin/settings", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const settings = await storage.updatePlatformSettings(req.body);
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to update platform settings:", error);
+      res.status(500).json({ error: "Failed to update platform settings" });
     }
   });
 
