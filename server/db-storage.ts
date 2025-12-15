@@ -41,6 +41,7 @@ function mapUser(row: any): User {
     city: row.city || undefined,
     isEmailVerified: row.isEmailVerified || false,
     isPhoneVerified: row.isPhoneVerified || false,
+    isActive: row.isActive ?? true,
     createdAt: toISOString(row.createdAt),
     updatedAt: toISOString(row.updatedAt),
   };
@@ -983,6 +984,14 @@ export class DbStorage implements IStorage {
 
   async markAppointmentNoShow(appointmentId: string): Promise<Appointment | undefined> {
     return this.updateAppointment(appointmentId, { status: AppointmentStatus.NO_SHOW });
+  }
+
+  async updateUserStatus(id: string, isActive: boolean): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0] ? mapUser(result[0]) : undefined;
   }
 }
 

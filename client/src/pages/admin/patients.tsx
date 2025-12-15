@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Search, 
   AlertCircle,
@@ -9,7 +9,9 @@ import {
   Phone,
   MapPin,
   Calendar,
-  DollarSign
+  DollarSign,
+  Ban,
+  CheckCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,8 +25,20 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { LoadingPage } from "@/components/ui/loading-spinner";
+import { useToast } from "@/hooks/use-toast";
 import type { User } from "@shared/schema";
 
 interface PatientWithStats extends Omit<User, 'password'> {
@@ -36,9 +50,66 @@ export default function AdminPatientsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<PatientWithStats | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
+  const [patientToSuspend, setPatientToSuspend] = useState<PatientWithStats | null>(null);
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: patients = [], isLoading, isError } = useQuery<PatientWithStats[]>({
     queryKey: ["/api/admin/users?role=patient"],
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      const response = await fetch(`/api/admin/users/${patientId}/suspend`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to suspend patient");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users?role=patient"] });
+      toast({
+        title: "Patient Suspended",
+        description: "The patient account has been suspended successfully.",
+      });
+      setShowSuspendDialog(false);
+      setPatientToSuspend(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to suspend patient. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      const response = await fetch(`/api/admin/users/${patientId}/reactivate`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to reactivate patient");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users?role=patient"] });
+      toast({
+        title: "Patient Reactivated",
+        description: "The patient account has been reactivated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to reactivate patient. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const formatFee = (fee: number) => {
@@ -115,7 +186,7 @@ export default function AdminPatientsPage() {
           filteredPatients.map((patient) => (
             <Card 
               key={patient.id} 
-              className="hover-elevate"
+              className={`hover-elevate ${patient.isActive === false ? 'opacity-60' : ''}`}
               data-testid={`card-patient-${patient.id}`}
             >
               <CardContent className="p-4">
@@ -129,7 +200,14 @@ export default function AdminPatientsPage() {
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between mb-2">
-                      <h3 className="font-semibold">{patient.fullName}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{patient.fullName}</h3>
+                        {patient.isActive === false && (
+                          <Badge variant="destructive" className="text-xs">
+                            Suspended
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         {patient.isEmailVerified && (
                           <Badge variant="secondary" className="text-xs">
@@ -164,19 +242,47 @@ export default function AdminPatientsPage() {
                     </div>
                   </div>
 
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setSelectedPatient(patient);
-                      setShowDetailsDialog(true);
-                    }}
-                    className="shrink-0"
-                    data-testid={`button-view-${patient.id}`}
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    View
-                  </Button>
+                  <div className="flex gap-2 shrink-0">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPatient(patient);
+                        setShowDetailsDialog(true);
+                      }}
+                      data-testid={`button-view-${patient.id}`}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      View
+                    </Button>
+                    {patient.isActive !== false ? (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          setPatientToSuspend(patient);
+                          setShowSuspendDialog(true);
+                        }}
+                        data-testid={`button-suspend-${patient.id}`}
+                      >
+                        <Ban className="h-4 w-4 mr-1" />
+                        Suspend
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        onClick={() => reactivateMutation.mutate(patient.id)}
+                        disabled={reactivateMutation.isPending}
+                        data-testid={`button-reactivate-${patient.id}`}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Reactivate
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -270,10 +376,64 @@ export default function AdminPatientsPage() {
                   </div>
                 </div>
               </div>
+
+              <DialogFooter>
+                {selectedPatient.isActive !== false ? (
+                  <Button 
+                    variant="destructive"
+                    onClick={() => {
+                      setPatientToSuspend(selectedPatient);
+                      setShowDetailsDialog(false);
+                      setShowSuspendDialog(true);
+                    }}
+                  >
+                    <Ban className="h-4 w-4 mr-2" />
+                    Suspend Account
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="default"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      reactivateMutation.mutate(selectedPatient.id);
+                      setShowDetailsDialog(false);
+                    }}
+                    disabled={reactivateMutation.isPending}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Reactivate Account
+                  </Button>
+                )}
+              </DialogFooter>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend Patient Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to suspend the account for{" "}
+              <span className="font-semibold">{patientToSuspend?.fullName}</span>?
+              This will prevent them from logging in and booking appointments.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPatientToSuspend(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => patientToSuspend && suspendMutation.mutate(patientToSuspend.id)}
+              disabled={suspendMutation.isPending}
+            >
+              {suspendMutation.isPending ? "Suspending..." : "Suspend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

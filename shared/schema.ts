@@ -83,6 +83,7 @@ export const users = pgTable("users", {
   city: varchar("city", { length: 100 }),
   isEmailVerified: boolean("is_email_verified").default(false),
   isPhoneVerified: boolean("is_phone_verified").default(false),
+  isActive: boolean("is_active").default(true),
   googleId: varchar("google_id", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -330,6 +331,7 @@ export const insertUserSchema = z.object({
   city: z.string().optional(),
   isEmailVerified: z.boolean().default(false),
   isPhoneVerified: z.boolean().default(false),
+  isActive: z.boolean().default(true),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

@@ -121,6 +121,7 @@ export interface IStorage {
   completeAppointment(appointmentId: string, consultationNotes?: string): Promise<Appointment | undefined>;
   confirmAppointment(appointmentId: string): Promise<Appointment | undefined>;
   markAppointmentNoShow(appointmentId: string): Promise<Appointment | undefined>;
+  updateUserStatus(id: string, isActive: boolean): Promise<User | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -985,6 +986,34 @@ export class MemStorage implements IStorage {
       totalRevenue,
       platformEarnings,
     };
+  }
+
+  async updateUserStatus(id: string, isActive: boolean): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    const updated = { ...user, isActive, updatedAt: new Date().toISOString() };
+    this.users.set(id, updated);
+    return updated;
+  }
+
+  async respondToReview(_reviewId: string, _response: string): Promise<Review | undefined> {
+    return undefined;
+  }
+
+  async markAppointmentAsCalled(_appointmentId: string): Promise<Appointment | undefined> {
+    return undefined;
+  }
+
+  async completeAppointment(_appointmentId: string, _consultationNotes?: string): Promise<Appointment | undefined> {
+    return undefined;
+  }
+
+  async confirmAppointment(_appointmentId: string): Promise<Appointment | undefined> {
+    return undefined;
+  }
+
+  async markAppointmentNoShow(_appointmentId: string): Promise<Appointment | undefined> {
+    return undefined;
   }
 }
 

@@ -1419,6 +1419,34 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/admin/users/:id/suspend", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const user = await storage.updateUserStatus(req.params.id, false);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Failed to suspend user:", error);
+      res.status(500).json({ error: "Failed to suspend user" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/reactivate", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const user = await storage.updateUserStatus(req.params.id, true);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Failed to reactivate user:", error);
+      res.status(500).json({ error: "Failed to reactivate user" });
+    }
+  });
+
   app.patch("/api/admin/reviews/:id/hide", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
       const review = await storage.hideReview(req.params.id);
