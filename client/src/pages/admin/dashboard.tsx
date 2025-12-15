@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Users, 
   Stethoscope, 
@@ -9,10 +10,14 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  XCircle,
   ArrowRight,
-  UserPlus,
-  Activity
+  Activity,
+  FileText,
+  Mail,
+  Phone,
+  MapPin,
+  Languages,
+  Building2
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,8 +26,20 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { LoadingPage } from "@/components/ui/loading-spinner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth-context";
 import type { AdminDashboardStats, DoctorWithDetails } from "@shared/schema";
+import { DoctorStatus } from "@shared/schema";
 
 interface DashboardData {
   stats: AdminDashboardStats;
@@ -30,12 +47,37 @@ interface DashboardData {
 }
 
 export default function AdminDashboard() {
+  const { toast } = useToast();
   const { user } = useAuth();
+  const [selectedDoctor, setSelectedDoctor] = useState<DoctorWithDetails | null>(null);
+  const [showVerificationDialog, setShowVerificationDialog] = useState(false);
 
   const { data: dashboardData, isLoading, isError } = useQuery<DashboardData>({
     queryKey: ["/api/admin/dashboard"],
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (doctorId: string) => 
+      apiRequest("PATCH", `/api/admin/doctors/${doctorId}/verify`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/doctors"] });
+      toast({
+        title: "Doctor verified",
+        description: "The doctor has been moved to the verified list.",
+      });
+      setShowVerificationDialog(false);
+      setSelectedDoctor(null);
+    },
+    onError: () => {
+      toast({
+        title: "Verification failed",
+        description: "Could not verify the doctor. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const formatFee = (fee: number) => {
@@ -82,6 +124,21 @@ export default function AdminDashboard() {
   const verificationRate = stats.totalDoctors > 0
     ? Math.round((stats.verifiedDoctors / stats.totalDoctors) * 100) 
     : 0;
+
+  const handleOpenDoctor = (doctor: DoctorWithDetails) => {
+    setSelectedDoctor(doctor);
+    setShowVerificationDialog(true);
+  };
+
+  const handleCloseDialog = () => {
+    setShowVerificationDialog(false);
+    setSelectedDoctor(null);
+  };
+
+  const getDocumentLink = (doc: string) => {
+    const filename = doc.split("/").pop() || "";
+    return doc.startsWith("http") ? doc : `/api/documents/${filename}`;
+  };
 
   return (
     <div className="space-y-6">
@@ -217,10 +274,11 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
-                      <Button size="sm" variant="outline" className="text-destructive">
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm">
+                      <Button 
+                        size="sm"
+                        onClick={() => handleOpenDoctor(doctor)}
+                        data-testid={`button-review-doctor-${doctor.id}`}
+                      >
                         <CheckCircle className="h-4 w-4 mr-1" />
                         Verify
                       </Button>
@@ -355,6 +413,199 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog 
+        open={showVerificationDialog} 
+        onOpenChange={(open) => open ? setShowVerificationDialog(true) : handleCloseDialog()}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review Doctor Application</DialogTitle>
+            <DialogDescription>
+              Verify the doctor's submitted details and documents before approving.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedDoctor && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={selectedDoctor.user?.profileImage} />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getInitials(selectedDoctor.user?.fullName || "")}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-semibold">{selectedDoctor.user?.fullName}</h3>
+                    <StatusBadge status={selectedDoctor.status || DoctorStatus.PENDING} type="doctor" />
+                    <Badge variant="outline" className="text-xs">
+                      {selectedDoctor.registrationNumber}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground">{selectedDoctor.qualifications}</p>
+                  <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                    <span>Applied {format(new Date(selectedDoctor.createdAt), "PPP")}</span>
+                    <span>| {selectedDoctor.experienceYears} yrs experience</span>
+                    <span>| {selectedDoctor.totalAppointments} appointments completed</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDoctor.specializations?.map((spec) => (
+                      <Badge key={spec.id} variant="secondary" className="text-xs">
+                        {spec.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="p-4 rounded-lg border space-y-3">
+                  <p className="text-sm font-medium">Identity & Contact</p>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      <span>{selectedDoctor.user?.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      <span>{selectedDoctor.user?.phone}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      <span>{selectedDoctor.user?.city || "City not provided"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" />
+                      <div className="flex flex-wrap gap-1">
+                        {(selectedDoctor.languagesSpoken || []).map((lang) => (
+                          <Badge key={lang} variant="outline" className="text-2xs capitalize">
+                            {lang.replace("_", " ")}
+                          </Badge>
+                        ))}
+                        {(selectedDoctor.languagesSpoken || []).length === 0 && (
+                          <span className="text-muted-foreground">No languages provided</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-lg border space-y-3">
+                  <p className="text-sm font-medium">Professional Profile</p>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="h-4 w-4" />
+                      <span>{selectedDoctor.consultationTypes?.map(t => t.replace("_", " ")).join(", ") || "Consultation types not provided"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      <span>
+                        In-person: {formatFee(selectedDoctor.consultationFee)}
+                        {selectedDoctor.onlineConsultationFee ? ` | Online: ${formatFee(selectedDoctor.onlineConsultationFee)}` : ""}
+                        {selectedDoctor.homeVisitFee ? ` | Home visit: ${formatFee(selectedDoctor.homeVisitFee)}` : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>Max advance booking: {selectedDoctor.maxAdvanceBookingDays} days</span>
+                    </div>
+                    {selectedDoctor.biography && (
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {selectedDoctor.biography}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg border space-y-3">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  <p className="text-sm font-medium">Hospital Affiliations</p>
+                </div>
+                {selectedDoctor.hospitals?.length ? (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {selectedDoctor.hospitals.map((hospital) => (
+                      <div key={hospital.id} className="p-3 rounded-lg bg-muted">
+                        <p className="font-medium">{hospital.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {hospital.address}, {hospital.city}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No hospitals provided</p>
+                )}
+              </div>
+
+              <div className="p-4 rounded-lg border space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  <p className="text-sm font-medium">Verification Documents</p>
+                </div>
+                {selectedDoctor.verificationDocuments && selectedDoctor.verificationDocuments.length > 0 ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {selectedDoctor.verificationDocuments.map((doc: string, index: number) => (
+                      <a
+                        key={index}
+                        href={getDocumentLink(doc)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 rounded-lg border hover-elevate transition-colors"
+                      >
+                        <FileText className="h-5 w-5 text-primary" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">Document {index + 1}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {doc.split("/").pop() || doc}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No documents uploaded</p>
+                )}
+              </div>
+
+              {(selectedDoctor.bankName || selectedDoctor.bankAccountNumber || selectedDoctor.bankBranch) && (
+                <div className="p-4 rounded-lg border space-y-2">
+                  <p className="text-sm font-medium">Banking Details</p>
+                  <div className="grid gap-2 sm:grid-cols-3 text-sm text-muted-foreground">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide">Bank</p>
+                      <p className="font-medium text-foreground">{selectedDoctor.bankName || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide">Account No</p>
+                      <p className="font-medium text-foreground">{selectedDoctor.bankAccountNumber || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide">Branch</p>
+                      <p className="font-medium text-foreground">{selectedDoctor.bankBranch || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={handleCloseDialog}>
+                  Close
+                </Button>
+                <Button 
+                  onClick={() => selectedDoctor && verifyMutation.mutate(selectedDoctor.id)}
+                  disabled={verifyMutation.isPending}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  {verifyMutation.isPending ? "Verifying..." : "Approve & Verify"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
