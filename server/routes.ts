@@ -533,12 +533,28 @@ export async function registerRoutes(
         }
       }
       
-      const filePath = path.join(uploadDir, filename);
+      const filePath = path.resolve(uploadDir, filename);
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: "File not found" });
       }
       
-      res.sendFile(filePath);
+      // Determine content type based on file extension for inline display
+      const ext = path.extname(filename).toLowerCase();
+      let contentType = 'application/octet-stream';
+      if (ext === '.pdf') {
+        contentType = 'application/pdf';
+      } else if (ext === '.png') {
+        contentType = 'image/png';
+      } else if (ext === '.jpg' || ext === '.jpeg') {
+        contentType = 'image/jpeg';
+      }
+      
+      // Read file and send with proper headers for inline display
+      const fileBuffer = fs.readFileSync(filePath);
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      res.setHeader('Content-Length', fileBuffer.length);
+      res.send(fileBuffer);
     } catch (error) {
       res.status(500).json({ error: "Failed to serve document" });
     }
