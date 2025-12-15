@@ -70,7 +70,6 @@ const adminNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
   { icon: Stethoscope, label: "Doctors", href: "/admin/doctors" },
   { icon: Users, label: "Patients", href: "/admin/patients" },
-  { icon: Calendar, label: "Appointments", href: "/admin/appointments" },
   { icon: Activity, label: "Specializations", href: "/admin/specializations" },
   { icon: DollarSign, label: "Payments", href: "/admin/payments" },
   { icon: Settings, label: "Settings", href: "/admin/settings" },
