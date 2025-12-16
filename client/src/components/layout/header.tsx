@@ -138,14 +138,6 @@ export function Header() {
                       My Appointments
                     </Link>
                   </DropdownMenuItem>
-                  {user.role === UserRole.PATIENT && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/records" className="flex items-center cursor-pointer">
-                        <FileText className="mr-2 h-4 w-4" />
-                        Medical Records
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem asChild>
                     <Link href="/settings" className="flex items-center cursor-pointer">
                       <Settings className="mr-2 h-4 w-4" />
