@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Users } from "lucide-react";
-import { PublicLayout } from "@/components/layout/public-layout";
 import { DoctorCard } from "@/components/doctors/doctor-card";
 import { DoctorSearchFilters } from "@/components/doctors/doctor-search-filters";
 import { LoadingCard, LoadingPage } from "@/components/ui/loading-spinner";
@@ -120,8 +119,8 @@ export default function DoctorsPage() {
   };
 
   return (
-    <PublicLayout>
-      <div className="bg-gradient-to-b from-primary/5 to-background py-8">
+    <>
+      <div className="py-8">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl md:text-4xl font-heading font-bold mb-2">
             Find Ayurvedic Doctors
@@ -196,6 +195,6 @@ export default function DoctorsPage() {
           </div>
         )}
       </div>
-    </PublicLayout>
+    </>
   );
 }

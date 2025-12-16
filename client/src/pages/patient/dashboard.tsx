@@ -78,7 +78,7 @@ export default function PatientDashboard() {
             Manage your appointments and health records
           </p>
         </div>
-        <Link href="/doctors">
+        <Link href="/patient/doctors">
           <Button data-testid="button-book-new">
             <Plus className="h-4 w-4 mr-2" />
             Book New Appointment

@@ -50,6 +50,7 @@ interface DashboardLayoutProps {
 
 const patientNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/patient" },
+  { icon: Stethoscope, label: "Find Doctors", href: "/patient/doctors" },
   { icon: Calendar, label: "My Appointments", href: "/patient/appointments" },
   { icon: Star, label: "My Reviews", href: "/patient/reviews" },
   { icon: Settings, label: "Settings", href: "/patient/settings" },
