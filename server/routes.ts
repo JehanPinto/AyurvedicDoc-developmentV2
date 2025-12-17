@@ -1523,6 +1523,21 @@ export async function registerRoutes(
     }
   });
 
+  // Public booking settings endpoint (for payment options)
+  app.get("/api/booking-settings", async (_req: Request, res: Response) => {
+    try {
+      const settings = await storage.getPlatformSettings();
+      // Only expose payment-related settings to public
+      res.json({
+        allowOnlinePayments: settings.allowOnlinePayments,
+        allowClinicPayments: settings.allowClinicPayments,
+      });
+    } catch (error) {
+      console.error("Failed to get booking settings:", error);
+      res.status(500).json({ error: "Failed to get booking settings" });
+    }
+  });
+
   // Platform Settings endpoints
   app.get("/api/admin/settings", authMiddleware, roleMiddleware(UserRole.ADMIN), async (_req: Request, res: Response) => {
     try {

@@ -114,6 +114,11 @@ const mockSlot: AppointmentSlot = {
   isBlocked: false,
 };
 
+interface BookingSettings {
+  allowOnlinePayments: boolean;
+  allowClinicPayments: boolean;
+}
+
 export default function BookAppointmentPage() {
   const { doctorId } = useParams();
   const [location, setLocation] = useLocation();
@@ -124,6 +129,15 @@ export default function BookAppointmentPage() {
   const { toast } = useToast();
   const [step, setStep] = useState<"details" | "payment" | "confirmation">("details");
   const [bookingComplete, setBookingComplete] = useState(false);
+
+  const { data: bookingSettings } = useQuery<BookingSettings>({
+    queryKey: ["/api/booking-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/booking-settings");
+      if (!res.ok) throw new Error("Failed to fetch booking settings");
+      return res.json();
+    },
+  });
 
   const { data: doctor, isLoading: doctorLoading } = useQuery<DoctorWithDetails>({
     queryKey: ["/api/doctors", doctorId],
@@ -502,15 +516,17 @@ export default function BookAppointmentPage() {
                                         </div>
                                       </Label>
                                     </div>
-                                    <div className="flex items-center space-x-3 p-4 border rounded-lg hover-elevate">
-                                      <RadioGroupItem value={PaymentMethod.AT_CLINIC} id="clinic" />
-                                      <Label htmlFor="clinic" className="flex-1 cursor-pointer">
-                                        <p className="font-medium">Pay at Clinic</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          Pay when you visit the clinic
-                                        </p>
-                                      </Label>
-                                    </div>
+                                    {bookingSettings?.allowClinicPayments && (
+                                      <div className="flex items-center space-x-3 p-4 border rounded-lg hover-elevate">
+                                        <RadioGroupItem value={PaymentMethod.AT_CLINIC} id="clinic" />
+                                        <Label htmlFor="clinic" className="flex-1 cursor-pointer">
+                                          <p className="font-medium">Pay at Clinic</p>
+                                          <p className="text-sm text-muted-foreground">
+                                            Pay when you visit the clinic
+                                          </p>
+                                        </Label>
+                                      </div>
+                                    )}
                                   </RadioGroup>
                                 </FormControl>
                                 <FormMessage />
