@@ -203,7 +203,7 @@ export default function BookAppointmentPage() {
 
   if (doctorLoading || slotLoading) {
     return (
-      <PublicLayout>
+      <PublicLayout showHeader={false}>
         <LoadingPage message="Loading booking details..." />
       </PublicLayout>
     );
@@ -211,10 +211,10 @@ export default function BookAppointmentPage() {
 
   if (!doctor || !slot) {
     return (
-      <PublicLayout>
+      <PublicLayout showHeader={false}>
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold mb-4">Booking not found</h1>
-          <Link href="/doctors">
+          <Link href="/patient/doctors">
             <Button>Find Doctors</Button>
           </Link>
         </div>
@@ -224,7 +224,7 @@ export default function BookAppointmentPage() {
 
   if (bookingComplete) {
     return (
-      <PublicLayout showFooter={false}>
+      <PublicLayout showHeader={false} showFooter={false}>
         <div className="container mx-auto px-4 py-16 max-w-lg">
           <Card>
             <CardContent className="p-8 text-center">
@@ -288,7 +288,7 @@ export default function BookAppointmentPage() {
   }
 
   return (
-    <PublicLayout showFooter={false}>
+    <PublicLayout showHeader={false} showFooter={false}>
       <div className="bg-gradient-to-b from-primary/5 to-background">
         <div className="container mx-auto px-4 py-4">
           <Link href={`/doctors/${doctorId}`}>
