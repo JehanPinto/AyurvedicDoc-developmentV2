@@ -29,14 +29,14 @@ const upload = multer({
   storage: multerStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
-    const allowedExtensions = [".jpg", ".jpeg", ".png", ".pdf"];
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"];
     const ext = path.extname(file.originalname).toLowerCase();
     
     if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only JPEG, PNG, and PDF are allowed."));
+      cb(new Error("Invalid file type. Only JPEG, PNG, GIF, WebP, and PDF are allowed."));
     }
   },
 });
@@ -1591,7 +1591,7 @@ export async function registerRoutes(
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       if (!allowedTypes.includes(req.file.mimetype)) {
-        fs.unlinkSync(req.file.path);
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
         return res.status(400).json({ error: "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed." });
       }
 
@@ -1600,7 +1600,7 @@ export async function registerRoutes(
       // Update user's profile image
       const user = await storage.updateUser(req.user!.id, { profileImage: imageUrl });
       if (!user) {
-        fs.unlinkSync(req.file.path);
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
         return res.status(404).json({ error: "User not found" });
       }
 
@@ -1610,8 +1610,9 @@ export async function registerRoutes(
         user: userWithoutPassword
       });
     } catch (error) {
+      console.error("Profile image upload error:", error);
       if (req.file) {
-        fs.unlinkSync(req.file.path);
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
       }
       res.status(500).json({ error: "Failed to upload profile image" });
     }

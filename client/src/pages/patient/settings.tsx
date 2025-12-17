@@ -156,11 +156,18 @@ export default function PatientSettings() {
     const formData = new FormData();
     formData.append("image", file);
 
+    const token = localStorage.getItem("token");
+    const headers: HeadersInit = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     try {
       const response = await fetch("/api/users/profile-image", {
         method: "POST",
         body: formData,
         credentials: "include",
+        headers,
       });
 
       if (!response.ok) {
