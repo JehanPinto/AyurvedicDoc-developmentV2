@@ -13,8 +13,7 @@ import {
   Save,
   AlertCircle,
   Check,
-  Lock,
-  Bell
+  Lock
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingPage, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -73,14 +71,6 @@ export default function PatientSettings() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("profile");
-
-  const [notificationSettings, setNotificationSettings] = useState({
-    emailAppointmentReminders: true,
-    emailPrescriptions: true,
-    emailPromotions: false,
-    smsAppointmentReminders: true,
-    smsDoctorUpdates: false,
-  });
 
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -163,7 +153,7 @@ export default function PatientSettings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="profile" data-testid="tab-profile">
             <User className="h-4 w-4 mr-2" />
             Profile
@@ -171,10 +161,6 @@ export default function PatientSettings() {
           <TabsTrigger value="security" data-testid="tab-security">
             <Lock className="h-4 w-4 mr-2" />
             Security
-          </TabsTrigger>
-          <TabsTrigger value="notifications" data-testid="tab-notifications">
-            <Bell className="h-4 w-4 mr-2" />
-            Notifications
           </TabsTrigger>
         </TabsList>
 
@@ -555,115 +541,6 @@ export default function PatientSettings() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Notifications</CardTitle>
-              <CardDescription>
-                Choose what email notifications you receive
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <h4 className="font-medium">Appointment Reminders</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Get reminded about upcoming appointments
-                  </p>
-                </div>
-                <Switch
-                  checked={notificationSettings.emailAppointmentReminders}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings(prev => ({ ...prev, emailAppointmentReminders: checked }))
-                  }
-                  data-testid="switch-email-reminders"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <h4 className="font-medium">Prescription Notifications</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Be notified when prescriptions are issued
-                  </p>
-                </div>
-                <Switch
-                  checked={notificationSettings.emailPrescriptions}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings(prev => ({ ...prev, emailPrescriptions: checked }))
-                  }
-                  data-testid="switch-email-prescriptions"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <h4 className="font-medium">Health Tips & Promotions</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Receive Ayurvedic health tips and special offers
-                  </p>
-                </div>
-                <Switch
-                  checked={notificationSettings.emailPromotions}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings(prev => ({ ...prev, emailPromotions: checked }))
-                  }
-                  data-testid="switch-email-promotions"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>SMS Notifications</CardTitle>
-              <CardDescription>
-                Choose what SMS notifications you receive
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <h4 className="font-medium">Appointment Reminders</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Get SMS reminders before appointments
-                  </p>
-                </div>
-                <Switch
-                  checked={notificationSettings.smsAppointmentReminders}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings(prev => ({ ...prev, smsAppointmentReminders: checked }))
-                  }
-                  data-testid="switch-sms-reminders"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <h4 className="font-medium">Doctor Updates</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Get notified when doctors respond to your reviews
-                  </p>
-                </div>
-                <Switch
-                  checked={notificationSettings.smsDoctorUpdates}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings(prev => ({ ...prev, smsDoctorUpdates: checked }))
-                  }
-                  data-testid="switch-sms-doctor-updates"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button data-testid="button-save-notifications">
-              <Save className="mr-2 h-4 w-4" />
-              Save Notification Preferences
-            </Button>
-          </div>
         </TabsContent>
       </Tabs>
     </div>
