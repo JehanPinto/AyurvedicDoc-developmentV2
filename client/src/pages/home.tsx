@@ -8,8 +8,7 @@ import {
   ArrowRight,
   CheckCircle,
   Users,
-  Award,
-  Clock
+  Award
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +16,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { SpecializationCard } from "@/components/doctors/specialization-card";
 import { StarRating } from "@/components/ui/star-rating";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { Specialization, DoctorWithDetails } from "@shared/schema";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const testimonials = [
   {
@@ -54,26 +49,6 @@ const stats = [
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
-
-  const { 
-    data: specializations = [], 
-    isLoading: specLoading,
-    isError: specError 
-  } = useQuery<Specialization[]>({
-    queryKey: ["/api/specializations"],
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
-
-  const { 
-    data: featuredDoctors = [], 
-    isLoading: docsLoading,
-    isError: docsError 
-  } = useQuery<DoctorWithDetails[]>({
-    queryKey: ["/api/doctors/featured"],
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,151 +125,6 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground">{stat.label}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
-              Browse by Specialization
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Find the right Ayurvedic specialist for your specific health needs
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {specLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={`spec-skel-${i}`} className="h-32 rounded-lg" />
-              ))
-            ) : specError ? (
-              <div className="col-span-full text-center py-8">
-                <p className="text-muted-foreground">Unable to load specializations. Please try again later.</p>
-              </div>
-            ) : specializations.length === 0 ? (
-              <div className="col-span-full text-center py-8">
-                <p className="text-muted-foreground">No specializations available at the moment.</p>
-              </div>
-            ) : (
-              specializations.slice(0, 6).map((spec) => (
-                <SpecializationCard
-                  key={spec.id}
-                  id={spec.id}
-                  name={spec.name}
-                  description={spec.description || ""}
-                  icon={spec.icon || "Leaf"}
-                  doctorCount={0}
-                />
-              ))
-            )}
-          </div>
-
-          <div className="text-center mt-8">
-            <Link href="/specializations">
-              <Button variant="outline" size="lg">
-                View All Specializations
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 md:py-24 bg-card">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
-              Top Rated Doctors
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Connect with our highest-rated Ayurvedic practitioners
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {docsLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <Card key={`doc-skel-${i}`} className="p-6">
-                  <div className="flex items-start gap-4">
-                    <Skeleton className="h-16 w-16 rounded-xl" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-5 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                      <Skeleton className="h-4 w-1/3" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-10 w-full mt-4" />
-                </Card>
-              ))
-            ) : docsError ? (
-              <div className="col-span-full text-center py-8">
-                <p className="text-muted-foreground">Unable to load featured doctors. Please try again later.</p>
-              </div>
-            ) : featuredDoctors.length === 0 ? (
-              <div className="col-span-full text-center py-8">
-                <p className="text-muted-foreground">No featured doctors available at the moment.</p>
-              </div>
-            ) : (
-              featuredDoctors.map((doctor) => (
-                <Card 
-                  key={doctor.id} 
-                  className="hover-elevate transition-all duration-200"
-                  data-testid={`card-featured-doctor-${doctor.id}`}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <Avatar className="h-16 w-16 rounded-xl border-2 border-primary/10">
-                        <AvatarImage src={doctor.user?.profileImage} alt={doctor.user?.fullName} />
-                        <AvatarFallback className="rounded-xl bg-primary/10 text-primary font-semibold">
-                          {doctor.user?.fullName?.split(" ").map(n => n[0]).join("") || "DR"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="font-semibold">{doctor.user?.fullName}</h3>
-                        <p className="text-sm text-primary">
-                          {doctor.specializations?.[0]?.name || "Ayurvedic Specialist"}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2">
-                          <StarRating rating={doctor.averageRating || 0} size="sm" showValue />
-                          <span className="text-xs text-muted-foreground">
-                            ({doctor.totalReviews || 0} reviews)
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span>{doctor.experienceYears || 0} yrs exp</span>
-                      </div>
-                      <span>{doctor.user?.city || doctor.hospitals?.[0]?.city || "Sri Lanka"}</span>
-                      <span className="font-semibold text-foreground">
-                        Rs. {(doctor.consultationFee || 0).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <Link href={`/doctors/${doctor.id}`}>
-                      <Button className="w-full mt-4" variant="outline">
-                        View Profile
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-
-          <div className="text-center mt-8">
-            <Link href="/doctors">
-              <Button size="lg">
-                Browse All Doctors
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
           </div>
         </div>
       </section>
