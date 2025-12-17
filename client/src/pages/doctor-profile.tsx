@@ -211,7 +211,7 @@ export default function DoctorProfilePage() {
       <PublicLayout showHeader={false}>
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold mb-4">Doctor not found</h1>
-          <Link href="/doctors">
+          <Link href="/patient/doctors">
             <Button>Back to Doctors</Button>
           </Link>
         </div>
@@ -223,7 +223,7 @@ export default function DoctorProfilePage() {
     <PublicLayout showHeader={false}>
       <div className="bg-gradient-to-b from-primary/5 to-background">
         <div className="container mx-auto px-4 py-4">
-          <Link href="/doctors">
+          <Link href="/patient/doctors">
             <Button variant="ghost" size="sm" className="gap-1">
               <ChevronLeft className="h-4 w-4" />
               Back to Doctors
