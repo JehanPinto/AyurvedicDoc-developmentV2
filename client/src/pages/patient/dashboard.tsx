@@ -65,7 +65,6 @@ export default function PatientDashboard() {
 
   const stats = dashboardData?.stats || { upcomingAppointments: 0, completedAppointments: 0, totalSpent: 0, prescriptionsCount: 0 };
   const upcomingAppointments = dashboardData?.upcomingAppointments || [];
-  const recentAppointments = dashboardData?.recentAppointments || [];
 
   return (
     <div className="space-y-6">
@@ -180,54 +179,6 @@ export default function PatientDashboard() {
                     Book an Appointment
                   </Button>
                 </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
-            <CardTitle>Recent Activity</CardTitle>
-            <Link href="/patient/appointments">
-              <Button variant="ghost" size="sm" className="gap-1">
-                View Records
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {recentAppointments.length > 0 ? (
-              <div className="space-y-4">
-                {recentAppointments.slice(0, 3).map((appointment) => (
-                  <div 
-                    key={appointment.id}
-                    className="flex items-center gap-4 p-4 rounded-lg border"
-                  >
-                    <Avatar className="h-12 w-12 rounded-lg">
-                      <AvatarImage src={appointment.doctor?.user?.profileImage} />
-                      <AvatarFallback className="rounded-lg bg-muted">
-                        {getInitials(appointment.doctor?.user?.fullName || "")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        Dr. {appointment.doctor?.user?.fullName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {appointment.doctor?.specializations?.[0]?.name || "Specialist"}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(appointment.appointmentDate), "MMM d, yyyy")}
-                      </p>
-                    </div>
-                    <StatusBadge status={appointment.status} type="appointment" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">No recent activity</p>
               </div>
             )}
           </CardContent>
