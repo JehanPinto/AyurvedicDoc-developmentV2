@@ -380,40 +380,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link href="/admin/doctors">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <Stethoscope className="h-6 w-6" />
-                <span>Manage Doctors</span>
-              </Button>
-            </Link>
-            <Link href="/admin/patients">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <Users className="h-6 w-6" />
-                <span>Manage Patients</span>
-              </Button>
-            </Link>
-            <Link href="/admin/specializations">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <Activity className="h-6 w-6" />
-                <span>Specializations</span>
-              </Button>
-            </Link>
-            <Link href="/admin/settings">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <AlertCircle className="h-6 w-6" />
-                <span>System Settings</span>
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-
       <Dialog 
         open={showVerificationDialog} 
         onOpenChange={(open) => open ? setShowVerificationDialog(true) : handleCloseDialog()}

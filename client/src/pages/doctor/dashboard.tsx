@@ -287,32 +287,6 @@ export default function DoctorDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/doctor/schedule">
-                <Button variant="outline" className="w-full justify-start gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Manage Schedule
-                </Button>
-              </Link>
-              <Link href="/doctor/prescriptions">
-                <Button variant="outline" className="w-full justify-start gap-2">
-                  <Users className="h-4 w-4" />
-                  Prescriptions
-                </Button>
-              </Link>
-              <Link href="/doctor/profile">
-                <Button variant="outline" className="w-full justify-start gap-2">
-                  <Star className="h-4 w-4" />
-                  Update Profile
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
           {stats.upcomingAppointments > 0 && (
             <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
               <CardContent className="p-4">

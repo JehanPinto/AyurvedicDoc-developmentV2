@@ -1581,6 +1581,42 @@ export async function registerRoutes(
     }
   });
 
+  // Profile image upload endpoint for authenticated users
+  app.post("/api/users/profile-image", authMiddleware, upload.single("image"), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No image uploaded" });
+      }
+
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(req.file.mimetype)) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed." });
+      }
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      
+      // Update user's profile image
+      const user = await storage.updateUser(req.user!.id, { profileImage: imageUrl });
+      if (!user) {
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ 
+        url: imageUrl,
+        user: userWithoutPassword
+      });
+    } catch (error) {
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ error: "Failed to upload profile image" });
+    }
+  });
+
   app.put("/api/users/profile", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const allowedUpdates = ["fullName", "phone", "gender", "dateOfBirth", "address", "city", "preferredLanguages", "profileImage"];

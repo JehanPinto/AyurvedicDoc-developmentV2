@@ -3,8 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { 
   Calendar, 
   Clock, 
-  FileText, 
-  Star,
   ArrowRight,
   Video,
   Building2,
@@ -184,40 +182,6 @@ export default function PatientDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link href="/doctors">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <Calendar className="h-6 w-6" />
-                <span>Find Doctors</span>
-              </Button>
-            </Link>
-            <Link href="/patient/appointments">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <Clock className="h-6 w-6" />
-                <span>My Appointments</span>
-              </Button>
-            </Link>
-            <Link href="/patient/prescriptions">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <FileText className="h-6 w-6" />
-                <span>Prescriptions</span>
-              </Button>
-            </Link>
-            <Link href="/patient/reviews">
-              <Button variant="outline" className="w-full h-auto py-6 flex flex-col gap-2">
-                <Star className="h-6 w-6" />
-                <span>My Reviews</span>
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

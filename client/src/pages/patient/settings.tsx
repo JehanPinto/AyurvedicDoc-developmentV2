@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +13,8 @@ import {
   Save,
   AlertCircle,
   Check,
-  Lock
+  Lock,
+  Camera
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,8 @@ export default function PatientSettings() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("profile");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -124,6 +127,65 @@ export default function PatientSettings() {
     },
   });
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({ 
+        title: "Invalid file type", 
+        description: "Please upload a JPEG, PNG, GIF, or WebP image.",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ 
+        title: "File too large", 
+        description: "Please upload an image smaller than 5MB.",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsUploadingImage(true);
+    const formData = new FormData();
+    formData.append("image", file);
+
+    try {
+      const response = await fetch("/api/users/profile-image", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data = await response.json();
+      updateUser(data.user);
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({ title: "Profile picture updated successfully" });
+    } catch (error) {
+      toast({ 
+        title: "Failed to upload image", 
+        description: "Please try again.",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsUploadingImage(false);
+      // Reset the input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   const getInitials = (name: string) => {
     if (!name) return "U";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
@@ -174,12 +236,29 @@ export default function PatientSettings() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-4">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={user.profileImage} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-xl font-medium">
-                    {getInitials(user.fullName)}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src={user.profileImage} />
+                    <AvatarFallback className="bg-primary/10 text-primary text-xl font-medium">
+                      {getInitials(user.fullName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isUploadingImage ? (
+                      <LoadingSpinner className="h-6 w-6 text-white" />
+                    ) : (
+                      <Camera className="h-6 w-6 text-white" />
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    data-testid="input-profile-image"
+                  />
+                </div>
                 <div>
                   <h3 className="font-medium">{user.fullName}</h3>
                   <p className="text-sm text-muted-foreground">{user.email}</p>
