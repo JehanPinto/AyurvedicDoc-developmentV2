@@ -175,7 +175,7 @@ export default function PatientDashboard() {
               <div className="text-center py-8">
                 <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
                 <p className="text-muted-foreground mb-4">No upcoming appointments</p>
-                <Link href="/doctors">
+                <Link href="/patient/doctors">
                   <Button variant="outline" size="sm">
                     Book an Appointment
                   </Button>
