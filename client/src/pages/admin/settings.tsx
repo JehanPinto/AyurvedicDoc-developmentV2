@@ -84,8 +84,7 @@ export default function AdminSettingsPage() {
   // Mutation to save settings
   const saveMutation = useMutation({
     mutationFn: async (data: Partial<PlatformSettings>) => {
-      const response = await apiRequest("PUT", "/api/admin/settings", data);
-      return response.json();
+      return apiRequest("PUT", "/api/admin/settings", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });

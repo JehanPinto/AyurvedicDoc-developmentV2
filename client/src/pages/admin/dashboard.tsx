@@ -41,6 +41,12 @@ import { useAuth } from "@/lib/auth-context";
 import type { AdminDashboardStats, DoctorWithDetails } from "@shared/schema";
 import { DoctorStatus } from "@shared/schema";
 
+const getDocumentUrl = (filename: string) => {
+  if (!filename) return "#";
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  return token ? `/api/documents/${filename}?token=${token}` : `/api/documents/${filename}`;
+};
+
 interface DashboardData {
   stats: AdminDashboardStats;
   pendingDoctors: DoctorWithDetails[];
@@ -137,7 +143,7 @@ export default function AdminDashboard() {
 
   const getDocumentLink = (doc: string) => {
     const filename = doc.split("/").pop() || "";
-    return doc.startsWith("http") ? doc : `/api/documents/${filename}`;
+    return doc.startsWith("http") ? doc : getDocumentUrl(filename);
   };
 
   return (

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LoadingPage } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 
 interface PatientWithStats extends Omit<User, 'password'> {
@@ -61,14 +62,8 @@ export default function AdminPatientsPage() {
   });
 
   const suspendMutation = useMutation({
-    mutationFn: async (patientId: string) => {
-      const response = await fetch(`/api/admin/users/${patientId}/suspend`, {
-        method: "PATCH",
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to suspend patient");
-      return response.json();
-    },
+    mutationFn: async (patientId: string) =>
+      apiRequest("PATCH", `/api/admin/users/${patientId}/suspend`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users?role=patient"] });
       toast({
@@ -88,14 +83,8 @@ export default function AdminPatientsPage() {
   });
 
   const reactivateMutation = useMutation({
-    mutationFn: async (patientId: string) => {
-      const response = await fetch(`/api/admin/users/${patientId}/reactivate`, {
-        method: "PATCH",
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to reactivate patient");
-      return response.json();
-    },
+    mutationFn: async (patientId: string) =>
+      apiRequest("PATCH", `/api/admin/users/${patientId}/reactivate`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users?role=patient"] });
       toast({

@@ -54,6 +54,12 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import type { DoctorWithDetails } from "@shared/schema";
 import { DoctorStatus } from "@shared/schema";
 
+const getDocumentUrl = (filename: string) => {
+  if (!filename) return "#";
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  return token ? `/api/documents/${filename}?token=${token}` : `/api/documents/${filename}`;
+};
+
 export default function AdminDoctorsPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -488,10 +494,11 @@ export default function AdminDoctorsPage() {
                     <div className="grid grid-cols-2 gap-2">
                       {selectedDoctor.verificationDocuments.map((doc: string, index: number) => {
                         const filename = doc.split('/').pop() || '';
+                        const url = getDocumentUrl(filename);
                         return (
                           <a 
                             key={index}
-                            href={`/api/documents/${filename}`}
+                            href={url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-2 p-2 bg-muted rounded-md hover-elevate"

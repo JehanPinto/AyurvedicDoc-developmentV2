@@ -517,9 +517,20 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/documents/:filename", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  // Allow admins to fetch verification documents without the Authorization header by accepting a
+  // token via the query string (?token=...) while still honoring the usual Bearer header.
+  app.get("/api/documents/:filename", async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const user = req.user!;
+      const authHeader = req.headers.authorization;
+      const headerToken = authHeader?.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : null;
+      const queryToken = typeof req.query.token === "string" ? req.query.token : null;
+      const token = headerToken || queryToken;
+      const user = token ? verifyToken(token) : null;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
       const filename = path.basename(req.params.filename);
       
       if (!filename || filename.includes('..')) {
