@@ -24,7 +24,6 @@ import DoctorDashboard from "@/pages/doctor/dashboard";
 import DoctorRegisterPage from "@/pages/doctor/register";
 import DoctorAppointmentsPage from "@/pages/doctor/appointments";
 import DoctorSchedulePage from "@/pages/doctor/schedule";
-import DoctorPatientsPage from "@/pages/doctor/patients";
 import DoctorReviewsPage from "@/pages/doctor/reviews";
 import DoctorEarningsPage from "@/pages/doctor/earnings";
 import DoctorSettingsPage from "@/pages/doctor/settings";
@@ -113,7 +112,6 @@ function Router() {
             <Switch>
               <Route path="/doctor/appointments" component={DoctorAppointmentsPage} />
               <Route path="/doctor/schedule" component={DoctorSchedulePage} />
-              <Route path="/doctor/patients" component={DoctorPatientsPage} />
               <Route path="/doctor/earnings" component={DoctorEarningsPage} />
               <Route path="/doctor/reviews" component={DoctorReviewsPage} />
               <Route path="/doctor/profile" component={DoctorSettingsPage} />

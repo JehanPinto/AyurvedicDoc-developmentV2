@@ -59,7 +59,6 @@ const doctorNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/doctor" },
   { icon: Calendar, label: "Appointments", href: "/doctor/appointments" },
   { icon: Clock, label: "Schedule", href: "/doctor/schedule" },
-  { icon: Users, label: "Patients", href: "/doctor/patients" },
   { icon: DollarSign, label: "Earnings", href: "/doctor/earnings" },
   { icon: Star, label: "Reviews", href: "/doctor/reviews" },
   { icon: Settings, label: "Profile", href: "/doctor/profile" },
