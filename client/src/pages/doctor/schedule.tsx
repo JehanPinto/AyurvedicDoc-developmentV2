@@ -56,6 +56,16 @@ export default function DoctorSchedule() {
 
   const startDate = format(currentWeekStart, "yyyy-MM-dd");
   const endDate = format(addDays(currentWeekStart, 6), "yyyy-MM-dd");
+  const consultationBadgeStyles: Record<string, { label: string; className: string }> = {
+    online: {
+      label: "Online",
+      className: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800",
+    },
+    in_person: {
+      label: "In Person",
+      className: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800",
+    },
+  };
 
   const { data: slots = [], isLoading, isError } = useQuery<AppointmentSlot[]>({
     queryKey: ["/api/doctor/slots", startDate, endDate],
@@ -73,7 +83,7 @@ export default function DoctorSchedule() {
 
   const createSlotMutation = useMutation({
     mutationFn: (data: { date: string; startTime: string; endTime: string; consultationType: string }) =>
-      apiRequest("POST", "/api/slots", {
+      apiRequest("POST", "/api/doctor/slots", {
         ...data,
         doctorId: profile?.id,
         hospitalId: profile?.hospitalIds?.[0],
@@ -89,7 +99,7 @@ export default function DoctorSchedule() {
   });
 
   const blockSlotMutation = useMutation({
-    mutationFn: (slotId: string) => apiRequest("PATCH", `/api/slots/${slotId}/block`),
+    mutationFn: (slotId: string) => apiRequest("PATCH", `/api/doctor/slots/${slotId}/block`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/doctor/slots"] });
       toast({ title: "Slot blocked" });
@@ -100,7 +110,7 @@ export default function DoctorSchedule() {
   });
 
   const unblockSlotMutation = useMutation({
-    mutationFn: (slotId: string) => apiRequest("PATCH", `/api/slots/${slotId}/unblock`),
+    mutationFn: (slotId: string) => apiRequest("PATCH", `/api/doctor/slots/${slotId}/unblock`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/doctor/slots"] });
       toast({ title: "Slot unblocked" });
@@ -111,7 +121,7 @@ export default function DoctorSchedule() {
   });
 
   const deleteSlotMutation = useMutation({
-    mutationFn: (slotId: string) => apiRequest("DELETE", `/api/slots/${slotId}`),
+    mutationFn: (slotId: string) => apiRequest("DELETE", `/api/doctor/slots/${slotId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/doctor/slots"] });
       toast({ title: "Slot deleted" });
@@ -228,45 +238,56 @@ export default function DoctorSchedule() {
                   </div>
                   
                   <div className="space-y-1">
-                    {daySlots.slice(0, 4).map((slot) => (
-                      <div
-                        key={slot.id}
-                        className={`text-xs p-1.5 rounded flex items-center justify-between gap-1 ${
-                          slot.isBlocked 
-                            ? "bg-muted text-muted-foreground line-through" 
-                            : slot.isBooked
-                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                              : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                        }`}
-                        data-testid={`slot-${slot.id}`}
-                      >
-                        <span className="flex items-center gap-1">
-                          {slot.consultationType === "online" ? (
-                            <Video className="h-3 w-3" />
-                          ) : (
-                            <Building2 className="h-3 w-3" />
+                    {daySlots.slice(0, 4).map((slot) => {
+                      const badge = consultationBadgeStyles[slot.consultationType] || consultationBadgeStyles.in_person;
+                      return (
+                        <div
+                          key={slot.id}
+                          className={`text-xs p-1.5 rounded flex items-center justify-between gap-2 ${
+                            slot.isBlocked 
+                              ? "bg-muted text-muted-foreground line-through" 
+                              : slot.isBooked
+                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                          }`}
+                          data-testid={`slot-${slot.id}`}
+                        >
+                          <div className="flex items-center gap-2 flex-1 flex-wrap">
+                            <span className="flex items-center gap-1 font-medium">
+                              {slot.consultationType === "online" ? (
+                                <Video className="h-3 w-3" />
+                              ) : (
+                                <Building2 className="h-3 w-3" />
+                              )}
+                              {slot.startTime} - {slot.endTime}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-semibold px-2 py-[2px] rounded-full ${badge.className}`}
+                            >
+                              {badge.label}
+                            </Badge>
+                          </div>
+                          {!slot.isBooked && !isPastDay && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-4 w-4 p-0"
+                              onClick={() => slot.isBlocked 
+                                ? unblockSlotMutation.mutate(slot.id)
+                                : blockSlotMutation.mutate(slot.id)
+                              }
+                            >
+                              {slot.isBlocked ? (
+                                <Unlock className="h-3 w-3" />
+                              ) : (
+                                <Lock className="h-3 w-3" />
+                              )}
+                            </Button>
                           )}
-                          {slot.startTime}
-                        </span>
-                        {!slot.isBooked && !isPastDay && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-4 w-4 p-0"
-                            onClick={() => slot.isBlocked 
-                              ? unblockSlotMutation.mutate(slot.id)
-                              : blockSlotMutation.mutate(slot.id)
-                            }
-                          >
-                            {slot.isBlocked ? (
-                              <Unlock className="h-3 w-3" />
-                            ) : (
-                              <Lock className="h-3 w-3" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                     {daySlots.length > 4 && (
                       <p className="text-xs text-muted-foreground text-center">
                         +{daySlots.length - 4} more
