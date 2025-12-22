@@ -121,12 +121,17 @@ export default function DoctorSchedule() {
   });
 
   const deleteSlotMutation = useMutation({
-    mutationFn: (slotId: string) => apiRequest("DELETE", `/api/doctor/slots/${slotId}`),
+    mutationFn: async (slotId: string) => {
+      const response = await apiRequest("DELETE", `/api/slots/${slotId}`);
+      return response;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/doctor/slots"] });
+      queryClient.refetchQueries({ queryKey: ["/api/doctor/slots", startDate, endDate] });
       toast({ title: "Slot deleted" });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("Delete slot error:", error);
       toast({ title: "Failed to delete slot", variant: "destructive" });
     },
   });

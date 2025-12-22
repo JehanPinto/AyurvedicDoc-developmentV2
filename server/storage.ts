@@ -66,6 +66,7 @@ export interface IStorage {
   updateAppointmentSlot(id: string, updates: Partial<InsertAppointmentSlot>): Promise<AppointmentSlot | undefined>;
   blockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
   unblockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
+  deleteSlot(slotId: string): Promise<boolean>;
 
   getAppointment(id: string): Promise<Appointment | undefined>;
   getAppointmentWithDetails(id: string): Promise<AppointmentWithDetails | undefined>;

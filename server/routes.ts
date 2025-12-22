@@ -815,6 +815,38 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/slots/:id", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      // Verify the slot belongs to this doctor
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile) {
+        return res.status(404).json({ error: "Doctor profile not found" });
+      }
+      
+      const slot = await storage.getAppointmentSlot(req.params.id);
+      if (!slot) {
+        return res.status(404).json({ error: "Slot not found" });
+      }
+      
+      if (slot.doctorId !== profile.id) {
+        return res.status(403).json({ error: "Not authorized to delete this slot" });
+      }
+      
+      if (slot.isBooked) {
+        return res.status(400).json({ error: "Cannot delete a booked slot" });
+      }
+      
+      const success = await storage.deleteSlot(req.params.id);
+      if (success) {
+        res.json({ success: true, message: "Slot deleted successfully" });
+      } else {
+        res.status(500).json({ error: "Failed to delete slot" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete slot" });
+    }
+  });
+
   app.get("/api/doctor/appointments", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const profile = await storage.getDoctorProfileByUserId(req.user!.id);

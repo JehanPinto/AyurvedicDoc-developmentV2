@@ -383,6 +383,11 @@ export class DbStorage implements IStorage {
     return this.updateAppointmentSlot(slotId, { isBlocked: false });
   }
 
+  async deleteSlot(slotId: string): Promise<boolean> {
+    const result = await db.delete(appointmentSlots).where(eq(appointmentSlots.id, slotId)).returning();
+    return result.length > 0;
+  }
+
   async getAppointment(id: string): Promise<Appointment | undefined> {
     const result = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
     if (!result[0]) return undefined;
