@@ -58,6 +58,14 @@ export default function DoctorProfilePage() {
     selectedConsultationType === "all" || slot.consultationType === selectedConsultationType
   );
 
+  const slotTypesForDate = Array.from(new Set(slots.map((slot) => slot.consultationType)));
+  const availableConsultationTypes = Array.from(
+    new Set([
+      ...(doctor?.consultationTypes || []),
+      ...slotTypesForDate,
+    ]),
+  ).filter((t): t is "in_person" | "online" => t === "in_person" || t === "online");
+
   useEffect(() => {
     setSelectedSlot(null);
   }, [selectedDate, selectedConsultationType]);
@@ -346,7 +354,7 @@ export default function DoctorProfilePage() {
                       >
                         All
                       </Button>
-                      {doctor.consultationTypes.includes("in_person") && (
+                      {availableConsultationTypes.includes("in_person") && (
                         <Button
                           variant={selectedConsultationType === "in_person" ? "default" : "outline"}
                           size="sm"
@@ -357,7 +365,7 @@ export default function DoctorProfilePage() {
                           In Person
                         </Button>
                       )}
-                      {doctor.consultationTypes.includes("online") && (
+                      {availableConsultationTypes.includes("online") && (
                         <Button
                           variant={selectedConsultationType === "online" ? "default" : "outline"}
                           size="sm"
