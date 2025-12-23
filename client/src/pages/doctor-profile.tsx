@@ -1,18 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { 
   MapPin, 
-  Clock, 
   Award, 
   Languages, 
   Phone,
   Calendar,
   ChevronLeft,
-  ChevronRight,
   Video,
   Building2,
-  Home,
   Star
 } from "lucide-react";
 import { format, addDays, isSameDay, startOfToday } from "date-fns";
@@ -24,167 +21,52 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { StarRating } from "@/components/ui/star-rating";
-import { ConsultationTypeBadges, StatusBadge } from "@/components/ui/status-badge";
-import { LoadingPage } from "@/components/ui/loading-spinner";
+import { ConsultationTypeBadges } from "@/components/ui/status-badge";
+import { LoadingPage, LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { DoctorWithDetails, AppointmentSlot, ReviewWithPatient } from "@shared/schema";
-import { ConsultationType } from "@shared/schema";
-
-const mockDoctor: DoctorWithDetails = {
-  id: "1",
-  userId: "u1",
-  registrationNumber: "AYU-2010-001",
-  qualifications: "BAMS (Bachelor of Ayurvedic Medicine and Surgery), MD (Ayu) - Panchakarma Specialist",
-  biography: "Dr. Ananda Perera is a highly experienced Ayurvedic physician with over 15 years of dedicated practice in Panchakarma therapy. He has successfully treated thousands of patients with chronic conditions using traditional Ayurvedic methods combined with modern approaches. His expertise includes detoxification therapies, stress management, and holistic wellness programs. Dr. Perera is passionate about bringing the wisdom of ancient Ayurveda to modern healthcare.",
-  experienceYears: 15,
-  specializationIds: ["1"],
-  languagesSpoken: ["english", "sinhala"],
-  consultationTypes: ["in_person", "online"],
-  hospitalIds: ["h1"],
-  consultationFee: 2500,
-  onlineConsultationFee: 2000,
-  status: "verified",
-  verificationDocuments: [],
-  isAvailable: true,
-  maxAdvanceBookingDays: 30,
-  minBookingNoticeHours: 2,
-  slotDurationMinutes: 30,
-  bufferTimeMinutes: 10,
-  averageRating: 4.9,
-  totalReviews: 156,
-  totalAppointments: 500,
-  currentQueueNumber: 0,
-  createdAt: "2024-01-01",
-  updatedAt: "2024-01-01",
-  user: {
-    id: "u1",
-    email: "ananda@example.com",
-    password: "",
-    fullName: "Ananda Perera",
-    phone: "+94771234567",
-    role: "doctor",
-    preferredLanguages: ["english"],
-    isEmailVerified: true,
-    isPhoneVerified: true,
-    createdAt: "2024-01-01",
-    updatedAt: "2024-01-01",
-  },
-  specializations: [{ id: "1", name: "Panchakarma", description: "Traditional detoxification and rejuvenation therapy" }],
-  hospitals: [{ 
-    id: "h1", 
-    name: "Ayurveda Wellness Center", 
-    address: "123 Galle Road, Colombo 03", 
-    city: "Colombo", 
-    contactNumber: "+94112345678",
-    parkingAvailable: true,
-    directions: "Near Kollupitiya Junction, opposite Ceylon Continental Hotel"
-  }],
-};
-
-const mockSlots: AppointmentSlot[] = [
-  { id: "s1", doctorId: "1", date: format(addDays(startOfToday(), 1), "yyyy-MM-dd"), startTime: "09:00", endTime: "09:30", consultationType: "in_person", isBooked: false, isBlocked: false },
-  { id: "s2", doctorId: "1", date: format(addDays(startOfToday(), 1), "yyyy-MM-dd"), startTime: "09:30", endTime: "10:00", consultationType: "in_person", isBooked: true, isBlocked: false },
-  { id: "s3", doctorId: "1", date: format(addDays(startOfToday(), 1), "yyyy-MM-dd"), startTime: "10:00", endTime: "10:30", consultationType: "in_person", isBooked: false, isBlocked: false },
-  { id: "s4", doctorId: "1", date: format(addDays(startOfToday(), 1), "yyyy-MM-dd"), startTime: "10:30", endTime: "11:00", consultationType: "online", isBooked: false, isBlocked: false },
-  { id: "s5", doctorId: "1", date: format(addDays(startOfToday(), 1), "yyyy-MM-dd"), startTime: "11:00", endTime: "11:30", consultationType: "online", isBooked: false, isBlocked: false },
-  { id: "s6", doctorId: "1", date: format(addDays(startOfToday(), 2), "yyyy-MM-dd"), startTime: "09:00", endTime: "09:30", consultationType: "in_person", isBooked: false, isBlocked: false },
-  { id: "s7", doctorId: "1", date: format(addDays(startOfToday(), 2), "yyyy-MM-dd"), startTime: "14:00", endTime: "14:30", consultationType: "online", isBooked: false, isBlocked: false },
-  { id: "s8", doctorId: "1", date: format(addDays(startOfToday(), 3), "yyyy-MM-dd"), startTime: "09:00", endTime: "09:30", consultationType: "in_person", isBooked: false, isBlocked: false },
-];
-
-const mockReviews: ReviewWithPatient[] = [
-  {
-    id: "r1",
-    appointmentId: "a1",
-    patientId: "p1",
-    doctorId: "1",
-    rating: 5,
-    comment: "Dr. Perera is an excellent doctor. He took the time to understand my condition and provided a comprehensive treatment plan. The Panchakarma therapy has significantly improved my health.",
-    isHidden: false,
-    createdAt: "2024-10-15",
-    updatedAt: "2024-10-15",
-    patient: {
-      id: "p1",
-      email: "patient1@example.com",
-      password: "",
-      fullName: "Sanduni W.",
-      phone: "+94771111111",
-      role: "patient",
-      preferredLanguages: ["english"],
-      isEmailVerified: true,
-      isPhoneVerified: true,
-      createdAt: "2024-01-01",
-      updatedAt: "2024-01-01",
-    },
-  },
-  {
-    id: "r2",
-    appointmentId: "a2",
-    patientId: "p2",
-    doctorId: "1",
-    rating: 5,
-    comment: "Very professional and knowledgeable. The online consultation was smooth and he explained everything clearly.",
-    isHidden: false,
-    createdAt: "2024-10-10",
-    updatedAt: "2024-10-10",
-    patient: {
-      id: "p2",
-      email: "patient2@example.com",
-      password: "",
-      fullName: "Mahesh J.",
-      phone: "+94772222222",
-      role: "patient",
-      preferredLanguages: ["english"],
-      isEmailVerified: true,
-      isPhoneVerified: true,
-      createdAt: "2024-01-01",
-      updatedAt: "2024-01-01",
-    },
-  },
-  {
-    id: "r3",
-    appointmentId: "a3",
-    patientId: "p3",
-    doctorId: "1",
-    rating: 4,
-    comment: "Good experience overall. The clinic was clean and well-organized. Would recommend.",
-    isHidden: false,
-    createdAt: "2024-10-05",
-    updatedAt: "2024-10-05",
-    patient: {
-      id: "p3",
-      email: "patient3@example.com",
-      password: "",
-      fullName: "Priya N.",
-      phone: "+94773333333",
-      role: "patient",
-      preferredLanguages: ["sinhala"],
-      isEmailVerified: true,
-      isPhoneVerified: true,
-      createdAt: "2024-01-01",
-      updatedAt: "2024-01-01",
-    },
-  },
-];
+import { apiRequest } from "@/lib/queryClient";
 
 export default function DoctorProfilePage() {
   const { id } = useParams();
-  const [selectedDate, setSelectedDate] = useState(addDays(startOfToday(), 1));
+  const [selectedDate, setSelectedDate] = useState(startOfToday());
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
-  const [selectedConsultationType, setSelectedConsultationType] = useState<string>("all");
+  const [selectedConsultationType, setSelectedConsultationType] = useState<"all" | AppointmentSlot["consultationType"]>("all");
 
-  const { data: doctor, isLoading } = useQuery<DoctorWithDetails>({
-    queryKey: ["/api/doctors", id],
-    queryFn: async () => mockDoctor,
+  const selectedDateString = format(selectedDate, "yyyy-MM-dd");
+
+  const { data: doctor, isLoading: doctorLoading } = useQuery<DoctorWithDetails>({
+    queryKey: [`/api/doctors/${id}`],
+    enabled: Boolean(id),
   });
 
-  const dates = Array.from({ length: 14 }, (_, i) => addDays(startOfToday(), i + 1));
-
-  const filteredSlots = mockSlots.filter(slot => {
-    const slotDate = new Date(slot.date);
-    if (!isSameDay(slotDate, selectedDate)) return false;
-    if (selectedConsultationType !== "all" && slot.consultationType !== selectedConsultationType) return false;
-    return true;
+  const { data: reviews = [], isLoading: reviewsLoading } = useQuery<ReviewWithPatient[]>({
+    queryKey: [`/api/doctors/${id}/reviews`],
+    enabled: Boolean(id),
   });
+
+  const { data: slots = [], isLoading: slotsLoading, isError: slotsError } = useQuery<AppointmentSlot[]>({
+    queryKey: ["/api/doctors", id, "slots", selectedDateString],
+    queryFn: () => apiRequest("GET", `/api/doctors/${id}/slots?date=${selectedDateString}`),
+    enabled: Boolean(id),
+    staleTime: 60_000,
+  });
+
+  const maxAdvanceDays = Math.max(Math.min(doctor?.maxAdvanceBookingDays ?? 14, 30), 1);
+  const dates = Array.from({ length: maxAdvanceDays }, (_, i) => addDays(startOfToday(), i));
+
+  const filteredSlots = slots.filter(slot => 
+    selectedConsultationType === "all" || slot.consultationType === selectedConsultationType
+  );
+
+  useEffect(() => {
+    setSelectedSlot(null);
+  }, [selectedDate, selectedConsultationType]);
+
+  useEffect(() => {
+    if (selectedSlot && !filteredSlots.some(slot => slot.id === selectedSlot.id)) {
+      setSelectedSlot(null);
+    }
+  }, [filteredSlots, selectedSlot]);
 
   const formatFee = (fee: number) => {
     return new Intl.NumberFormat('en-LK', {
@@ -198,7 +80,7 @@ export default function DoctorProfilePage() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  if (isLoading) {
+  if (doctorLoading) {
     return (
       <PublicLayout showHeader={false}>
         <LoadingPage message="Loading doctor profile..." />
@@ -385,29 +267,39 @@ export default function DoctorProfilePage() {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {mockReviews.map((review) => (
-                        <div key={review.id} className="pb-6 border-b last:border-0 last:pb-0">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar>
-                                <AvatarFallback className="bg-primary/10 text-primary">
-                                  {getInitials(review.patient.fullName)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium">{review.patient.fullName}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {format(new Date(review.createdAt), "MMM d, yyyy")}
-                                </p>
-                              </div>
-                            </div>
-                            <StarRating rating={review.rating} size="sm" />
-                          </div>
-                          {review.comment && (
-                            <p className="mt-3 text-muted-foreground">{review.comment}</p>
-                          )}
+                      {reviewsLoading ? (
+                        <div className="flex justify-center py-6">
+                          <LoadingSpinner />
                         </div>
-                      ))}
+                      ) : reviews.length > 0 ? (
+                        reviews.map((review) => (
+                          <div key={review.id} className="pb-6 border-b last:border-0 last:pb-0">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar>
+                                  <AvatarFallback className="bg-primary/10 text-primary">
+                                    {getInitials(review.patient.fullName)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">{review.patient.fullName}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {format(new Date(review.createdAt), "MMM d, yyyy")}
+                                  </p>
+                                </div>
+                              </div>
+                              <StarRating rating={review.rating} size="sm" />
+                            </div>
+                            {review.comment && (
+                              <p className="mt-3 text-muted-foreground">{review.comment}</p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-6">
+                          No reviews yet
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -454,7 +346,7 @@ export default function DoctorProfilePage() {
                       >
                         All
                       </Button>
-                      {doctor.consultationTypes.includes("in_person" as any) && (
+                      {doctor.consultationTypes.includes("in_person") && (
                         <Button
                           variant={selectedConsultationType === "in_person" ? "default" : "outline"}
                           size="sm"
@@ -465,7 +357,7 @@ export default function DoctorProfilePage() {
                           In Person
                         </Button>
                       )}
-                      {doctor.consultationTypes.includes("online" as any) && (
+                      {doctor.consultationTypes.includes("online") && (
                         <Button
                           variant={selectedConsultationType === "online" ? "default" : "outline"}
                           size="sm"
@@ -483,7 +375,15 @@ export default function DoctorProfilePage() {
                     <label className="text-sm font-medium mb-2 block">
                       Available Slots for {format(selectedDate, "EEEE, MMM d")}
                     </label>
-                    {filteredSlots.length > 0 ? (
+                    {slotsLoading ? (
+                      <div className="flex justify-center py-4">
+                        <LoadingSpinner />
+                      </div>
+                    ) : slotsError ? (
+                      <p className="text-sm text-destructive text-center py-4">
+                        Unable to load slots. Please try another date.
+                      </p>
+                    ) : filteredSlots.length > 0 ? (
                       <div className="grid grid-cols-3 gap-2">
                         {filteredSlots.map((slot) => (
                           <Button
