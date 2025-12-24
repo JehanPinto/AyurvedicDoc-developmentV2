@@ -218,6 +218,12 @@ export default function DoctorProfilePage() {
                         <h3 className="font-semibold mb-2">Registration</h3>
                         <p className="text-muted-foreground">{doctor.registrationNumber}</p>
                       </div>
+                      {doctor.user.gender && (
+                        <div>
+                          <h3 className="font-semibold mb-2">Gender</h3>
+                          <p className="text-muted-foreground capitalize">{doctor.user.gender}</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
