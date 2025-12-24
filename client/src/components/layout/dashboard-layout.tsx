@@ -148,24 +148,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-
-            {user?.role === UserRole.ADMIN && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Quick Stats</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <div className="px-3 py-2 space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Pending Doctors</span>
-                      <Badge variant="secondary">14</Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Today's Appointments</span>
-                      <Badge variant="secondary">245</Badge>
-                    </div>
-                  </div>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
           </SidebarContent>
 
           <SidebarFooter className="border-t p-4">
