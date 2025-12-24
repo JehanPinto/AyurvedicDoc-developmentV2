@@ -87,6 +87,7 @@ export default function AdminSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/booking-settings"] });
       toast({
         title: "Settings Saved",
         description: "Platform settings have been updated successfully.",

@@ -133,13 +133,17 @@ export default function BookAppointmentPage() {
   const [step, setStep] = useState<"details" | "payment" | "confirmation">("details");
   const [bookingComplete, setBookingComplete] = useState(false);
 
-  const { data: bookingSettings } = useQuery<BookingSettings>({
+  const { data: bookingSettings, isLoading: settingsLoading } = useQuery<BookingSettings>({
     queryKey: ["/api/booking-settings"],
     queryFn: async () => {
       const res = await fetch("/api/booking-settings");
       if (!res.ok) throw new Error("Failed to fetch booking settings");
-      return res.json();
+      const data = await res.json();
+      return data;
     },
+    staleTime: 0, // Always fetch fresh settings
+    refetchOnMount: "always", // Always refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 
   const { data: doctor, isLoading: doctorLoading } = useQuery<DoctorWithDetails>({
@@ -216,11 +220,13 @@ export default function BookAppointmentPage() {
     : doctor?.consultationFee || 0;
 
   // Use platform settings for booking charges and tax
-  const bookingCharges = bookingSettings?.bookingCharges ?? 0;
-  const tax = Math.round(consultationFee * ((bookingSettings?.taxRate ?? 0) / 100));
+  // Default to sensible values if settings not loaded yet
+  const bookingCharges = bookingSettings?.bookingCharges ?? 100;
+  const taxRate = bookingSettings?.taxRate ?? 4;
+  const tax = Math.round(consultationFee * (taxRate / 100));
   const totalAmount = consultationFee + bookingCharges + tax;
 
-  if (doctorLoading || slotLoading) {
+  if (doctorLoading || slotLoading || settingsLoading) {
     return (
       <PublicLayout showHeader={false}>
         <LoadingPage message="Loading booking details..." />
@@ -687,7 +693,7 @@ export default function BookAppointmentPage() {
                       <span>{formatFee(bookingCharges)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tax ({bookingSettings?.taxRate ?? 0}%)</span>
+                      <span className="text-muted-foreground">Tax ({taxRate}%)</span>
                       <span>{formatFee(tax)}</span>
                     </div>
                     <div className="flex justify-between font-bold pt-2 border-t">

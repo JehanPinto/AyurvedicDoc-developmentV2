@@ -1570,14 +1570,21 @@ export async function registerRoutes(
   app.get("/api/booking-settings", async (_req: Request, res: Response) => {
     try {
       const settings = await storage.getPlatformSettings();
+      const payload = {
+        allowOnlinePayments: !!settings.allowOnlinePayments,
+        allowClinicPayments: !!settings.allowClinicPayments,
+        platformCommissionRate: Number(settings.platformCommissionRate ?? 0),
+        bookingCharges: Number(settings.bookingCharges ?? 0),
+        taxRate: Number(settings.taxRate ?? 0),
+      };
+
+      console.log("Returning booking settings:", payload);
+      // Prevent caching to ensure fresh settings
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       // Expose payment-related settings and fee configuration to public
-      res.json({
-        allowOnlinePayments: settings.allowOnlinePayments,
-        allowClinicPayments: settings.allowClinicPayments,
-        platformCommissionRate: settings.platformCommissionRate,
-        bookingCharges: settings.bookingCharges,
-        taxRate: settings.taxRate,
-      });
+      res.json(payload);
     } catch (error) {
       console.error("Failed to get booking settings:", error);
       res.status(500).json({ error: "Failed to get booking settings" });
@@ -1597,7 +1604,17 @@ export async function registerRoutes(
 
   app.put("/api/admin/settings", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
+      console.log("Updating platform settings with:", {
+        bookingCharges: req.body.bookingCharges,
+        taxRate: req.body.taxRate,
+        platformCommissionRate: req.body.platformCommissionRate,
+      });
       const settings = await storage.updatePlatformSettings(req.body);
+      console.log("Settings updated successfully:", {
+        bookingCharges: settings.bookingCharges,
+        taxRate: settings.taxRate,
+        platformCommissionRate: settings.platformCommissionRate,
+      });
       res.json(settings);
     } catch (error) {
       console.error("Failed to update platform settings:", error);
