@@ -555,7 +555,7 @@ export default function DoctorRegisterPage() {
                       name="registrationNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>SLMC Registration Number *</FormLabel>
+                          <FormLabel>SLAMC Registration Number *</FormLabel>
                           <FormControl>
                             <Input placeholder="AY/12345" data-testid="input-registration" {...field} />
                           </FormControl>

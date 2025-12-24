@@ -99,7 +99,7 @@ async function seed() {
     {
       id: "doc-1",
       userId: "user-doc-1",
-      registrationNumber: "SLMC-12345",
+      registrationNumber: "SLAMC-12345",
       qualifications: "BAMS (University of Colombo), MD in Panchakarma",
       biography: "Dr. Anura Silva is a renowned Ayurvedic physician with over 15 years of experience in Panchakarma therapy. He has treated thousands of patients and is known for his expertise in detoxification treatments.",
       experienceYears: 15,
@@ -118,7 +118,7 @@ async function seed() {
     {
       id: "doc-2",
       userId: "user-doc-2",
-      registrationNumber: "SLMC-23456",
+      registrationNumber: "SLAMC-23456",
       qualifications: "BAMS (University of Kelaniya), Diploma in Rasayana",
       biography: "Dr. Kumari Fernando specializes in women's health and pediatric Ayurveda. She has a gentle approach and is particularly skilled in treating chronic conditions through Rasayana therapy.",
       experienceYears: 12,
@@ -138,7 +138,7 @@ async function seed() {
     {
       id: "doc-3",
       userId: "user-doc-3",
-      registrationNumber: "SLMC-34567",
+      registrationNumber: "SLAMC-34567",
       qualifications: "BAMS (University of Jaffna), MSc in Ayurveda",
       biography: "Dr. Nihal Perera focuses on mental health and stress-related disorders using Ayurvedic principles. His holistic approach combines traditional therapies with modern understanding of psychological wellness.",
       experienceYears: 8,
