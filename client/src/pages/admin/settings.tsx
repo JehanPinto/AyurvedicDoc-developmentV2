@@ -4,7 +4,6 @@ import {
   Settings, 
   DollarSign,
   Percent,
-  Calendar,
   Clock,
   Bell,
   Shield,
@@ -240,80 +239,6 @@ export default function AdminSettingsPage() {
                 onCheckedChange={(checked) => updateSetting("allowOnlinePayments", checked)}
                 data-testid="switch-online-payments"
               />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Booking Settings
-            </CardTitle>
-            <CardDescription>
-              Configure default booking parameters
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="maxAdvanceDays">Max Advance Booking (Days)</Label>
-                <Input
-                  id="maxAdvanceDays"
-                  type="number"
-                  value={settings.maxAdvanceBookingDays}
-                  onChange={(e) => updateSetting("maxAdvanceBookingDays", e.target.value)}
-                  data-testid="input-max-days"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="minNoticeHours">Min Notice (Hours)</Label>
-                <Input
-                  id="minNoticeHours"
-                  type="number"
-                  value={settings.minBookingNoticeHours}
-                  onChange={(e) => updateSetting("minBookingNoticeHours", e.target.value)}
-                  data-testid="input-min-notice"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="slotDuration">Slot Duration (Minutes)</Label>
-                <Select 
-                  value={settings.defaultSlotDuration}
-                  onValueChange={(value) => updateSetting("defaultSlotDuration", value)}
-                >
-                  <SelectTrigger data-testid="select-slot-duration">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">15 minutes</SelectItem>
-                    <SelectItem value="20">20 minutes</SelectItem>
-                    <SelectItem value="30">30 minutes</SelectItem>
-                    <SelectItem value="45">45 minutes</SelectItem>
-                    <SelectItem value="60">60 minutes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bufferTime">Buffer Time (Minutes)</Label>
-                <Select 
-                  value={settings.defaultBufferTime}
-                  onValueChange={(value) => updateSetting("defaultBufferTime", value)}
-                >
-                  <SelectTrigger data-testid="select-buffer-time">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 minutes</SelectItem>
-                    <SelectItem value="10">10 minutes</SelectItem>
-                    <SelectItem value="15">15 minutes</SelectItem>
-                    <SelectItem value="20">20 minutes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
