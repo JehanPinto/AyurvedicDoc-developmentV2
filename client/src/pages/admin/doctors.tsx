@@ -387,6 +387,15 @@ export default function AdminDoctorsPage() {
                             Reactivate
                           </DropdownMenuItem>
                         )}
+                        {doctor.status === DoctorStatus.REJECTED && (
+                          <DropdownMenuItem 
+                            onClick={() => verifyMutation.mutate(doctor.id)}
+                            className="text-green-600"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Verify
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
