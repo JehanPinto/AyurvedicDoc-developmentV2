@@ -41,7 +41,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
-import { Language, ConsultationType } from "@shared/schema";
+import { Language, ConsultationType, Gender } from "@shared/schema";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { Specialization } from "@shared/schema";
@@ -58,6 +58,7 @@ const personalInfoSchema = z.object({
   confirmPassword: z.string(),
   address: z.string().optional(),
   city: z.string().optional(),
+  gender: z.enum([Gender.MALE, Gender.FEMALE]).optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -502,6 +503,28 @@ export default function DoctorRegisterPage() {
                         <FormControl>
                           <Input placeholder="Colombo" data-testid="input-city" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={personalForm.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Gender</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-gender">
+                              <SelectValue placeholder="Select gender" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value={Gender.MALE}>Male</SelectItem>
+                            <SelectItem value={Gender.FEMALE}>Female</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

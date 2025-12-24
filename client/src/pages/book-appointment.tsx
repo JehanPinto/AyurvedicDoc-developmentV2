@@ -49,7 +49,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const bookingSchema = z.object({
   symptoms: z.string().min(10, "Please describe your symptoms in detail (at least 10 characters)"),
-  paymentMethod: z.enum([PaymentMethod.ONLINE, PaymentMethod.AT_CLINIC]),
+  paymentMethod: z.literal(PaymentMethod.ONLINE).default(PaymentMethod.ONLINE),
   isForDependent: z.boolean().default(false),
   dependentName: z.string().optional(),
   dependentAge: z.string().optional(),
@@ -115,8 +115,6 @@ const mockSlot: AppointmentSlot = {
 };
 
 interface BookingSettings {
-  allowOnlinePayments: boolean;
-  allowClinicPayments: boolean;
   platformCommissionRate: number;
   bookingCharges: number;
   taxRate: number;
@@ -167,7 +165,6 @@ export default function BookAppointmentPage() {
   });
 
   const isForDependent = form.watch("isForDependent");
-  const paymentMethod = form.watch("paymentMethod");
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingInput) => {
@@ -205,11 +202,8 @@ export default function BookAppointmentPage() {
 
   const onSubmit = (data: BookingInput) => {
     if (step === "details") {
-      if (data.paymentMethod === PaymentMethod.ONLINE) {
-        setStep("payment");
-      } else {
-        bookingMutation.mutate(data);
-      }
+      // Always go to payment step since only online payments are available
+      setStep("payment");
     } else if (step === "payment") {
       bookingMutation.mutate(data);
     }
@@ -502,48 +496,20 @@ export default function BookAppointmentPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <FormField
-                            control={form.control}
-                            name="paymentMethod"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <RadioGroup
-                                    onValueChange={field.onChange}
-                                    defaultValue={field.value}
-                                    className="space-y-3"
-                                  >
-                                    <div className="flex items-center space-x-3 p-4 border rounded-lg hover-elevate">
-                                      <RadioGroupItem value={PaymentMethod.ONLINE} id="online" />
-                                      <Label htmlFor="online" className="flex-1 cursor-pointer">
-                                        <div className="flex items-center justify-between">
-                                          <div>
-                                            <p className="font-medium">Pay Online</p>
-                                            <p className="text-sm text-muted-foreground">
-                                              Secure payment via credit/debit card
-                                            </p>
-                                          </div>
-                                          <Badge variant="secondary">Recommended</Badge>
-                                        </div>
-                                      </Label>
-                                    </div>
-                                    {bookingSettings?.allowClinicPayments && (
-                                      <div className="flex items-center space-x-3 p-4 border rounded-lg hover-elevate">
-                                        <RadioGroupItem value={PaymentMethod.AT_CLINIC} id="clinic" />
-                                        <Label htmlFor="clinic" className="flex-1 cursor-pointer">
-                                          <p className="font-medium">Pay at Clinic</p>
-                                          <p className="text-sm text-muted-foreground">
-                                            Pay when you visit the clinic
-                                          </p>
-                                        </Label>
-                                      </div>
-                                    )}
-                                  </RadioGroup>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                          <div className="flex items-center space-x-3 p-4 border rounded-lg bg-muted/50">
+                            <CreditCard className="h-5 w-5 text-primary" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium">Pay Online</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Secure payment via credit/debit card
+                                  </p>
+                                </div>
+                                <Badge variant="secondary">Only Option</Badge>
+                              </div>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
 
@@ -627,7 +593,7 @@ export default function BookAppointmentPage() {
                           Processing...
                         </>
                       ) : step === "details" ? (
-                        paymentMethod === PaymentMethod.ONLINE ? "Continue to Payment" : "Confirm Booking"
+                        "Continue to Payment"
                       ) : (
                         `Pay ${formatFee(totalAmount)}`
                       )}
