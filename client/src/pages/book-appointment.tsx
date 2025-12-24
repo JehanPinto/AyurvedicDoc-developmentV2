@@ -117,6 +117,9 @@ const mockSlot: AppointmentSlot = {
 interface BookingSettings {
   allowOnlinePayments: boolean;
   allowClinicPayments: boolean;
+  platformCommissionRate: number;
+  bookingCharges: number;
+  taxRate: number;
 }
 
 export default function BookAppointmentPage() {
@@ -212,8 +215,10 @@ export default function BookAppointmentPage() {
     ? doctor.onlineConsultationFee 
     : doctor?.consultationFee || 0;
 
-  const bookingCharges = Math.round(consultationFee * 0.05);
-  const totalAmount = consultationFee + bookingCharges;
+  // Use platform settings for booking charges and tax
+  const bookingCharges = bookingSettings?.bookingCharges ?? 0;
+  const tax = Math.round(consultationFee * ((bookingSettings?.taxRate ?? 0) / 100));
+  const totalAmount = consultationFee + bookingCharges + tax;
 
   if (doctorLoading || slotLoading) {
     return (
@@ -680,6 +685,10 @@ export default function BookAppointmentPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Booking Charges</span>
                       <span>{formatFee(bookingCharges)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Tax ({bookingSettings?.taxRate ?? 0}%)</span>
+                      <span>{formatFee(tax)}</span>
                     </div>
                     <div className="flex justify-between font-bold pt-2 border-t">
                       <span>Total</span>

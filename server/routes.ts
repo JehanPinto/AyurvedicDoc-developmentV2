@@ -1566,14 +1566,17 @@ export async function registerRoutes(
     }
   });
 
-  // Public booking settings endpoint (for payment options)
+  // Public booking settings endpoint (for payment options and fee calculations)
   app.get("/api/booking-settings", async (_req: Request, res: Response) => {
     try {
       const settings = await storage.getPlatformSettings();
-      // Only expose payment-related settings to public
+      // Expose payment-related settings and fee configuration to public
       res.json({
         allowOnlinePayments: settings.allowOnlinePayments,
         allowClinicPayments: settings.allowClinicPayments,
+        platformCommissionRate: settings.platformCommissionRate,
+        bookingCharges: settings.bookingCharges,
+        taxRate: settings.taxRate,
       });
     } catch (error) {
       console.error("Failed to get booking settings:", error);
