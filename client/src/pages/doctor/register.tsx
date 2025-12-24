@@ -68,7 +68,6 @@ const professionalInfoSchema = z.object({
   registrationNumber: z.string().min(5, "Registration number is required"),
   qualifications: z.string().min(10, "Please provide your qualifications"),
   biography: z.string().optional(),
-  experienceYears: z.string().min(1, "Experience is required"),
   specializationIds: z.array(z.string()).min(1, "Select at least one specialization"),
   languagesSpoken: z.array(z.string()).min(1, "Select at least one language"),
   consultationTypes: z.array(z.string()).min(1, "Select at least one consultation type"),
@@ -132,7 +131,6 @@ export default function DoctorRegisterPage() {
       registrationNumber: "",
       qualifications: "",
       biography: "",
-      experienceYears: "",
       specializationIds: [],
       languagesSpoken: [Language.ENGLISH],
       consultationTypes: [ConsultationType.IN_PERSON],
@@ -297,7 +295,6 @@ export default function DoctorRegisterPage() {
       registrationNumber: professionalInfo.registrationNumber,
       qualifications: professionalInfo.qualifications,
       biography: professionalInfo.biography,
-      experienceYears: parseInt(professionalInfo.experienceYears) || 0,
       specializationIds: professionalInfo.specializationIds,
       languagesSpoken: professionalInfo.languagesSpoken,
       consultationTypes: professionalInfo.consultationTypes,
@@ -560,20 +557,6 @@ export default function DoctorRegisterPage() {
                             <Input placeholder="AY/12345" data-testid="input-registration" {...field} />
                           </FormControl>
                           <FormDescription>Your Ayurvedic Medical Council registration</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={professionalForm.control}
-                      name="experienceYears"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Years of Experience *</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="5" data-testid="input-experience" {...field} />
-                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

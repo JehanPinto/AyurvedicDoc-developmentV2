@@ -90,9 +90,6 @@ export default function DoctorsPage() {
       case "fee_desc":
         filtered.sort((a, b) => b.consultationFee - a.consultationFee);
         break;
-      case "experience":
-        filtered.sort((a, b) => b.experienceYears - a.experienceYears);
-        break;
     }
     
     return filtered;

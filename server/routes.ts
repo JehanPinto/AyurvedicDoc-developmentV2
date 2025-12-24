@@ -293,7 +293,6 @@ export async function registerRoutes(
         userId: user.id,
         registrationNumber: req.body.registrationNumber,
         qualifications: req.body.qualifications,
-        experienceYears: parseInt(req.body.experienceYears) || 0,
         specializationIds: req.body.specializationIds || [],
         languagesSpoken: req.body.languagesSpoken || ["english"],
         consultationTypes: req.body.consultationTypes || ["in_person"],

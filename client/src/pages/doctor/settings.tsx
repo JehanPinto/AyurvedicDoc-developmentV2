@@ -73,7 +73,6 @@ const profileSchema = z.object({
 const doctorProfileSchema = z.object({
   biography: z.string().optional(),
   qualifications: z.string().min(10, "Qualifications required"),
-  experienceYears: z.number().min(0, "Experience years must be positive"),
   specializationIds: z.array(z.string()).min(1, "At least one specialization required"),
   languagesSpoken: z.array(z.string()).min(1, "At least one language required"),
   consultationTypes: z.array(z.string()).min(1, "At least one consultation type required"),
@@ -136,7 +135,6 @@ export default function DoctorSettings() {
     defaultValues: {
       biography: "",
       qualifications: "",
-      experienceYears: 0,
       specializationIds: [],
       languagesSpoken: ["english"],
       consultationTypes: ["in_person"],
@@ -166,7 +164,6 @@ export default function DoctorSettings() {
       doctorProfileForm.reset({
         biography: doctorProfile.biography || "",
         qualifications: doctorProfile.qualifications || "",
-        experienceYears: doctorProfile.experienceYears || 0,
         specializationIds: doctorProfile.specializationIds || [],
         languagesSpoken: doctorProfile.languagesSpoken || ["english"],
         consultationTypes: doctorProfile.consultationTypes || ["in_person"],
@@ -631,30 +628,6 @@ export default function DoctorSettings() {
                   />
 
                   <div className="grid md:grid-cols-2 gap-4">
-                    {/* Experience Years */}
-                    <FormField
-                      control={doctorProfileForm.control}
-                      name="experienceYears"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Years of Experience</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input 
-                                {...field} 
-                                type="number" 
-                                min="0"
-                                className="pl-10"
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                              />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
                     {/* Availability Toggle */}
                     <FormField
                       control={doctorProfileForm.control}

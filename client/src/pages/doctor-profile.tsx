@@ -161,11 +161,7 @@ export default function DoctorProfilePage() {
                         />
                       </div>
 
-                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="text-center p-3 bg-muted rounded-lg">
-                          <p className="text-2xl font-bold text-primary">{doctor.experienceYears}</p>
-                          <p className="text-xs text-muted-foreground">Years Exp.</p>
-                        </div>
+                      <div className="mt-4 grid grid-cols-3 gap-4">
                         <div className="text-center p-3 bg-muted rounded-lg">
                           <p className="text-2xl font-bold text-primary">{doctor.totalReviews}</p>
                           <p className="text-xs text-muted-foreground">Reviews</p>

@@ -319,8 +319,6 @@ export default function AdminDoctorsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{doctor.experienceYears} years exp.</span>
-                      <span>|</span>
                       <span>{formatFee(doctor.consultationFee)}/visit</span>
                       <span>|</span>
                       <span>{doctor.totalAppointments} appointments</span>
@@ -446,10 +444,6 @@ export default function AdminDoctorsPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Registration Number</p>
                     <p className="font-medium">{selectedDoctor.registrationNumber}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Experience</p>
-                    <p className="font-medium">{selectedDoctor.experienceYears} years</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
