@@ -73,7 +73,6 @@ const professionalInfoSchema = z.object({
   consultationTypes: z.array(z.string()).min(1, "Select at least one consultation type"),
   consultationFee: z.string().min(1, "Consultation fee is required"),
   onlineConsultationFee: z.string().optional(),
-  homeVisitFee: z.string().optional(),
 });
 
 const bankInfoSchema = z.object({
@@ -136,7 +135,6 @@ export default function DoctorRegisterPage() {
       consultationTypes: [ConsultationType.IN_PERSON],
       consultationFee: "",
       onlineConsultationFee: "",
-      homeVisitFee: "",
     },
   });
 
@@ -300,7 +298,6 @@ export default function DoctorRegisterPage() {
       consultationTypes: professionalInfo.consultationTypes,
       consultationFee: parseInt(professionalInfo.consultationFee) || 0,
       onlineConsultationFee: professionalInfo.onlineConsultationFee ? parseInt(professionalInfo.onlineConsultationFee) : undefined,
-      homeVisitFee: professionalInfo.homeVisitFee ? parseInt(professionalInfo.homeVisitFee) : undefined,
       verificationDocuments: uploadedFiles,
       bankName: bankData.bankName,
       bankAccountNumber: bankData.bankAccountNumber,
@@ -677,7 +674,6 @@ export default function DoctorRegisterPage() {
                           {[
                             { value: ConsultationType.IN_PERSON, label: "In-Person" },
                             { value: ConsultationType.ONLINE, label: "Online" },
-                            { value: ConsultationType.HOME_VISIT, label: "Home Visit" },
                           ].map((type) => (
                             <div key={type.value} className="flex items-center space-x-2">
                               <Checkbox
@@ -702,7 +698,7 @@ export default function DoctorRegisterPage() {
                     )}
                   />
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={professionalForm.control}
                       name="consultationFee"
@@ -725,20 +721,6 @@ export default function DoctorRegisterPage() {
                           <FormLabel>Online Fee (LKR)</FormLabel>
                           <FormControl>
                             <Input type="number" placeholder="1500" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={professionalForm.control}
-                      name="homeVisitFee"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Home Visit Fee (LKR)</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="5000" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
