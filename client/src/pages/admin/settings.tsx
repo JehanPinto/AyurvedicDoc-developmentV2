@@ -351,65 +351,6 @@ export default function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Notification Settings
-            </CardTitle>
-            <CardDescription>
-              Configure notification preferences
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">
-                  Send email notifications for appointments and updates
-                </p>
-              </div>
-              <Switch
-                checked={settings.emailNotifications}
-                onCheckedChange={(checked) => updateSetting("emailNotifications", checked)}
-                data-testid="switch-email"
-              />
-            </div>
-
-            <Separator />
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>SMS Notifications</Label>
-                <p className="text-sm text-muted-foreground">
-                  Send SMS reminders for appointments
-                </p>
-              </div>
-              <Switch
-                checked={settings.smsNotifications}
-                onCheckedChange={(checked) => updateSetting("smsNotifications", checked)}
-                data-testid="switch-sms"
-              />
-            </div>
-
-            <Separator />
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>Push Notifications</Label>
-                <p className="text-sm text-muted-foreground">
-                  Send push notifications to mobile app users
-                </p>
-              </div>
-              <Switch
-                checked={settings.pushNotifications}
-                onCheckedChange={(checked) => updateSetting("pushNotifications", checked)}
-                data-testid="switch-push"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               Security & Verification
             </CardTitle>
