@@ -241,20 +241,6 @@ export default function AdminSettingsPage() {
                 data-testid="switch-online-payments"
               />
             </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>Allow Pay at Clinic</Label>
-                <p className="text-sm text-muted-foreground">
-                  Allow patients to pay at the clinic
-                </p>
-              </div>
-              <Switch
-                checked={settings.allowClinicPayments}
-                onCheckedChange={(checked) => updateSetting("allowClinicPayments", checked)}
-                data-testid="switch-clinic-payments"
-              />
-            </div>
           </CardContent>
         </Card>
 
@@ -328,22 +314,6 @@ export default function AdminSettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <Separator />
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>Auto-confirm Appointments</Label>
-                <p className="text-sm text-muted-foreground">
-                  Automatically confirm appointments when booked
-                </p>
-              </div>
-              <Switch
-                checked={settings.autoConfirmAppointments}
-                onCheckedChange={(checked) => updateSetting("autoConfirmAppointments", checked)}
-                data-testid="switch-auto-confirm"
-              />
             </div>
           </CardContent>
         </Card>
