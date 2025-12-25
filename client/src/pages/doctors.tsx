@@ -5,6 +5,7 @@ import { Users } from "lucide-react";
 import { DoctorCard } from "@/components/doctors/doctor-card";
 import { DoctorSearchFilters } from "@/components/doctors/doctor-search-filters";
 import { LoadingCard, LoadingPage } from "@/components/ui/loading-spinner";
+import { PublicLayout } from "@/components/layout/public-layout";
 import type { DoctorWithDetails, Specialization, Hospital } from "@shared/schema";
 
 const cities = ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Matara"];
@@ -116,7 +117,7 @@ export default function DoctorsPage() {
   };
 
   return (
-    <>
+    <PublicLayout>
       <div className="py-8">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl md:text-4xl font-heading font-bold mb-2">
@@ -192,6 +193,6 @@ export default function DoctorsPage() {
           </div>
         )}
       </div>
-    </>
+    </PublicLayout>
   );
 }
