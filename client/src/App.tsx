@@ -10,6 +10,7 @@ import { LoadingPage } from "@/components/ui/loading-spinner";
 import { UserRole } from "@shared/schema";
 
 import HomePage from "@/pages/home";
+import AboutPage from "@/pages/about";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import AuthCallbackPage from "@/pages/auth-callback";
@@ -65,6 +66,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
+      <Route path="/about" component={AboutPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
