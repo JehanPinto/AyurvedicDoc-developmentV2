@@ -11,6 +11,8 @@ import { UserRole } from "@shared/schema";
 
 import HomePage from "@/pages/home";
 import AboutPage from "@/pages/about";
+import SpecializationsPage from "@/pages/specializations";
+import ContactPage from "@/pages/contact";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import AuthCallbackPage from "@/pages/auth-callback";
@@ -67,6 +69,8 @@ function Router() {
     <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/about" component={AboutPage} />
+      <Route path="/specializations" component={SpecializationsPage} />
+      <Route path="/contact" component={ContactPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
