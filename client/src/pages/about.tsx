@@ -1,11 +1,9 @@
 import { 
   Heart, 
   Leaf, 
-  Users, 
   Shield, 
   Award, 
   Target,
-  CheckCircle,
   Globe
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,33 +30,6 @@ const values = [
     title: "Accessibility",
     description: "Making quality Ayurvedic healthcare accessible to everyone, anywhere in Sri Lanka through online consultations.",
   },
-];
-
-const team = [
-  {
-    name: "Dr. Anura Jayasinghe",
-    role: "Founder & Chief Medical Advisor",
-    bio: "With over 30 years of experience in Ayurvedic medicine, Dr. Jayasinghe founded AyurvedicDoctor to bridge traditional healing with modern accessibility.",
-  },
-  {
-    name: "Priya Rathnayake",
-    role: "Chief Executive Officer",
-    bio: "A healthcare technology veteran, Priya leads our mission to democratize access to Ayurvedic healthcare across Sri Lanka.",
-  },
-  {
-    name: "Dr. Kumari Perera",
-    role: "Head of Doctor Relations",
-    bio: "Dr. Perera ensures our platform maintains the highest standards of medical excellence and practitioner verification.",
-  },
-];
-
-const milestones = [
-  { year: "2020", title: "Founded", description: "AyurvedicDoctor was established with a vision to modernize traditional healthcare." },
-  { year: "2021", title: "100 Doctors", description: "Reached our first milestone of 100 verified Ayurvedic practitioners." },
-  { year: "2022", title: "Online Consultations", description: "Launched video consultations, making healthcare accessible remotely." },
-  { year: "2023", title: "50,000+ Patients", description: "Served over 50,000 patients across Sri Lanka." },
-  { year: "2024", title: "Mobile App", description: "Launched our mobile application for iOS and Android." },
-  { year: "2025", title: "Expanding", description: "Continuing to grow with 500+ doctors and expanding services." },
 ];
 
 export default function AboutPage() {
@@ -173,81 +144,6 @@ export default function AboutPage() {
                   </div>
                   <h3 className="text-lg font-semibold mb-2">{value.title}</h3>
                   <p className="text-sm text-muted-foreground">{value.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Timeline */}
-      <section className="py-16 md:py-24 bg-card">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
-              Our Journey
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Key milestones in our growth story
-            </p>
-          </div>
-
-          <div className="max-w-4xl mx-auto">
-            <div className="relative">
-              {/* Timeline line */}
-              <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-0.5 bg-primary/20 md:-translate-x-1/2" />
-              
-              {milestones.map((milestone, index) => (
-                <div 
-                  key={milestone.year} 
-                  className={`relative flex items-start gap-6 mb-8 ${
-                    index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'
-                  }`}
-                >
-                  <div className={`flex-1 ${index % 2 === 0 ? 'md:text-right' : 'md:text-left'} pl-12 md:pl-0`}>
-                    <Card>
-                      <CardContent className="p-4">
-                        <span className="text-primary font-bold text-lg">{milestone.year}</span>
-                        <h3 className="font-semibold mt-1">{milestone.title}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">{milestone.description}</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
-                  <div className="absolute left-4 md:left-1/2 w-8 h-8 rounded-full bg-primary flex items-center justify-center md:-translate-x-1/2">
-                    <CheckCircle className="h-4 w-4 text-primary-foreground" />
-                  </div>
-                  
-                  <div className="flex-1 hidden md:block" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Team */}
-      <section className="py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
-              Leadership Team
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Meet the people driving our mission forward
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {team.map((member) => (
-              <Card key={member.name}>
-                <CardContent className="p-6 text-center">
-                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Users className="h-10 w-10 text-primary" />
-                  </div>
-                  <h3 className="text-lg font-semibold">{member.name}</h3>
-                  <p className="text-sm text-primary mb-3">{member.role}</p>
-                  <p className="text-sm text-muted-foreground">{member.bio}</p>
                 </CardContent>
               </Card>
             ))}
