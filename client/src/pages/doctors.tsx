@@ -117,11 +117,17 @@ export default function DoctorsPage() {
     setPriceRange([0, 10000]);
   };
 
+  const headingClasses = isPatientRoute
+    ? "text-2xl md:text-3xl font-heading font-bold"
+    : "text-3xl md:text-4xl font-heading font-bold";
+  const headingWrapperClasses = isPatientRoute ? "mb-6" : "py-8";
+  const contentWrapperClasses = `container mx-auto px-4 ${isPatientRoute ? "pb-8" : "py-8"}`;
+
   return (
     <PublicLayout showHeader={!isPatientRoute}>
-      <div className="py-8">
+      <div className={headingWrapperClasses}>
         <div className="container mx-auto px-4">
-          <h1 className="text-3xl md:text-4xl font-heading font-bold mb-2">
+          <h1 className={`${headingClasses} mb-2`}>
             Find Ayurvedic Doctors
           </h1>
           <p className="text-muted-foreground">
@@ -130,7 +136,7 @@ export default function DoctorsPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className={contentWrapperClasses}>
         <DoctorSearchFilters
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
