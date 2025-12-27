@@ -12,17 +12,33 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
+    const status = urlParams.get("status") || "ok";
     const token = urlParams.get("token");
     const userJson = urlParams.get("user");
+    const registrationToken = urlParams.get("registrationToken");
     const error = urlParams.get("error");
+    const provider = urlParams.get("provider") || "google";
 
     if (error) {
+      const providerLabel = provider === "apple" ? "Apple" : "Google";
       toast({
         title: "Authentication failed",
-        description: "There was a problem signing in with Google. Please try again.",
+        description: `There was a problem signing in with ${providerLabel}. Please try again.`,
         variant: "destructive",
       });
       setLocation("/login");
+      return;
+    }
+
+    if (status === "incomplete" && registrationToken && userJson) {
+      const nextPath = `/register?registrationToken=${encodeURIComponent(registrationToken)}&provider=${provider}`;
+      sessionStorage.setItem("registrationToken", registrationToken);
+      sessionStorage.setItem("registrationUser", userJson);
+      toast({
+        title: "Complete your profile",
+        description: "Add the required details to finish signing up.",
+      });
+      setLocation(nextPath);
       return;
     }
 
@@ -31,9 +47,10 @@ export default function AuthCallbackPage() {
         const user = JSON.parse(decodeURIComponent(userJson));
         login(user, token);
         
+        const providerLabel = provider === "apple" ? "Apple" : "Google";
         toast({
           title: "Welcome!",
-          description: "You have successfully signed in with Google.",
+          description: `You have successfully signed in with ${providerLabel}.`,
         });
         
         setTimeout(() => {

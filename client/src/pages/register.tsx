@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,37 +29,51 @@ import { UserRole, Language, Gender } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
-const registerSchema = z.object({
+const buildRegisterSchema = (requirePassword: boolean) => z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
-  confirmPassword: z.string(),
+  password: requirePassword
+    ? z.string()
+        .min(8, "Password must be at least 8 characters")
+        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+        .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+        .regex(/[0-9]/, "Password must contain at least one number")
+        .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character")
+    : z.string().optional(),
+  confirmPassword: requirePassword ? z.string() : z.string().optional(),
   fullName: z.string().min(2, "Full name is required"),
   phone: z.string().min(10, "Valid phone number required"),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
   preferredLanguage: z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL]),
   agreeTerms: z.boolean().refine(val => val === true, "You must agree to the terms"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
+}).superRefine((data, ctx) => {
+  if (requirePassword && data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["confirmPassword"],
+      message: "Passwords don't match",
+    });
+  }
 });
 
-type RegisterInput = z.infer<typeof registerSchema>;
+type RegisterInput = z.infer<ReturnType<typeof buildRegisterSchema>>;
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [registerType, setRegisterType] = useState<"patient" | "doctor">("patient");
+  const [isSocialFlow, setIsSocialFlow] = useState(false);
+  const [registrationToken, setRegistrationToken] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { login } = useAuth();
   const { toast } = useToast();
 
+  const schema = useMemo(() => buildRegisterSchema(!isSocialFlow), [isSocialFlow]);
+  const doctorRegisterHref = registrationToken 
+    ? `/doctor/register?registrationToken=${encodeURIComponent(registrationToken)}`
+    : "/doctor/register";
+
   const form = useForm<RegisterInput>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       email: "",
       password: "",
@@ -70,6 +84,32 @@ export default function RegisterPage() {
       agreeTerms: false,
     },
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("registrationToken");
+    if (token) {
+      setIsSocialFlow(true);
+      setRegistrationToken(token);
+      const storedUser = sessionStorage.getItem("registrationUser");
+      if (storedUser) {
+        try {
+          const decoded = JSON.parse(decodeURIComponent(storedUser));
+          form.reset({
+            email: decoded.email || "",
+            fullName: decoded.fullName || decoded.name || "",
+            phone: decoded.phone || "",
+            preferredLanguage: decoded.preferredLanguages?.[0] || Language.ENGLISH,
+            password: "",
+            confirmPassword: "",
+            agreeTerms: true,
+          });
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  }, [form]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterInput) => {
@@ -106,7 +146,40 @@ export default function RegisterPage() {
     },
   });
 
+  const socialCompleteMutation = useMutation({
+    mutationFn: async (data: RegisterInput) => {
+      const { preferredLanguage, ...rest } = data;
+      const response = await apiRequest("POST", "/api/auth/complete-registration", {
+        registrationToken,
+        role: UserRole.PATIENT,
+        fullName: rest.fullName,
+        phone: rest.phone,
+        preferredLanguages: [preferredLanguage],
+      });
+      return response;
+    },
+    onSuccess: (data: { user: any; token: string }) => {
+      login(data.user, data.token);
+      toast({
+        title: "Profile completed",
+        description: "Welcome to AyurvedicDoctor.",
+      });
+      setLocation("/patient");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Registration failed",
+        description: error.message || "Please check your details and try again",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: RegisterInput) => {
+    if (isSocialFlow && registrationToken) {
+      socialCompleteMutation.mutate(data);
+      return;
+    }
     registerMutation.mutate(data);
   };
 
@@ -146,7 +219,7 @@ export default function RegisterPage() {
                 <li>Upload of verification documents</li>
                 <li>Bank details for payouts</li>
               </ul>
-              <Link href="/doctor/register">
+              <Link href={doctorRegisterHref}>
                 <Button className="w-full mt-4">
                   Continue to Doctor Registration
                 </Button>
@@ -242,6 +315,7 @@ export default function RegisterPage() {
                           type="email"
                           placeholder="you@example.com"
                           data-testid="input-email"
+                          disabled={isSocialFlow}
                           {...field}
                         />
                       </FormControl>
@@ -316,73 +390,77 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password *</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Create a strong password"
-                            data-testid="input-password"
-                            {...field}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                            onClick={() => setShowPassword(!showPassword)}
-                          >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {!isSocialFlow && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password *</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Create a strong password"
+                                data-testid="input-password"
+                                {...field}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                onClick={() => setShowPassword(!showPassword)}
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm Password *</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showConfirmPassword ? "text" : "password"}
-                            placeholder="Confirm your password"
-                            data-testid="input-confirm-password"
-                            {...field}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          >
-                            {showConfirmPassword ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={form.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm Password *</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                type={showConfirmPassword ? "text" : "password"}
+                                placeholder="Confirm your password"
+                                data-testid="input-confirm-password"
+                                {...field}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              >
+                                {showConfirmPassword ? (
+                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
 
                 <FormField
                   control={form.control}
@@ -416,10 +494,10 @@ export default function RegisterPage() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={registerMutation.isPending}
+                  disabled={registerMutation.isPending || socialCompleteMutation.isPending}
                   data-testid="button-register"
                 >
-                  {registerMutation.isPending ? (
+                  {registerMutation.isPending || socialCompleteMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Creating account...
@@ -469,6 +547,17 @@ export default function RegisterPage() {
                     />
                   </svg>
                   Continue with Google
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-3"
+                  onClick={() => window.location.href = "/api/auth/apple"}
+                  data-testid="button-apple-signup"
+                >
+                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16.365 1.43c0 1.14-.416 2.066-1.247 2.79-.832.724-1.753 1.137-2.764 1.24-.07-.13-.106-.307-.106-.53 0-1.083.417-2.015 1.25-2.796C14.33 1.352 15.25.94 16.256.834c.072.157.109.333.109.539zM20.41 17.29c-.283.653-.614 1.255-.992 1.804-.523.748-.951 1.266-1.287 1.556-.514.472-1.065.71-1.656.716-.423 0-.933-.12-1.525-.358-.593-.239-1.138-.357-1.633-.357-.522 0-1.084.118-1.686.357-.603.239-1.1.363-1.491.373-.572.024-1.136-.222-1.69-.739-.361-.315-.806-.855-1.336-1.62-.572-.816-1.04-1.764-1.403-2.842-.391-1.163-.587-2.292-.587-3.389 0-1.252.27-2.337.811-3.255.424-.74.99-1.322 1.701-1.745.71-.423 1.475-.638 2.296-.647.45 0 1.038.138 1.76.413.72.275 1.183.413 1.385.413.151 0 .665-.16 1.537-.483.825-.298 1.521-.422 2.086-.373 1.542.124 2.705.733 3.487 1.828-1.383.841-2.068 2.022-2.056 3.54.012 1.18.44 2.163 1.283 2.95.382.363.806.643 1.273.839-.102.296-.208.575-.317.837z"/>
+                  </svg>
+                  Continue with Apple
                 </Button>
               </div>
             </div>

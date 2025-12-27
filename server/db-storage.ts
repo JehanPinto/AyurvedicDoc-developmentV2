@@ -44,6 +44,10 @@ function mapUser(row: any): User {
     isEmailVerified: row.isEmailVerified || false,
     isPhoneVerified: row.isPhoneVerified || false,
     isActive: row.isActive ?? true,
+    provider: row.provider || "local",
+    providerId: row.providerId || undefined,
+    registrationComplete: row.registrationComplete ?? true,
+    googleId: row.googleId || undefined,
     createdAt: toISOString(row.createdAt),
     updatedAt: toISOString(row.updatedAt),
   };
@@ -109,6 +113,10 @@ export class DbStorage implements IStorage {
       city: insertUser.city,
       isEmailVerified: insertUser.isEmailVerified,
       isPhoneVerified: insertUser.isPhoneVerified,
+      provider: insertUser.provider,
+      providerId: insertUser.providerId,
+      registrationComplete: insertUser.registrationComplete,
+      googleId: (insertUser as any).googleId,
     }).returning();
     return mapUser(result[0]);
   }

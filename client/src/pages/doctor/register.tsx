@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,22 +46,29 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { Specialization } from "@shared/schema";
 
-const personalInfoSchema = z.object({
+const buildPersonalInfoSchema = (requirePassword: boolean) => z.object({
   fullName: z.string().min(2, "Full name is required"),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(10, "Valid phone number required"),
-  password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number"),
-  confirmPassword: z.string(),
+  password: requirePassword
+    ? z.string()
+        .min(8, "Password must be at least 8 characters")
+        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+        .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+        .regex(/[0-9]/, "Password must contain at least one number")
+    : z.string().optional(),
+  confirmPassword: requirePassword ? z.string() : z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
   gender: z.enum([Gender.MALE, Gender.FEMALE]).optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
+}).superRefine((data, ctx) => {
+  if (requirePassword && data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Passwords don't match",
+      path: ["confirmPassword"],
+    });
+  }
 });
 
 const professionalInfoSchema = z.object({
@@ -82,7 +89,7 @@ const bankInfoSchema = z.object({
   agreeTerms: z.boolean().refine(val => val === true, "You must agree to the terms"),
 });
 
-type PersonalInfo = z.infer<typeof personalInfoSchema>;
+type PersonalInfo = z.infer<ReturnType<typeof buildPersonalInfoSchema>>;
 type ProfessionalInfo = z.infer<typeof professionalInfoSchema>;
 type BankInfo = z.infer<typeof bankInfoSchema>;
 
@@ -101,7 +108,9 @@ export default function DoctorRegisterPage() {
   const [professionalInfo, setProfessionalInfo] = useState<ProfessionalInfo | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [registrationToken, setRegistrationToken] = useState<string | null>(null);
+  const [uploadToken, setUploadToken] = useState<string | null>(null);
+  const [authRegistrationToken, setAuthRegistrationToken] = useState<string | null>(null);
+  const [isSocialFlow, setIsSocialFlow] = useState(false);
   const [, setLocation] = useLocation();
   const { login } = useAuth();
   const { toast } = useToast();
@@ -111,8 +120,10 @@ export default function DoctorRegisterPage() {
     queryKey: ["/api/specializations"],
   });
 
+  const personalSchema = useMemo(() => buildPersonalInfoSchema(!isSocialFlow), [isSocialFlow]);
+
   const personalForm = useForm<PersonalInfo>({
-    resolver: zodResolver(personalInfoSchema),
+    resolver: zodResolver(personalSchema),
     defaultValues: {
       fullName: "",
       email: "",
@@ -148,13 +159,73 @@ export default function DoctorRegisterPage() {
     },
   });
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("registrationToken");
+    if (token) {
+      setIsSocialFlow(true);
+      setAuthRegistrationToken(token);
+      const storedUser = sessionStorage.getItem("registrationUser");
+      if (storedUser) {
+        try {
+          const decoded = JSON.parse(decodeURIComponent(storedUser));
+          personalForm.reset({
+            fullName: decoded.fullName || decoded.name || "",
+            email: decoded.email || "",
+            phone: decoded.phone || "",
+            password: "",
+            confirmPassword: "",
+            address: decoded.address || "",
+            city: decoded.city || "",
+          });
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  }, [personalForm]);
+
   const registerMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (isSocialFlow && authRegistrationToken) {
+        const response = await fetch("/api/auth/complete-registration", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            registrationToken: authRegistrationToken,
+            role: UserRole.DOCTOR,
+            fullName: data.fullName,
+            phone: data.phone,
+            preferredLanguages: data.languagesSpoken || [Language.ENGLISH],
+            address: data.address,
+            city: data.city,
+            registrationNumber: data.registrationNumber,
+            qualifications: data.qualifications,
+            specializationIds: data.specializationIds,
+            languagesSpoken: data.languagesSpoken,
+            consultationTypes: data.consultationTypes,
+            consultationFee: data.consultationFee,
+            onlineConsultationFee: data.onlineConsultationFee,
+            homeVisitFee: data.homeVisitFee,
+            verificationDocuments: data.verificationDocuments,
+            bankName: data.bankName,
+            bankAccountNumber: data.bankAccountNumber,
+            bankBranch: data.bankBranch,
+            biography: data.biography,
+          }),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Registration failed");
+        }
+        return response.json();
+      }
+
       const response = await fetch("/api/auth/register-doctor", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(registrationToken ? { "X-Registration-Token": registrationToken } : {}),
+          ...(uploadToken ? { "X-Registration-Token": uploadToken } : {}),
         },
         body: JSON.stringify(data),
       });
@@ -184,7 +255,7 @@ export default function DoctorRegisterPage() {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     
-    if (!registrationToken || !personalInfo?.email) {
+    if (!uploadToken || !personalInfo?.email) {
       toast({
         title: "Session expired",
         description: "Please refresh the page and try again.",
@@ -203,7 +274,7 @@ export default function DoctorRegisterPage() {
         const response = await fetch("/api/upload", {
           method: "POST",
           headers: {
-            "X-Registration-Token": registrationToken,
+            "X-Registration-Token": uploadToken,
             "X-Registration-Email": personalInfo.email,
           },
           body: formData,
@@ -256,7 +327,7 @@ export default function DoctorRegisterPage() {
       }
       
       const result = await response.json();
-      setRegistrationToken(result.token);
+      setUploadToken(result.token);
       setPersonalInfo(data);
       setCurrentStep(2);
     } catch (error) {
@@ -390,7 +461,7 @@ export default function DoctorRegisterPage() {
                         <FormItem>
                           <FormLabel>Email *</FormLabel>
                           <FormControl>
-                            <Input type="email" placeholder="doctor@example.com" data-testid="input-email" {...field} />
+                            <Input type="email" placeholder="doctor@example.com" data-testid="input-email" disabled={isSocialFlow} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -412,67 +483,69 @@ export default function DoctorRegisterPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={personalForm.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password *</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                type={showPassword ? "text" : "password"}
-                                placeholder="Create password"
-                                data-testid="input-password"
-                                {...field}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                                onClick={() => setShowPassword(!showPassword)}
-                              >
-                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  {!isSocialFlow && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={personalForm.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Password *</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showPassword ? "text" : "password"}
+                                  placeholder="Create password"
+                                  data-testid="input-password"
+                                  {...field}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                >
+                                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={personalForm.control}
-                      name="confirmPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Confirm Password *</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                type={showConfirmPassword ? "text" : "password"}
-                                placeholder="Confirm password"
-                                data-testid="input-confirm-password"
-                                {...field}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              >
-                                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                      <FormField
+                        control={personalForm.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Confirm Password *</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showConfirmPassword ? "text" : "password"}
+                                  placeholder="Confirm password"
+                                  data-testid="input-confirm-password"
+                                  {...field}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                >
+                                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
 
                   <FormField
                     control={personalForm.control}

@@ -65,6 +65,12 @@ export const Language = {
   TAMIL: "tamil",
 } as const;
 
+export const AuthProvider = {
+  LOCAL: "local",
+  GOOGLE: "google",
+  APPLE: "apple",
+} as const;
+
 // ================== DRIZZLE TABLES ==================
 
 export const users = pgTable("users", {
@@ -85,6 +91,9 @@ export const users = pgTable("users", {
   isPhoneVerified: boolean("is_phone_verified").default(false),
   isActive: boolean("is_active").default(true),
   googleId: varchar("google_id", { length: 100 }),
+  provider: varchar("provider", { length: 20 }).notNull().default("local"),
+  providerId: varchar("provider_id", { length: 120 }),
+  registrationComplete: boolean("registration_complete").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -356,6 +365,10 @@ export const insertUserSchema = z.object({
   isEmailVerified: z.boolean().default(false),
   isPhoneVerified: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  googleId: z.string().optional(),
+  provider: z.enum([AuthProvider.LOCAL, AuthProvider.GOOGLE, AuthProvider.APPLE]).default(AuthProvider.LOCAL),
+  providerId: z.string().optional(),
+  registrationComplete: z.boolean().default(true),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

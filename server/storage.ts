@@ -187,6 +187,8 @@ export class MemStorage implements IStorage {
       fullName: "System Administrator",
       phone: "+94771234567",
       role: UserRole.ADMIN,
+      provider: "local",
+      registrationComplete: true,
       preferredLanguages: ["english"],
       isEmailVerified: true,
       isPhoneVerified: true,
@@ -203,6 +205,8 @@ export class MemStorage implements IStorage {
         fullName: "Dr. Anura Silva",
         phone: "+94772345678",
         role: UserRole.DOCTOR,
+        provider: "local",
+        registrationComplete: true,
         gender: "male",
         city: "Colombo",
         preferredLanguages: ["english", "sinhala"],
@@ -219,6 +223,8 @@ export class MemStorage implements IStorage {
         fullName: "Dr. Kumari Fernando",
         phone: "+94773456789",
         role: UserRole.DOCTOR,
+        provider: "local",
+        registrationComplete: true,
         gender: "female",
         city: "Kandy",
         preferredLanguages: ["english", "sinhala", "tamil"],
@@ -235,6 +241,8 @@ export class MemStorage implements IStorage {
         fullName: "Dr. Nihal Perera",
         phone: "+94774567890",
         role: UserRole.DOCTOR,
+        provider: "local",
+        registrationComplete: true,
         gender: "male",
         city: "Galle",
         preferredLanguages: ["english", "sinhala"],
@@ -397,7 +405,16 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
     const now = new Date().toISOString();
-    const user: User = { ...insertUser, id, createdAt: now, updatedAt: now };
+    const user: User = { 
+      provider: insertUser.provider ?? "local",
+      providerId: insertUser.providerId,
+      registrationComplete: insertUser.registrationComplete ?? true,
+      googleId: (insertUser as any).googleId,
+      ...insertUser, 
+      id, 
+      createdAt: now, 
+      updatedAt: now 
+    };
     this.users.set(id, user);
     return user;
   }

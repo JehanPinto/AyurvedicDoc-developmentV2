@@ -159,7 +159,7 @@ import {
   insertReviewSchema, insertNotificationSchema, insertHospitalSchema,
   insertSpecializationSchema, insertDoctorScheduleSchema, insertAppointmentSlotSchema,
   bookingSchema, doctorSearchSchema,
-  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus, PaymentMethod,
+  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus, PaymentMethod, AuthProvider, Language, ConsultationType,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -173,31 +173,48 @@ interface AuthenticatedRequest extends Request {
 }
 
 const JWT_SECRET = process.env.SESSION_SECRET || "ayurvedic-doctor-secret-key-2024";
+const REGISTRATION_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes to complete signup
 
-function generateToken(payload: object): string {
+type JwtPayload = { id: string; email: string; role?: string; fullName?: string; provider?: string; purpose?: string; exp?: number };
+
+function generateToken(payload: object, ttlMs = 7 * 24 * 60 * 60 * 1000): string {
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const body = Buffer.from(JSON.stringify({ ...payload, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 })).toString("base64url");
+  const body = Buffer.from(JSON.stringify({ ...payload, exp: Date.now() + ttlMs })).toString("base64url");
   const signature = createHash("sha256").update(`${header}.${body}.${JWT_SECRET}`).digest("base64url");
   return `${header}.${body}.${signature}`;
 }
 
-function verifyToken(token: string): { id: string; email: string; role: string; fullName: string } | null {
+function decodeToken(token: string): JwtPayload | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
-    
+
     const [header, body, signature] = parts;
     const expectedSignature = createHash("sha256").update(`${header}.${body}.${JWT_SECRET}`).digest("base64url");
-    
     if (signature !== expectedSignature) return null;
-    
+
     const payload = JSON.parse(Buffer.from(body, "base64url").toString());
     if (payload.exp < Date.now()) return null;
-    
-    return { id: payload.id, email: payload.email, role: payload.role, fullName: payload.fullName };
+    return payload;
   } catch {
     return null;
   }
+}
+
+function verifyToken(token: string): { id: string; email: string; role: string; fullName: string } | null {
+  const payload = decodeToken(token);
+  if (!payload || !payload.id || !payload.email || !payload.role || !payload.fullName) return null;
+  return { id: payload.id, email: payload.email, role: payload.role, fullName: payload.fullName };
+}
+
+function generateRegistrationToken(payload: Pick<JwtPayload, "id" | "email" | "provider">) {
+  return generateToken({ ...payload, purpose: "complete-registration" }, REGISTRATION_TOKEN_TTL_MS);
+}
+
+function verifyRegistrationToken(token: string): JwtPayload | null {
+  const payload = decodeToken(token);
+  if (!payload || payload.purpose !== "complete-registration") return null;
+  return payload;
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -238,6 +255,14 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  app.use(passport.initialize());
+  passport.serializeUser((user: any, done) => {
+    done(null, user);
+  });
+
+  passport.deserializeUser((user: any, done) => {
+    done(null, user);
+  });
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
@@ -320,6 +345,108 @@ export async function registerRoutes(
     }
   });
 
+  const completeRegistrationSchema = z.object({
+    registrationToken: z.string(),
+    role: z.enum([UserRole.PATIENT, UserRole.DOCTOR]),
+    fullName: z.string().min(2, "Full name is required"),
+    phone: z.string().min(8, "Phone is required"),
+    preferredLanguages: z.array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL])).min(1).optional(),
+    address: z.string().optional(),
+    city: z.string().optional(),
+    gender: z.string().optional(),
+    profileImage: z.string().optional(),
+    registrationNumber: z.string().optional(),
+    qualifications: z.string().optional(),
+    specializationIds: z.array(z.string()).optional(),
+    languagesSpoken: z.array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL])).optional(),
+    consultationTypes: z.array(z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT])).optional(),
+    consultationFee: z.number().optional(),
+    onlineConsultationFee: z.number().optional(),
+    homeVisitFee: z.number().optional(),
+    bankName: z.string().optional(),
+    bankAccountNumber: z.string().optional(),
+    bankBranch: z.string().optional(),
+  }).superRefine((data, ctx) => {
+    if (data.role === UserRole.DOCTOR) {
+      if (!data.registrationNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Registration number required", path: ["registrationNumber"] });
+      if (!data.qualifications) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Qualifications required", path: ["qualifications"] });
+      if (!data.specializationIds || data.specializationIds.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Specializations required", path: ["specializationIds"] });
+      if (!data.consultationTypes || data.consultationTypes.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Consultation types required", path: ["consultationTypes"] });
+      if (data.consultationFee === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Consultation fee required", path: ["consultationFee"] });
+    }
+  });
+
+  app.post("/api/auth/complete-registration", async (req: Request, res: Response) => {
+    try {
+      const payload = completeRegistrationSchema.parse(req.body);
+      const decoded = verifyRegistrationToken(payload.registrationToken);
+      if (!decoded?.id) {
+        return res.status(401).json({ error: "Invalid or expired registration token" });
+      }
+
+      const user = await storage.getUser(decoded.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.registrationComplete) {
+        return res.status(400).json({ error: "Registration already completed" });
+      }
+
+      const updates: any = {
+        fullName: payload.fullName,
+        phone: payload.phone,
+        role: payload.role,
+        provider: user.provider || decoded.provider || AuthProvider.LOCAL,
+        registrationComplete: true,
+        preferredLanguages: payload.preferredLanguages || user.preferredLanguages || [Language.ENGLISH],
+        address: payload.address ?? user.address,
+        city: payload.city ?? user.city,
+        gender: payload.gender ?? user.gender,
+        profileImage: payload.profileImage ?? user.profileImage,
+        isEmailVerified: true,
+      };
+
+      let updatedUser = await storage.updateUser(user.id, updates);
+      if (!updatedUser) {
+        return res.status(500).json({ error: "Failed to update user" });
+      }
+
+      if (payload.role === UserRole.DOCTOR) {
+        const doctorData = insertDoctorProfileSchema.parse({
+          userId: updatedUser.id,
+          registrationNumber: payload.registrationNumber,
+          qualifications: payload.qualifications,
+          biography: req.body.biography,
+          specializationIds: payload.specializationIds || [],
+          languagesSpoken: payload.languagesSpoken || [Language.ENGLISH],
+          consultationTypes: payload.consultationTypes || [ConsultationType.IN_PERSON],
+          consultationFee: payload.consultationFee || 0,
+          onlineConsultationFee: payload.onlineConsultationFee,
+          homeVisitFee: payload.homeVisitFee,
+          verificationDocuments: req.body.verificationDocuments || [],
+          bankName: payload.bankName,
+          bankAccountNumber: payload.bankAccountNumber,
+          bankBranch: payload.bankBranch,
+          status: DoctorStatus.PENDING,
+        });
+
+        await storage.createDoctorProfile(doctorData);
+      }
+
+      updatedUser = await storage.getUser(user.id) || updatedUser;
+      const token = generateToken({ id: updatedUser.id, email: updatedUser.email, role: updatedUser.role, fullName: updatedUser.fullName });
+      const { password: _, ...userWithoutPassword } = updatedUser;
+
+      res.json({ user: userWithoutPassword, token });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to complete registration" });
+    }
+  });
+
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
@@ -327,6 +454,10 @@ export async function registerRoutes(
       const user = await storage.getUserByEmail(email);
       if (!user || !(await verifyPassword(password, user.password))) {
         return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      if (!user.registrationComplete && user.provider !== AuthProvider.LOCAL) {
+        return res.status(400).json({ error: "Please finish signing up with your social account before logging in." });
       }
       
       const token = generateToken({ id: user.id, email: user.email, role: user.role, fullName: user.fullName });
@@ -360,21 +491,31 @@ export async function registerRoutes(
 
         let user = await storage.getUserByEmail(email);
         
+        const baseUserData = {
+          email,
+          fullName: profile.displayName || email.split("@")[0],
+          password: await hashPassword(randomUUID()),
+          role: UserRole.PATIENT,
+          phone: "",
+          profileImage: profile.photos?.[0]?.value || null,
+          googleId: profile.id,
+          provider: AuthProvider.GOOGLE,
+          providerId: profile.id,
+          registrationComplete: false,
+          isEmailVerified: true,
+        };
+
         if (!user) {
-          const randomPassword = randomUUID();
-          const hashedPassword = await hashPassword(randomPassword);
-          user = await storage.createUser({
-            email,
-            fullName: profile.displayName || email.split("@")[0],
-            password: hashedPassword,
-            role: UserRole.PATIENT,
-            phone: "",
-            profileImage: profile.photos?.[0]?.value || null,
-            googleId: profile.id,
-          });
-        } else if (!user.googleId) {
-          await storage.updateUser(user.id, { googleId: profile.id });
-          user = { ...user, googleId: profile.id };
+          user = await storage.createUser(baseUserData as any);
+        } else {
+          const updates: any = {};
+          if (!user.googleId) updates.googleId = profile.id;
+          if (!user.provider) updates.provider = AuthProvider.GOOGLE;
+          if (!user.providerId) updates.providerId = profile.id;
+          if (user.registrationComplete === undefined) updates.registrationComplete = false;
+          if (Object.keys(updates).length > 0) {
+            user = await storage.updateUser(user.id, updates) as any ?? user;
+          }
         }
         
         done(null, user);
@@ -382,16 +523,6 @@ export async function registerRoutes(
         done(error as Error, undefined);
       }
     }));
-
-    passport.serializeUser((user: any, done) => {
-      done(null, user);
-    });
-
-    passport.deserializeUser((user: any, done) => {
-      done(null, user);
-    });
-
-    app.use(passport.initialize());
 
     app.get("/api/auth/google", passport.authenticate("google", { 
       scope: ["profile", "email"],
@@ -409,19 +540,139 @@ export async function registerRoutes(
           return res.redirect("/login?error=google_auth_failed");
         }
         
+        const { password: _, ...userWithoutPassword } = user;
+
+        if (!user.registrationComplete || !user.phone) {
+          const registrationToken = generateRegistrationToken({ 
+            id: user.id, 
+            email: user.email, 
+            provider: user.provider || AuthProvider.GOOGLE 
+          });
+          const userJson = encodeURIComponent(JSON.stringify({
+            ...userWithoutPassword,
+            registrationComplete: false,
+          }));
+          return res.redirect(`/auth/callback?status=incomplete&registrationToken=${registrationToken}&provider=google&user=${userJson}`);
+        }
+
         const token = generateToken({ 
           id: user.id, 
           email: user.email, 
           role: user.role, 
           fullName: user.fullName 
         });
-        
-        const { password: _, ...userWithoutPassword } = user;
+
         const userJson = encodeURIComponent(JSON.stringify(userWithoutPassword));
         
-        res.redirect(`/auth/callback?token=${token}&user=${userJson}`);
+        res.redirect(`/auth/callback?status=ok&token=${token}&user=${userJson}`);
       }
     );
+  }
+  else {
+    app.get("/api/auth/google", (_req: Request, res: Response) => {
+      res.status(503).json({ error: "Google OAuth is not configured on the server." });
+    });
+    app.get("/api/auth/google/callback", (_req: Request, res: Response) => {
+      res.status(503).json({ error: "Google OAuth is not configured on the server." });
+    });
+  }
+
+  const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
+  const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID;
+  const APPLE_KEY_ID = process.env.APPLE_KEY_ID;
+  const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY;
+
+  if (APPLE_CLIENT_ID && APPLE_TEAM_ID && APPLE_KEY_ID && APPLE_PRIVATE_KEY) {
+    try {
+      const { Strategy: AppleStrategy } = await import("passport-apple");
+
+      passport.use(new AppleStrategy({
+        clientID: APPLE_CLIENT_ID,
+        teamID: APPLE_TEAM_ID,
+        keyID: APPLE_KEY_ID,
+        key: APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+        callbackURL: "/api/auth/apple/callback",
+        scope: ["name", "email"],
+      }, async (accessToken, refreshToken, profile, done) => {
+        try {
+          const email = profile.email;
+          if (!email) {
+            return done(new Error("No email found in Apple profile"), undefined);
+          }
+
+          let user = await storage.getUserByEmail(email);
+          const baseUserData = {
+            email,
+            fullName: profile.name?.firstName 
+              ? `${profile.name.firstName} ${profile.name?.lastName || ""}`.trim()
+              : email.split("@")[0],
+            password: await hashPassword(randomUUID()),
+            role: UserRole.PATIENT,
+            phone: "",
+            profileImage: null,
+            provider: AuthProvider.APPLE,
+            providerId: profile.id || profile.user,
+            registrationComplete: false,
+            isEmailVerified: true,
+          };
+
+          if (!user) {
+            user = await storage.createUser(baseUserData as any);
+          } else {
+            const updates: any = {};
+            if (!user.providerId) updates.providerId = profile.id || profile.user;
+            if (!user.provider) updates.provider = AuthProvider.APPLE;
+            if (user.registrationComplete === undefined) updates.registrationComplete = false;
+            if (Object.keys(updates).length > 0) {
+              user = await storage.updateUser(user.id, updates) as any ?? user;
+            }
+          }
+
+          done(null, user);
+        } catch (error) {
+          done(error as Error, undefined);
+        }
+      }));
+
+      app.get("/api/auth/apple", passport.authenticate("apple", { session: false }));
+
+      app.post("/api/auth/apple/callback",
+        passport.authenticate("apple", { failureRedirect: "/login?error=apple_auth_failed", session: false }),
+        (req: Request, res: Response) => {
+          const user = req.user as any;
+          if (!user) {
+            return res.redirect("/login?error=apple_auth_failed");
+          }
+
+          const { password: _, ...userWithoutPassword } = user;
+
+          if (!user.registrationComplete || !user.phone) {
+            const registrationToken = generateRegistrationToken({ 
+              id: user.id, 
+              email: user.email, 
+              provider: user.provider || AuthProvider.APPLE,
+            });
+            const userJson = encodeURIComponent(JSON.stringify({
+              ...userWithoutPassword,
+              registrationComplete: false,
+            }));
+            return res.redirect(`/auth/callback?status=incomplete&registrationToken=${registrationToken}&provider=apple&user=${userJson}`);
+          }
+
+          const token = generateToken({ 
+            id: user.id, 
+            email: user.email, 
+            role: user.role, 
+            fullName: user.fullName 
+          });
+
+          const userJson = encodeURIComponent(JSON.stringify(userWithoutPassword));
+          res.redirect(`/auth/callback?status=ok&token=${token}&user=${userJson}`);
+        }
+      );
+    } catch (err) {
+      console.warn("Apple auth disabled: passport-apple not installed or failed to load.");
+    }
   }
 
   app.get("/api/auth/me", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
