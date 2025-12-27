@@ -13,6 +13,7 @@ const cities = ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Matara"];
 export default function DoctorsPage() {
   const [location] = useLocation();
   const params = new URLSearchParams(location.split("?")[1] || "");
+  const isPatientRoute = location.startsWith("/patient");
   
   const [searchQuery, setSearchQuery] = useState(params.get("q") || "");
   const [selectedSpecialization, setSelectedSpecialization] = useState(params.get("specialization") || "all");
@@ -117,7 +118,7 @@ export default function DoctorsPage() {
   };
 
   return (
-    <PublicLayout>
+    <PublicLayout showHeader={!isPatientRoute}>
       <div className="py-8">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl md:text-4xl font-heading font-bold mb-2">
