@@ -117,14 +117,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="flex h-screen w-full overflow-hidden bg-background">
         <Sidebar>
           <SidebarHeader className="border-b p-4">
-            <Link href="/">
-              <div className="flex items-center gap-2 cursor-pointer">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold">A</span>
-                </div>
-                <span className="font-heading font-bold">AyurvedicDoctor</span>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <span className="text-primary-foreground font-bold">A</span>
               </div>
-            </Link>
+              <span className="font-heading font-bold">AyurvedicDoctor</span>
+            </div>
           </SidebarHeader>
 
           <SidebarContent className="scrollbar-thin">
