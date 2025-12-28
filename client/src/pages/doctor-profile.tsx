@@ -156,23 +156,14 @@ export default function DoctorProfilePage() {
                         <StarRating 
                           rating={doctor.averageRating} 
                           showValue 
-                          reviewCount={doctor.totalReviews}
                           size="md"
                         />
                       </div>
 
-                      <div className="mt-4 grid grid-cols-3 gap-4">
-                        <div className="text-center p-3 bg-muted rounded-lg">
-                          <p className="text-2xl font-bold text-primary">{doctor.totalReviews}</p>
-                          <p className="text-xs text-muted-foreground">Reviews</p>
-                        </div>
+                      <div className="mt-4 grid grid-cols-1 gap-4">
                         <div className="text-center p-3 bg-muted rounded-lg">
                           <p className="text-2xl font-bold text-primary">{doctor.totalAppointments}+</p>
                           <p className="text-xs text-muted-foreground">Patients</p>
-                        </div>
-                        <div className="text-center p-3 bg-muted rounded-lg">
-                          <p className="text-2xl font-bold text-primary">{doctor.averageRating}</p>
-                          <p className="text-xs text-muted-foreground">Rating</p>
                         </div>
                       </div>
                     </div>
@@ -194,7 +185,7 @@ export default function DoctorProfilePage() {
                 <TabsList className="w-full justify-start">
                   <TabsTrigger value="about">About</TabsTrigger>
                   <TabsTrigger value="locations">Locations</TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews ({doctor.totalReviews})</TabsTrigger>
+                  <TabsTrigger value="reviews">Reviews</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="about" className="mt-4">
