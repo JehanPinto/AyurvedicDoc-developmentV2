@@ -9,8 +9,7 @@ import {
   Calendar,
   ChevronLeft,
   Video,
-  Building2,
-  Star
+  Building2
 } from "lucide-react";
 import { format, addDays, isSameDay, startOfToday } from "date-fns";
 import { PublicLayout } from "@/components/layout/public-layout";
@@ -23,7 +22,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { StarRating } from "@/components/ui/star-rating";
 import { ConsultationTypeBadges } from "@/components/ui/status-badge";
 import { LoadingPage, LoadingSpinner } from "@/components/ui/loading-spinner";
-import type { DoctorWithDetails, AppointmentSlot, ReviewWithPatient } from "@shared/schema";
+import type { DoctorWithDetails, AppointmentSlot } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function DoctorProfilePage() {
@@ -36,11 +35,6 @@ export default function DoctorProfilePage() {
 
   const { data: doctor, isLoading: doctorLoading } = useQuery<DoctorWithDetails>({
     queryKey: [`/api/doctors/${id}`],
-    enabled: Boolean(id),
-  });
-
-  const { data: reviews = [], isLoading: reviewsLoading } = useQuery<ReviewWithPatient[]>({
-    queryKey: [`/api/doctors/${id}/reviews`],
     enabled: Boolean(id),
   });
 
@@ -185,7 +179,6 @@ export default function DoctorProfilePage() {
                 <TabsList className="w-full justify-start">
                   <TabsTrigger value="about">About</TabsTrigger>
                   <TabsTrigger value="locations">Locations</TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="about" className="mt-4">
@@ -253,56 +246,6 @@ export default function DoctorProfilePage() {
                       </Card>
                     ))}
                   </div>
-                </TabsContent>
-
-                <TabsContent value="reviews" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle>Patient Reviews</CardTitle>
-                        <div className="flex items-center gap-2">
-                          <Star className="h-5 w-5 fill-secondary text-secondary" />
-                          <span className="text-2xl font-bold">{doctor.averageRating}</span>
-                          <span className="text-muted-foreground">/ 5</span>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {reviewsLoading ? (
-                        <div className="flex justify-center py-6">
-                          <LoadingSpinner />
-                        </div>
-                      ) : reviews.length > 0 ? (
-                        reviews.map((review) => (
-                          <div key={review.id} className="pb-6 border-b last:border-0 last:pb-0">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-center gap-3">
-                                <Avatar>
-                                  <AvatarFallback className="bg-primary/10 text-primary">
-                                    {getInitials(review.patient.fullName)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">{review.patient.fullName}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {format(new Date(review.createdAt), "MMM d, yyyy")}
-                                  </p>
-                                </div>
-                              </div>
-                              <StarRating rating={review.rating} size="sm" />
-                            </div>
-                            {review.comment && (
-                              <p className="mt-3 text-muted-foreground">{review.comment}</p>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground text-center py-6">
-                          No reviews yet
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
                 </TabsContent>
               </Tabs>
             </div>
