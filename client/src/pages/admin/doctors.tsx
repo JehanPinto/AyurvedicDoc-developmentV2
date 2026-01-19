@@ -71,6 +71,10 @@ export default function AdminDoctorsPage() {
 
   const { data: doctors = [], isLoading, isError } = useQuery<DoctorWithDetails[]>({
     queryKey: ["/api/admin/doctors"],
+    // Always refetch so newly registered doctors show up without needing a hard reload
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
 
   const verifyMutation = useMutation({

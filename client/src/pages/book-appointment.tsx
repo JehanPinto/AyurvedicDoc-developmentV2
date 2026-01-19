@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useLocation, Link } from "wouter";
+import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,60 +60,6 @@ const bookingSchema = z.object({
 
 type BookingInput = z.infer<typeof bookingSchema>;
 
-const mockDoctor: DoctorWithDetails = {
-  id: "1",
-  userId: "u1",
-  registrationNumber: "AYU-2010-001",
-  qualifications: "BAMS, MD (Ayu)",
-  biography: "Specialized in Panchakarma therapy.",
-  experienceYears: 15,
-  specializationIds: ["1"],
-  languagesSpoken: ["english", "sinhala"],
-  consultationTypes: ["in_person", "online"],
-  hospitalIds: ["h1"],
-  consultationFee: 2500,
-  onlineConsultationFee: 2000,
-  status: "verified",
-  verificationDocuments: [],
-  isAvailable: true,
-  maxAdvanceBookingDays: 30,
-  minBookingNoticeHours: 2,
-  slotDurationMinutes: 30,
-  bufferTimeMinutes: 10,
-  averageRating: 4.9,
-  totalReviews: 156,
-  totalAppointments: 500,
-  currentQueueNumber: 0,
-  createdAt: "2024-01-01",
-  updatedAt: "2024-01-01",
-  user: {
-    id: "u1",
-    email: "ananda@example.com",
-    password: "",
-    fullName: "Ananda Perera",
-    phone: "+94771234567",
-    role: "doctor",
-    preferredLanguages: ["english"],
-    isEmailVerified: true,
-    isPhoneVerified: true,
-    createdAt: "2024-01-01",
-    updatedAt: "2024-01-01",
-  },
-  specializations: [{ id: "1", name: "Panchakarma", description: "Traditional detox therapy" }],
-  hospitals: [{ id: "h1", name: "Ayurveda Wellness Center", address: "123 Galle Road", city: "Colombo", contactNumber: "+94112345678" }],
-};
-
-const mockSlot: AppointmentSlot = {
-  id: "s1",
-  doctorId: "1",
-  date: "2024-12-05",
-  startTime: "10:00",
-  endTime: "10:30",
-  consultationType: "in_person",
-  isBooked: false,
-  isBlocked: false,
-};
-
 interface BookingSettings {
   platformCommissionRate: number;
   bookingCharges: number;
@@ -122,11 +68,11 @@ interface BookingSettings {
 
 export default function BookAppointmentPage() {
   const { doctorId } = useParams();
-  const [location, setLocation] = useLocation();
-  const params = new URLSearchParams(location.split("?")[1] || "");
+  const search = typeof window !== "undefined" ? window.location.search : "";
+  const params = new URLSearchParams(search);
   const slotId = params.get("slot");
-  
   const { user } = useAuth();
+  
   const { toast } = useToast();
   const [step, setStep] = useState<"details" | "payment" | "confirmation">("details");
   const [bookingComplete, setBookingComplete] = useState(false);
@@ -144,14 +90,16 @@ export default function BookAppointmentPage() {
     refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 
-  const { data: doctor, isLoading: doctorLoading } = useQuery<DoctorWithDetails>({
-    queryKey: ["/api/doctors", doctorId],
-    queryFn: async () => mockDoctor,
+  const { data: doctor, isLoading: doctorLoading, isError: doctorError } = useQuery<DoctorWithDetails>({
+    queryKey: [`/api/doctors/${doctorId}`],
+    queryFn: () => apiRequest("GET", `/api/doctors/${doctorId}`),
+    enabled: Boolean(doctorId),
   });
 
-  const { data: slot, isLoading: slotLoading } = useQuery<AppointmentSlot>({
+  const { data: slot, isLoading: slotLoading, isError: slotError } = useQuery<AppointmentSlot>({
     queryKey: ["/api/slots", slotId],
-    queryFn: async () => mockSlot,
+    queryFn: () => apiRequest("GET", `/api/slots/${slotId}`),
+    enabled: Boolean(slotId),
   });
 
   const form = useForm<BookingInput>({
@@ -168,8 +116,21 @@ export default function BookAppointmentPage() {
 
   const bookingMutation = useMutation({
     mutationFn: async (data: BookingInput) => {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      return { id: "booking-" + Date.now(), ...data };
+      if (!doctor || !slot || !doctorId) throw new Error("Missing doctor or slot information");
+      const payload = {
+        doctorId,
+        slotId: slot.id,
+        hospitalId: slot.hospitalId ?? undefined,
+        consultationType: slot.consultationType,
+        symptoms: data.symptoms,
+        paymentMethod: data.paymentMethod,
+        isForDependent: data.isForDependent,
+        dependentName: data.dependentName,
+        dependentAge: data.dependentAge ? Number(data.dependentAge) : undefined,
+        dependentGender: data.dependentGender,
+        dependentContact: data.dependentContact,
+      };
+      return apiRequest("POST", "/api/appointments", payload);
     },
     onSuccess: () => {
       setBookingComplete(true);
@@ -178,6 +139,8 @@ export default function BookAppointmentPage() {
         title: "Booking Confirmed!",
         description: "Your appointment has been successfully booked.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/patient/dashboard"] });
     },
     onError: (error: Error) => {
       toast({
@@ -228,7 +191,7 @@ export default function BookAppointmentPage() {
     );
   }
 
-  if (!doctor || !slot) {
+  if (!doctor || !slot || slotError || doctorError) {
     return (
       <PublicLayout showHeader={false}>
         <div className="container mx-auto px-4 py-16 text-center">

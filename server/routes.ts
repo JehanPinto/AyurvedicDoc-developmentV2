@@ -932,6 +932,19 @@ export async function registerRoutes(
     }
   });
 
+  // Fetch a slot by id (used when returning from the doctor profile booking CTA)
+  app.get("/api/slots/:id", async (req: Request, res: Response) => {
+    try {
+      const slot = await storage.getAppointmentSlot(req.params.id);
+      if (!slot) {
+        return res.status(404).json({ error: "Slot not found" });
+      }
+      res.json(slot);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get slot" });
+    }
+  });
+
   app.get("/api/doctors/:id/reviews", async (req: Request, res: Response) => {
     try {
       const reviews = await storage.getDoctorReviews(req.params.id);
