@@ -10,11 +10,19 @@ if (typeof (process as any).loadEnvFile === "function") {
   loadEnv();
 }
 
-if (!process.env.DATABASE_URL) {
+if (!databaseUrl) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "DATABASE_URL must be set (or PGHOST/PGUSER/PGDATABASE).",
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Log resolved DB host/db (do NOT log password)
+try {
+  const url = new URL(databaseUrl);
+  console.log(`Using database host=${url.hostname} db=${url.pathname.replace('/', '')}`);
+} catch {
+  // ignore
+}
+
+export const pool = new Pool({ connectionString: databaseUrl });
 export const db = drizzle(pool, { schema });
