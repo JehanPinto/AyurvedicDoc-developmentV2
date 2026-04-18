@@ -6,9 +6,36 @@ import { createHash } from "crypto";
 import bcrypt from "bcrypt";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import rateLimit from "express-rate-limit";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+
+// Password strength validation utility
+function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (password.length < 8) {
+    errors.push("Password must be at least 8 characters long");
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push("Password must contain at least one uppercase letter");
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push("Password must contain at least one lowercase letter");
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push("Password must contain at least one number");
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push("Password must contain at least one special character");
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -33,12 +60,46 @@ const upload = multer({
     const allowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"];
     const ext = path.extname(file.originalname).toLowerCase();
     
+    // Validate file name length and format
+    if (!file.originalname || file.originalname.length > 255) {
+      return cb(new Error("Invalid filename: name too long or empty."));
+    }
+    
+    // Prevent path traversal attacks
+    if (file.originalname.includes("..") || file.originalname.includes("/") || file.originalname.includes("\\")) {
+      return cb(new Error("Invalid filename: contains invalid characters."));
+    }
+    
     if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
       cb(new Error("Invalid file type. Only JPEG, PNG, GIF, WebP, and PDF are allowed."));
     }
   },
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: "Too many login attempts, try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  message: { error: "Too many registration attempts, try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many upload attempts, try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 interface RegistrationSession {
@@ -172,7 +233,14 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-const JWT_SECRET = process.env.SESSION_SECRET || "ayurvedic-doctor-secret-key-2024";
+if (!process.env.SESSION_SECRET) {
+  throw new Error(
+    "SESSION_SECRET environment variable must be set. " +
+    "Do not use hardcoded secrets in production."
+  );
+}
+
+const JWT_SECRET = process.env.SESSION_SECRET;
 const REGISTRATION_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes to complete signup
 
 type JwtPayload = { id: string; email: string; role?: string; fullName?: string; provider?: string; purpose?: string; exp?: number };
@@ -264,9 +332,18 @@ export async function registerRoutes(
     done(null, user);
   });
 
-  app.post("/api/auth/register", async (req: Request, res: Response) => {
+  app.post("/api/auth/register", registrationLimiter, async (req: Request, res: Response) => {
     try {
       const data = insertUserSchema.parse(req.body);
+      
+      // Validate password strength
+      const passwordValidation = validatePasswordStrength(data.password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ 
+          error: "Password does not meet security requirements",
+          details: passwordValidation.errors 
+        });
+      }
       
       const existingUser = await storage.getUserByEmail(data.email);
       if (existingUser) {
@@ -288,7 +365,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/register-doctor", async (req: Request, res: Response) => {
+  app.post("/api/auth/register-doctor", registrationLimiter, async (req: Request, res: Response) => {
     try {
       const registrationToken = req.headers["x-registration-token"] as string;
       let sessionFiles: string[] = [];
@@ -301,6 +378,15 @@ export async function registerRoutes(
       }
       
       const userData = insertUserSchema.parse({ ...req.body, role: UserRole.DOCTOR });
+      
+      // Validate password strength
+      const passwordValidation = validatePasswordStrength(userData.password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ 
+          error: "Password does not meet security requirements",
+          details: passwordValidation.errors 
+        });
+      }
       
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
@@ -447,7 +533,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/login", async (req: Request, res: Response) => {
+  app.post("/api/auth/login", loginLimiter, async (req: Request, res: Response) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
       
@@ -721,7 +807,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
+  app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Request, res: Response) => {
     try {
       const token = req.headers["x-registration-token"] as string;
       const email = req.headers["x-registration-email"] as string;
