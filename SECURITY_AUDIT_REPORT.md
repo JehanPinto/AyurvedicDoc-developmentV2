@@ -171,3 +171,20 @@ npm audit
 - **After (Phase 1):** ~8 vulnerabilities (mostly transitive)
 - **After (Phase 2):** ≤2 vulnerabilities (with accepted risk)
 
+# Database Configuration
+# Replace with your PostgreSQL connection string
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ayurvedicdoctor
+
+# Server Configuration
+# PORT=5000
+
+# Session Secret
+# SESSION_SECRET=ayurvedic-doctor-secret-key-2024-change-in-production
+
+# Google OAuth (Optional)
+ GOOGLE_CLIENT_ID=755091889304-d066ruiovu6d8he2b0rsqr4ae99mcip8.apps.googleusercontent.com
+ GOOGLE_CLIENT_SECRET=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
+
+SESSION_SECRET="sA2oQCAKgfLOV+7hxBSP/fnHl5bYfIKj10xfc9R5wx+aetlDw36n59NPz3qOns21wFpNahXFlJ7xUhctTDdOkQ=="
+DATABASE_URL="postgresql://neondb_owner:npg_BjdkE18nopya@ep-ancient-cell-a1mwbyok-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
