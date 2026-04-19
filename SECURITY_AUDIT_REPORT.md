@@ -182,9 +182,9 @@ npm audit
 # SESSION_SECRET=ayurvedic-doctor-secret-key-2024-change-in-production
 
 # Google OAuth (Optional)
- GOOGLE_CLIENT_ID=755091889304-d066ruiovu6d8he2b0rsqr4ae99mcip8.apps.googleusercontent.com
- GOOGLE_CLIENT_SECRET=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
+ GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID_HERE
+ GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET_HERE
 
-SESSION_SECRET="sA2oQCAKgfLOV+7hxBSP/fnHl5bYfIKj10xfc9R5wx+aetlDw36n59NPz3qOns21wFpNahXFlJ7xUhctTDdOkQ=="
-DATABASE_URL="postgresql://neondb_owner:npg_BjdkE18nopya@ep-ancient-cell-a1mwbyok-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+SESSION_SECRET="YOUR_SESSION_SECRET_HERE"
+DATABASE_URL="postgresql://username:password@host/database"
 
