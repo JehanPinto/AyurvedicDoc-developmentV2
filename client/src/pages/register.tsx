@@ -404,21 +404,20 @@ export default function RegisterPage() {
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Create a strong password"
                                 data-testid="input-password"
+                                className="pr-10"
                                 {...field}
                               />
-                              <Button
+                              <button
                                 type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                                 onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
                               >
                                 {showPassword ? (
-                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                  <EyeOff className="h-4 w-4" />
                                 ) : (
-                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                  <Eye className="h-4 w-4" />
                                 )}
-                              </Button>
+                              </button>
                             </div>
                           </FormControl>
                           <FormMessage />
@@ -440,19 +439,17 @@ export default function RegisterPage() {
                                 data-testid="input-confirm-password"
                                 {...field}
                               />
-                              <Button
+                              <button
                                 type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
                               >
                                 {showConfirmPassword ? (
                                   <EyeOff className="h-4 w-4 text-muted-foreground" />
                                 ) : (
                                   <Eye className="h-4 w-4 text-muted-foreground" />
                                 )}
-                              </Button>
+                              </button>
                             </div>
                           </FormControl>
                           <FormMessage />
