@@ -41,8 +41,8 @@ export function Footer() {
   return (
     <footer className="bg-card border-t">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
+          <div className="sm:col-span-2 md:col-span-3 lg:col-span-2">
             <Link href="/">
               <div className="flex items-center gap-2 cursor-pointer mb-4">
                 <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
