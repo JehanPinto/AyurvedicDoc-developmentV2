@@ -119,9 +119,9 @@ export function DoctorSearchFilters({
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
           <Select value={selectedSpecialization} onValueChange={onSpecializationChange}>
-            <SelectTrigger className="w-[180px]" data-testid="select-specialization">
+            <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-specialization">
               <SelectValue placeholder="Specialization" />
             </SelectTrigger>
             <SelectContent>
@@ -135,7 +135,7 @@ export function DoctorSearchFilters({
           </Select>
 
           <Select value={selectedCity} onValueChange={onCityChange}>
-            <SelectTrigger className="w-[150px]" data-testid="select-city">
+            <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-city">
               <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
               <SelectValue placeholder="City" />
             </SelectTrigger>
@@ -151,7 +151,7 @@ export function DoctorSearchFilters({
 
           <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" className="relative" data-testid="button-filters">
+              <Button variant="outline" className="relative w-full sm:w-auto" data-testid="button-filters">
                 <Filter className="h-4 w-4 mr-2" />
                 Filters
                 {activeFilterCount > 0 && (
@@ -255,7 +255,7 @@ export function DoctorSearchFilters({
           </Sheet>
 
           <Select value={sortBy} onValueChange={onSortByChange}>
-            <SelectTrigger className="w-[160px]" data-testid="select-sort">
+            <SelectTrigger className="w-full sm:w-[160px]" data-testid="select-sort">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>

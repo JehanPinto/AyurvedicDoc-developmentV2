@@ -1,15 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { 
-  Leaf, 
-  Baby, 
-  Stethoscope, 
-  Heart, 
+  Leaf,
+  Baby,
+  Stethoscope,
+  Heart,
   Users,
   Sparkles,
   Activity,
   Brain,
   ArrowRight,
+  ArrowUp,
   Search
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { PublicLayout } from "@/components/layout/public-layout";
 import { LoadingCard } from "@/components/ui/loading-spinner";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Specialization } from "@shared/schema";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -70,6 +71,15 @@ const commonConditions: Record<string, string[]> = {
 
 export default function SpecializationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 300);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   const { data: specializations = [], isLoading, isError } = useQuery<Specialization[]>({
     queryKey: ["/api/specializations"],
@@ -99,7 +109,7 @@ export default function SpecializationsPage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
         
-        <div className="container mx-auto px-4 py-16 md:py-24 relative">
+        <div className="container mx-auto px-4 py-10 md:py-14 lg:py-24 relative">
           <div className="max-w-3xl mx-auto text-center">
             <Badge variant="secondary" className="mb-6 px-4 py-1.5">
               Explore Ayurvedic Treatments
@@ -149,10 +159,10 @@ export default function SpecializationsPage() {
       </section>
 
       {/* Specializations Grid */}
-      <section className="py-16 md:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 md:mb-4">
               Browse by Specialization
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -161,7 +171,7 @@ export default function SpecializationsPage() {
           </div>
 
           {isLoading ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {[...Array(6)].map((_, i) => (
                 <LoadingCard key={`loading-${i}`} />
               ))}
@@ -177,7 +187,7 @@ export default function SpecializationsPage() {
               </p>
             </div>
           ) : filteredSpecializations.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {filteredSpecializations.map((spec) => {
                 const iconKey = getIconKey(spec.name);
                 const Icon = iconMap[iconKey] || iconMap.default;
@@ -186,19 +196,19 @@ export default function SpecializationsPage() {
                 const conditions = commonConditions[iconKey] || ["General treatment", "Consultation"];
 
                 return (
-                  <Card key={spec.id} className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50">
-                    <CardContent className="p-6">
+                  <Card key={spec.id} className="group transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg hover:border-primary/40 flex flex-col">
+                    <CardContent className="p-6 flex flex-col flex-1">
                       <div className={cn(
                         "inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4",
                         colorClass
                       )}>
                         <Icon className="h-7 w-7" />
                       </div>
-                      
+
                       <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">
                         {spec.name}
                       </h3>
-                      
+
                       <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
                         {description}
                       </p>
@@ -211,7 +221,7 @@ export default function SpecializationsPage() {
                         ))}
                       </div>
 
-                      <Link href={`/doctors?specialization=${spec.id}`}>
+                      <Link href={`/doctors?specialization=${spec.id}`} className="mt-auto">
                         <Button variant="outline" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                           Find Doctors
                           <ArrowRight className="ml-2 h-4 w-4" />
@@ -244,18 +254,18 @@ export default function SpecializationsPage() {
       </section>
 
       {/* Why Choose Ayurveda */}
-      <section className="py-16 md:py-24 bg-card">
+      <section className="py-12 md:py-16 lg:py-24 bg-card">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 md:mb-4">
               Why Choose Ayurvedic Treatment?
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-muted-foreground max-w-2xl mx-auto text-sm md:text-base">
               Benefits of choosing traditional Ayurvedic healthcare
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 max-w-5xl mx-auto">
             {[
               {
                 icon: Leaf,
@@ -278,9 +288,9 @@ export default function SpecializationsPage() {
                 description: "Emphasizes disease prevention and maintaining optimal health.",
               },
             ].map((benefit) => (
-              <Card key={benefit.title} className="text-center">
+              <Card key={benefit.title} className="text-center transition-all duration-300 hover:scale-[1.04] hover:shadow-lg hover:border-primary/30 hover:bg-primary/5">
                 <CardContent className="p-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4 transition-transform duration-300 group-hover:scale-110">
                     <benefit.icon className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="font-semibold mb-2">{benefit.title}</h3>
@@ -293,30 +303,40 @@ export default function SpecializationsPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 md:py-24 bg-primary text-primary-foreground">
+      <section className="py-12 md:py-16 lg:py-24 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 md:mb-4 text-white">
             Ready to Start Your Healing Journey?
           </h2>
-          <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
+          <p className="text-white/65 max-w-2xl mx-auto mb-6 md:mb-8 text-sm md:text-base px-2">
             Connect with verified Ayurvedic practitioners and experience the benefits of 
             traditional medicine combined with modern convenience.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/doctors">
-              <Button size="lg" variant="secondary">
+              <Button size="lg" variant="secondary" className="transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:ring-1 hover:ring-white/25 hover:ring-offset-1">
                 Find a Doctor Now
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
             <Link href="/register">
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10">
+              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/15 hover:border-white/50 transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:ring-1 hover:ring-white/20 hover:ring-offset-1">
                 Create Account
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>
         </div>
       </section>
+      <button
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+        className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl hover:brightness-110 ${
+          showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+        }`}
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
     </PublicLayout>
   );
 }

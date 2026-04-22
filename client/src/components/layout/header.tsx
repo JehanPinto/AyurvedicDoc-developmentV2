@@ -78,7 +78,7 @@ export function Header() {
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-1">
             {publicNavItems.map((item) => (
               <Link key={item.href} href={item.href}>
                 <Button 
@@ -157,7 +157,7 @@ export function Header() {
               </DropdownMenu>
             </>
           ) : (
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               <Link href="/login">
                 <Button variant="ghost" data-testid="button-login">
                   Login
@@ -174,7 +174,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="lg:hidden"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             data-testid="button-mobile-menu"
           >
@@ -184,7 +184,7 @@ export function Header() {
       </div>
 
       {isMenuOpen && (
-        <div className="md:hidden border-t bg-background animate-slide-in-from-top">
+        <div className="lg:hidden border-t bg-background animate-slide-in-from-top">
           <nav className="container mx-auto px-4 py-4 flex flex-col gap-2">
             {publicNavItems.map((item) => (
               <Link 

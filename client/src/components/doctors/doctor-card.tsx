@@ -35,16 +35,17 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
   const primaryHospital = doctor.hospitals[0];
 
   return (
-    <Card 
-      className="overflow-hidden hover-elevate transition-all duration-200"
+    <Card
+      className="overflow-hidden transition-all duration-300 hover:border-primary hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02]"
       data-testid={`card-doctor-${doctor.id}`}
     >
       <CardContent className="p-0">
+
         <div className="p-6">
           <div className="flex items-start gap-4">
             <Avatar className="h-20 w-20 rounded-lg border-2 border-primary/10">
-              <AvatarImage 
-                src={doctor.user.profileImage} 
+              <AvatarImage
+                src={doctor.user.profileImage}
                 alt={doctor.user.fullName}
                 className="object-cover"
               />
@@ -57,7 +58,7 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h3 className="font-semibold text-lg truncate">
-                    Dr. {doctor.user.fullName}
+                    {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
                   </h3>
                   {primarySpecialization && (
                     <p className="text-sm text-primary font-medium">
@@ -74,9 +75,9 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
               </div>
 
               <div className="mt-2 flex items-center gap-2">
-                <StarRating 
-                  rating={doctor.averageRating} 
-                  showValue 
+                <StarRating
+                  rating={doctor.averageRating}
+                  showValue
                   reviewCount={doctor.totalReviews}
                   size="sm"
                 />
@@ -102,15 +103,15 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
           </div>
 
           <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Consultation Fee</p>
                 <p className="text-lg font-bold text-primary">
                   {formatFee(doctor.consultationFee)}
                 </p>
               </div>
-              <ConsultationTypeBadges 
-                types={doctor.consultationTypes} 
+              <ConsultationTypeBadges
+                types={doctor.consultationTypes}
                 size="sm"
               />
             </div>
@@ -119,11 +120,12 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
 
         <div className="px-6 pb-6">
           <Link href={`/doctors/${doctor.id}`}>
-            <Button className="w-full" data-testid={`button-book-doctor-${doctor.id}`}>
+            <Button className="w-full transition-all duration-200 hover:brightness-75" data-testid={`button-book-doctor-${doctor.id}`}>
               View Profile & Book
             </Button>
           </Link>
         </div>
+
       </CardContent>
     </Card>
   );
