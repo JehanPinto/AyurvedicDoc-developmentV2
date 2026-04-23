@@ -115,33 +115,33 @@ export function Footer() {
                 <span className="font-heading font-bold text-xl">AyurvedicDoctor</span>
               </div>
             </Link>
-            <p className="text-muted-foreground mb-6 max-w-sm">
+            <p className="text-muted-foreground mb-6 max-w-sm text-sm md:text-base">
               Sri Lanka's premier platform for discovering and booking trusted Ayurvedic
               practitioners. Experience holistic healthcare at your fingertips.
             </p>
             <div className="space-y-3">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4" />
+                <Mail className="h-4 w-4 shrink-0" />
                 <span>support@ayurvedicdoctor.lk</span>
               </div>
               <div
                 className="flex items-center gap-3 text-sm text-muted-foreground cursor-pointer group w-fit"
                 onClick={() => setShowPhoneModal(true)}
               >
-                <Phone className="h-4 w-4 group-hover:text-primary transition-colors" />
+                <Phone className="h-4 w-4 shrink-0 group-hover:text-primary transition-colors" />
                 <span className="group-hover:text-primary group-hover:underline transition-colors">
                   {PHONE}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4" />
+                <MapPin className="h-4 w-4 shrink-0" />
                 <span>Colombo, Sri Lanka</span>
               </div>
             </div>
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Platform</h4>
+            <h4 className="font-semibold mb-4 text-sm md:text-base">Platform</h4>
             <ul className="space-y-3">
               {footerLinks.platform.map((link) => (
                 <li key={link.key}>
@@ -157,7 +157,7 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Company</h4>
+            <h4 className="font-semibold mb-4 text-sm md:text-base">Company</h4>
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
                 <li key={link.href}>
@@ -173,7 +173,7 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Support</h4>
+            <h4 className="font-semibold mb-4 text-sm md:text-base">Support</h4>
             <ul className="space-y-3">
               {footerLinks.support.map((link) => (
                 <li key={link.href}>
@@ -189,7 +189,7 @@ export function Footer() {
           </div>
         </div>
 
-        <hr className="my-8" />
+        <hr className="my-6 md:my-8" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground text-center sm:text-left">

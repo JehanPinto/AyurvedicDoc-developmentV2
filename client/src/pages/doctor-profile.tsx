@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { 
-  MapPin, 
-  Award, 
-  Languages, 
+import {
+  MapPin,
+  Award,
+  Languages,
   Phone,
   Calendar,
   ChevronLeft,
   Video,
-  Building2
+  Building2,
+  ArrowUp,
 } from "lucide-react";
 import { format, addDays, isSameDay, startOfToday } from "date-fns";
 import { PublicLayout } from "@/components/layout/public-layout";
@@ -27,6 +28,16 @@ import { apiRequest } from "@/lib/queryClient";
 
 export default function DoctorProfilePage() {
   const { id } = useParams();
+  const [userRating, setUserRating] = useState(0);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 300);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
   const [selectedDate, setSelectedDate] = useState(startOfToday());
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
   const [selectedConsultationType, setSelectedConsultationType] = useState<"all" | AppointmentSlot["consultationType"]>("all");
@@ -132,7 +143,7 @@ export default function DoctorProfilePage() {
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
                           <h1 className="text-2xl md:text-3xl font-heading font-bold">
-                            Dr. {doctor.user.fullName}
+                            {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
                           </h1>
                           <p className="text-lg text-primary font-medium mt-1">
                             {doctor.specializations.map(s => s.name).join(", ")}
@@ -147,11 +158,16 @@ export default function DoctorProfilePage() {
                       </div>
 
                       <div className="mt-4 flex items-center gap-4">
-                        <StarRating 
-                          rating={doctor.averageRating} 
-                          showValue 
+                        <StarRating
+                          rating={userRating || doctor.averageRating}
+                          showValue
                           size="md"
+                          interactive
+                          onRatingChange={(val) => setUserRating(val)}
                         />
+                        {userRating > 0 && (
+                          <span className="text-xs text-muted-foreground">Your rating: {userRating}.0</span>
+                        )}
                       </div>
 
                       <div className="mt-4 grid grid-cols-1 gap-4">
@@ -179,6 +195,7 @@ export default function DoctorProfilePage() {
                 <TabsList className="w-full justify-start">
                   <TabsTrigger value="about">About</TabsTrigger>
                   <TabsTrigger value="locations">Locations</TabsTrigger>
+                  <TabsTrigger value="reviews">Reviews</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="about" className="mt-4">
@@ -246,6 +263,30 @@ export default function DoctorProfilePage() {
                       </Card>
                     ))}
                   </div>
+                </TabsContent>
+
+                <TabsContent value="reviews" className="mt-4">
+                  <Card>
+                    <CardContent className="p-6">
+                      <h3 className="font-semibold mb-3">Your Review</h3>
+                      {userRating > 0 ? (
+                        <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                          <p className="font-medium text-sm">
+                            You rated {userRating === 5 ? "Excellent" : userRating === 4 ? "Very Good" : userRating === 3 ? "Good" : userRating === 2 ? "Fair" : "Poor"} — {userRating} out of 5
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            You can update your rating using the stars at the top of the page
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl bg-muted/50 border border-dashed">
+                          <p className="text-sm text-muted-foreground">
+                            You haven't rated this doctor yet — use the stars at the top of the page to rate
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </TabsContent>
               </Tabs>
             </div>
@@ -378,6 +419,15 @@ export default function DoctorProfilePage() {
           </div>
         </div>
       </div>
+      <button
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+        className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl hover:brightness-110 ${
+          showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+        }`}
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
     </PublicLayout>
   );
 }
