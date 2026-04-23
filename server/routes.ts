@@ -7,9 +7,8 @@ import bcrypt from "bcrypt";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import rateLimit from "express-rate-limit";
-import multer from "multer";
+import { upload } from "../config/cloudinary";
 import path from "path";
-import fs from "fs";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
@@ -36,47 +35,6 @@ function validatePasswordStrength(password: string): { valid: boolean; errors: s
     errors,
   };
 }
-
-const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const multerStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({
-  storage: multerStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
-    const allowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"];
-    const ext = path.extname(file.originalname).toLowerCase();
-    
-    // Validate file name length and format
-    if (!file.originalname || file.originalname.length > 255) {
-      return cb(new Error("Invalid filename: name too long or empty."));
-    }
-    
-    // Prevent path traversal attacks
-    if (file.originalname.includes("..") || file.originalname.includes("/") || file.originalname.includes("\\")) {
-      return cb(new Error("Invalid filename: contains invalid characters."));
-    }
-    
-    if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Invalid file type. Only JPEG, PNG, GIF, WebP, and PDF are allowed."));
-    }
-  },
-});
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -814,23 +772,14 @@ export async function registerRoutes(
       const session = validateRegistrationSession(token);
       
       if (!session) {
-        if (req.file) {
-          fs.unlinkSync(req.file.path);
-        }
         return res.status(401).json({ error: "Invalid or expired registration session" });
       }
       
       if (!email || email.toLowerCase() !== session.email) {
-        if (req.file) {
-          fs.unlinkSync(req.file.path);
-        }
         return res.status(401).json({ error: "Email mismatch with registration session" });
       }
       
       if (session.uploadCount >= MAX_UPLOADS_PER_SESSION) {
-        if (req.file) {
-          fs.unlinkSync(req.file.path);
-        }
         return res.status(429).json({ error: "Maximum uploads reached for this session" });
       }
       
@@ -838,7 +787,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No file uploaded" });
       }
       
-      const fileUrl = `/uploads/${req.file.filename}`;
+      // With Cloudinary, req.file.path contains the full cloud URL
+      const fileUrl = req.file.path;
       session.uploadedFiles.push(fileUrl);
       session.uploadCount++;
       
@@ -846,15 +796,16 @@ export async function registerRoutes(
         url: fileUrl, 
         filename: req.file.filename,
         originalName: req.file.originalname,
-        size: req.file.size 
+        size: req.file.size,
+        cloudinary: true // Indicates this is a Cloudinary URL
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to upload file" });
     }
   });
 
-  // Allow admins to fetch verification documents without the Authorization header by accepting a
-  // token via the query string (?token=...) while still honoring the usual Bearer header.
+// Allow admins to fetch verification documents by redirecting to Cloudinary
+  // Or access them directly via the Cloudinary URL stored in the database
   app.get("/api/documents/:filename", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
@@ -864,44 +815,33 @@ export async function registerRoutes(
       const queryToken = typeof req.query.token === "string" ? req.query.token : null;
       const token = headerToken || queryToken;
       const user = token ? verifyToken(token) : null;
+      
       if (!user) {
         return res.status(401).json({ error: "Unauthorized" });
-      }
-      const filename = path.basename(req.params.filename);
-      
-      if (!filename || filename.includes('..')) {
-        return res.status(400).json({ error: "Invalid filename" });
       }
       
       if (user.role !== UserRole.ADMIN) {
         const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
-        if (!doctorProfile || !doctorProfile.verificationDocuments?.includes(`/uploads/${filename}`)) {
+        // Check if the document URL belongs to this doctor's profile
+        if (!doctorProfile || !doctorProfile.verificationDocuments?.some((doc: string) => 
+          doc.includes(req.params.filename)
+        )) {
           return res.status(403).json({ error: "Access denied" });
         }
       }
       
-      const filePath = path.resolve(uploadDir, filename);
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: "File not found" });
+      // Find the full Cloudinary URL from the database
+      const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
+      const documentUrl = doctorProfile?.verificationDocuments?.find((doc: string) => 
+        doc.includes(req.params.filename)
+      );
+      
+      if (!documentUrl) {
+        return res.status(404).json({ error: "Document not found" });
       }
       
-      // Determine content type based on file extension for inline display
-      const ext = path.extname(filename).toLowerCase();
-      let contentType = 'application/octet-stream';
-      if (ext === '.pdf') {
-        contentType = 'application/pdf';
-      } else if (ext === '.png') {
-        contentType = 'image/png';
-      } else if (ext === '.jpg' || ext === '.jpeg') {
-        contentType = 'image/jpeg';
-      }
-      
-      // Read file and send with proper headers for inline display
-      const fileBuffer = fs.readFileSync(filePath);
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-      res.setHeader('Content-Length', fileBuffer.length);
-      res.send(fileBuffer);
+      // Redirect to Cloudinary URL (Cloudinary handles display/download)
+      res.redirect(documentUrl);
     } catch (error) {
       res.status(500).json({ error: "Failed to serve document" });
     }
