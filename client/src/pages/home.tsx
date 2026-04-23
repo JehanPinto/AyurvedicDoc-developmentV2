@@ -155,8 +155,8 @@ export default function HomePage() {
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/20 mb-3">
                   <stat.icon className="h-6 w-6 text-primary" />
                 </div>
-                <p className="text-3xl font-bold text-white">{stat.value}</p>
-                <p className="text-sm text-white/50 mt-1">{stat.label}</p>
+                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
               </div>
             ))}
           </div>
@@ -187,8 +187,8 @@ export default function HomePage() {
                   <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center mx-auto mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(46,158,46,0.4)]">
                     <item.icon className="h-8 w-8 text-white" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-white group-hover:text-primary transition-colors duration-300">{item.title}</h3>
-                  <p className="text-white/50 text-base group-hover:text-white/70 transition-colors duration-300">{item.description}</p>
+                  <h3 className="text-xl font-semibold mb-2 text-foreground group-hover:text-primary transition-colors duration-300">{item.title}</h3>
+                  <p className="text-muted-foreground text-base transition-colors duration-300">{item.description}</p>
                 </div>
 
                 {/* Connector between cards (only between, not after last) */}
@@ -215,8 +215,8 @@ export default function HomePage() {
                 <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center mx-auto mb-4">
                   <item.icon className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2 text-white">{item.title}</h3>
-                <p className="text-white/50 text-base">{item.description}</p>
+                <h3 className="text-xl font-semibold mb-2 text-foreground">{item.title}</h3>
+                <p className="text-muted-foreground text-base">{item.description}</p>
               </div>
             ))}
           </div>
@@ -227,10 +227,10 @@ export default function HomePage() {
       <section className="py-12 md:py-16 lg:py-24 bg-primary/20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 text-white">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 text-foreground">
               What Our Patients Say
             </h2>
-            <p className="text-white/50 max-w-2xl mx-auto text-base">
+            <p className="text-muted-foreground max-w-2xl mx-auto text-base">
               Join thousands of satisfied patients who trust AyurvedicDoctor
             </p>
           </div>
@@ -248,12 +248,12 @@ export default function HomePage() {
                         {testimonial.initials}
                       </AvatarFallback>
                     </Avatar>
-                    <p className="font-semibold text-white">{testimonial.name}</p>
+                    <p className="font-semibold text-foreground">{testimonial.name}</p>
                   </div>
                   <div className="flex mb-3">
                     <StarRating rating={testimonial.rating} size="sm" />
                   </div>
-                  <p className="text-white/60 text-sm leading-relaxed group-hover:text-white/80 transition-colors duration-300">"{testimonial.text}"</p>
+                  <p className="text-muted-foreground text-sm leading-relaxed transition-colors duration-300">"{testimonial.text}"</p>
                 </CardContent>
               </Card>
             ))}
