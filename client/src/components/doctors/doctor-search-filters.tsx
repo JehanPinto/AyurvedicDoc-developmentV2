@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Search, Filter, X, MapPin, Star } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -107,60 +106,64 @@ export function DoctorSearchFilters({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
+      {/* Single toolbar containing all pill-shaped filters */}
+      <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl border border-[#47836c]/30 bg-[#47836c]/10 backdrop-blur-md">
+
+        {/* Search pill */}
+        <div className="relative flex items-center bg-[#47836c]/25 backdrop-blur-sm rounded-full px-4 h-9 gap-2 flex-1 min-w-[200px]">
+          <Search className="h-3.5 w-3.5 text-[#47836c] shrink-0" />
+          <input
             placeholder="Search doctors by name..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-10"
+            className="bg-transparent outline-none text-sm text-foreground placeholder:text-foreground w-full"
             data-testid="input-search-doctors"
           />
         </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
-          <Select value={selectedSpecialization} onValueChange={onSpecializationChange}>
-            <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-specialization">
-              <SelectValue placeholder="Specialization" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Specializations</SelectItem>
-              {specializations.map((spec) => (
-                <SelectItem key={spec.id} value={spec.id}>
-                  {spec.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* All Specializations pill */}
+        <Select value={selectedSpecialization} onValueChange={onSpecializationChange}>
+          <SelectTrigger className="bg-[#47836c]/25 backdrop-blur-sm border-0 rounded-full h-9 px-4 text-sm focus:ring-0 shadow-none w-auto gap-1 text-foreground" data-testid="select-specialization">
+            <SelectValue placeholder="All Specializations" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Specializations</SelectItem>
+            {specializations.map((spec) => (
+              <SelectItem key={spec.id} value={spec.id}>{spec.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          <Select value={selectedCity} onValueChange={onCityChange}>
-            <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-city">
-              <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-              <SelectValue placeholder="City" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Cities</SelectItem>
-              {cities.map((city) => (
-                <SelectItem key={city} value={city}>
-                  {city}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* All Cities pill */}
+        <Select value={selectedCity} onValueChange={onCityChange}>
+          <SelectTrigger className="bg-[#47836c]/25 backdrop-blur-sm border-0 rounded-full h-9 px-4 text-sm focus:ring-0 shadow-none w-auto gap-1 text-foreground" data-testid="select-city">
+            <MapPin className="h-3.5 w-3.5 text-[#47836c] shrink-0" />
+            <SelectValue placeholder="All Cities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Cities</SelectItem>
+            {cities.map((city) => (
+              <SelectItem key={city} value={city}>{city}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="relative w-full sm:w-auto" data-testid="button-filters">
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
-                {activeFilterCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-2xs">
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Button>
-            </SheetTrigger>
+        {/* Filters pill */}
+        <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+          <SheetTrigger asChild>
+            <button
+              className="relative bg-[#47836c]/25 backdrop-blur-sm rounded-full h-9 px-4 flex items-center gap-2 text-sm text-foreground shrink-0"
+              data-testid="button-filters"
+            >
+              <Filter className="h-3.5 w-3.5 text-[#47836c]" />
+              Filters
+              {activeFilterCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]">
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </button>
+          </SheetTrigger>
             <SheetContent className="w-[340px] sm:w-[400px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center justify-between">
@@ -254,19 +257,18 @@ export function DoctorSearchFilters({
             </SheetContent>
           </Sheet>
 
-          <Select value={sortBy} onValueChange={onSortByChange}>
-            <SelectTrigger className="w-full sm:w-[160px]" data-testid="select-sort">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              {sortOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Highest Rated pill */}
+        <Select value={sortBy} onValueChange={onSortByChange}>
+          <SelectTrigger className="bg-[#47836c]/25 backdrop-blur-sm border-0 rounded-full h-9 px-4 text-sm focus:ring-0 shadow-none w-auto gap-1 text-foreground" data-testid="select-sort">
+            <SelectValue placeholder="Highest Rated" />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
       </div>
 
       {activeFilterCount > 0 && (

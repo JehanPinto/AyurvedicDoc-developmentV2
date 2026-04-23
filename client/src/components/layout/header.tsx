@@ -83,7 +83,7 @@ export function Header() {
               <Link key={item.href} href={item.href}>
                 <Button 
                   variant="ghost" 
-                  className={location === item.href ? "bg-accent" : ""}
+                  className={location === item.href ? "text-orange-500 bg-orange-500/10" : ""}
                   data-testid={`link-nav-${item.label.toLowerCase().replace(" ", "-")}`}
                 >
                   {item.label}

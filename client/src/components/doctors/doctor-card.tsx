@@ -61,7 +61,7 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
                     {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
                   </h3>
                   {primarySpecialization && (
-                    <p className="text-sm text-primary font-medium">
+                    <p className="text-sm text-orange-500 font-medium">
                       {primarySpecialization.name}
                     </p>
                   )}
@@ -106,7 +106,7 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Consultation Fee</p>
-                <p className="text-lg font-bold text-primary">
+                <p className="text-lg font-bold text-orange-500">
                   {formatFee(doctor.consultationFee)}
                 </p>
               </div>

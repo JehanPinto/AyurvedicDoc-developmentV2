@@ -96,7 +96,7 @@ export function ConsultationTypeBadges({ types, size = "sm", className }: Consul
   };
 
   return (
-    <div className={cn("flex flex-wrap gap-1", className)}>
+    <div className={cn("flex flex-col gap-1", className)}>
       {types.map((type) => {
         const Icon = icons[type as keyof typeof icons];
         if (!Icon) return null;

@@ -138,7 +138,7 @@ export default function DoctorsPage() {
   return (
     <PublicLayout showHeader={!isPatientRoute}>
       <div className={headingWrapperClasses}>
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 text-center">
           <h1 className={`${headingClasses} mb-2`}>
             Find Ayurvedic Doctors
           </h1>
