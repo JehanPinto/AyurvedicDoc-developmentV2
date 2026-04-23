@@ -45,7 +45,7 @@ export default function AboutPage() {
               About Ayurvedic Doctor
             </h1>
             
-            <p className="text-[23px] ">
+            <p className="text-[20px] ">
               Bridging ancient Ayurvedic wisdom with modern healthcare accessibility. 
               <br />
               We connect patients with verified Ayurvedic practitioners across Sri Lanka.
