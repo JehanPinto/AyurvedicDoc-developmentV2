@@ -120,10 +120,13 @@ export function Footer() {
               practitioners. Experience holistic healthcare at your fingertips.
             </p>
             <div className="space-y-3">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4 shrink-0" />
-                <span>support@ayurvedicdoctor.lk</span>
-              </div>
+              <a
+                href="mailto:support@ayurvedicdoctor.lk"
+                className="flex items-center gap-3 text-sm text-muted-foreground cursor-pointer group w-fit"
+              >
+                <Mail className="h-4 w-4 shrink-0 group-hover:text-primary transition-colors" />
+                <span className="group-hover:text-primary group-hover:underline transition-colors">support@ayurvedicdoctor.lk</span>
+              </a>
               <div
                 className="flex items-center gap-3 text-sm text-muted-foreground cursor-pointer group w-fit"
                 onClick={() => setShowPhoneModal(true)}
@@ -133,10 +136,15 @@ export function Footer() {
                   {PHONE}
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4 shrink-0" />
-                <span>Colombo, Sri Lanka</span>
-              </div>
+              <a
+                href="https://www.google.com/maps/search/Colombo,+Sri+Lanka"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 text-sm text-muted-foreground cursor-pointer group w-fit"
+              >
+                <MapPin className="h-4 w-4 shrink-0 group-hover:text-primary transition-colors" />
+                <span className="group-hover:text-primary group-hover:underline transition-colors">Colombo, Sri Lanka</span>
+              </a>
             </div>
           </div>
 
