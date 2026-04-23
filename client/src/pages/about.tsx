@@ -158,7 +158,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* - Stats - */}
       <section className="pt-9 bg-[#C38322] text-primary-foreground pb-14">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
