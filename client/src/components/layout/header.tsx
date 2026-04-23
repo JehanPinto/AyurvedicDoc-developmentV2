@@ -72,7 +72,7 @@ export function Header() {
               <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-lg">A</span>
               </div>
-              <span className="font-heading font-bold text-xl hidden sm:block">
+              <span className="font-heading font-bold text-xl hidden lg:block">
                 AyurvedicDoctor
               </span>
             </div>
