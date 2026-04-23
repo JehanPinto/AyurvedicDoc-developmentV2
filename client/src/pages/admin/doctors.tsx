@@ -54,10 +54,15 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import type { DoctorWithDetails } from "@shared/schema";
 import { DoctorStatus } from "@shared/schema";
 
-const getDocumentUrl = (filename: string) => {
-  if (!filename) return "#";
+const getDocumentUrl = (docUrl: string) => {
+  // If it's already a Cloudinary URL, use it directly
+  if (docUrl && docUrl.includes('cloudinary.com')) {
+    return docUrl;
+  }
+  // Otherwise, use the API endpoint for legacy local files
+  if (!docUrl) return "#";
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  return token ? `/api/documents/${filename}?token=${token}` : `/api/documents/${filename}`;
+  return token ? `/api/documents/${docUrl}?token=${token}` : `/api/documents/${docUrl}`;
 };
 
 export default function AdminDoctorsPage() {
@@ -500,8 +505,7 @@ export default function AdminDoctorsPage() {
                     <p className="text-sm text-muted-foreground mb-2">Verification Documents</p>
                     <div className="grid grid-cols-2 gap-2">
                       {selectedDoctor.verificationDocuments.map((doc: string, index: number) => {
-                        const filename = doc.split('/').pop() || '';
-                        const url = getDocumentUrl(filename);
+                        const url = getDocumentUrl(doc);
                         return (
                           <a 
                             key={index}
