@@ -149,7 +149,7 @@ export default function HomePage() {
       {/* Stats bar */}
       <div className="bg-primary/20">
         <div className="container mx-auto px-4 py-6">
-          <div className="grid grid-cols-4 gap-8 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
             {stats.map((stat) => (
               <div key={stat.label}>
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/20 mb-3">
