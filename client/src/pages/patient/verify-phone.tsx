@@ -4,11 +4,20 @@ import { PhoneCall, CheckCircle, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 
-function maskPhone(phone: string): string {
-  if (!phone) return "(+94 ••••••89)";
+function MaskedPhone({ phone }: { phone: string }) {
   const digits = phone.replace(/\D/g, "");
-  const last3 = digits.slice(-3);
-  return `(+94 ••••••${last3})`;
+  const last3 = digits.slice(-3) || "890";
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <span>(+94</span>
+      <span className="inline-flex items-center gap-[3px] mx-1">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <span key={i} className="inline-block w-[5px] h-[5px] rounded-full bg-foreground align-middle" />
+        ))}
+      </span>
+      <span>{last3})</span>
+    </span>
+  );
 }
 
 export default function VerifyPhonePage() {
@@ -114,7 +123,7 @@ export default function VerifyPhonePage() {
                 We've sent a 5-digit verification code to your Phone
               </p>
               <p className="text-sm font-medium text-foreground mb-6 flex items-center justify-center gap-1.5">
-                {maskPhone(user?.phone || "")}
+                <MaskedPhone phone={user?.phone || ""} />
                 <BadgeCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </p>
 
