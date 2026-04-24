@@ -94,7 +94,7 @@ export default function VerifyPhonePage() {
 
       {/* Center content */}
       <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="bg-card rounded-2xl shadow-lg w-full max-w-md p-10 text-center border border-border">
+        <div className="bg-card rounded-2xl shadow-lg w-full max-w-md p-6 sm:p-10 text-center border border-border">
 
           {verified ? (
             <>
@@ -128,7 +128,7 @@ export default function VerifyPhonePage() {
               </p>
 
               {/* OTP boxes */}
-              <div className="flex justify-center gap-3 mb-6" onPaste={handlePaste}>
+              <div className="flex justify-center gap-2 sm:gap-3 mb-6" onPaste={handlePaste}>
                 {otp.map((digit, i) => (
                   <input
                     key={i}
@@ -139,13 +139,13 @@ export default function VerifyPhonePage() {
                     value={digit}
                     onChange={(e) => handleChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
-                    className="w-12 h-12 text-center text-lg font-semibold border-2 border-primary/30 rounded-xl outline-none focus:border-primary transition-colors text-foreground bg-card"
+                    className="w-10 h-10 sm:w-12 sm:h-12 text-center text-base sm:text-lg font-semibold border-2 border-primary/30 rounded-xl outline-none focus:border-primary transition-colors text-foreground bg-card"
                   />
                 ))}
               </div>
 
               {/* Resend */}
-              <div className="flex items-center justify-center gap-2 mb-2 text-sm">
+              <div className="flex flex-wrap items-center justify-center gap-1 mb-2 text-sm">
                 <span className="text-muted-foreground">Didn't receive a code?</span>
                 <button
                   onClick={handleResend}
