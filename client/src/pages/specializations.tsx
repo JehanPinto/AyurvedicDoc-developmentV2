@@ -295,7 +295,7 @@ export default function SpecializationsPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 md:py-24 bg-primary text-primary-foreground">
+      <section className="py-16 md:py-24 bg-secondary text-primary-foreground">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
             Ready to Start Your Healing Journey?
@@ -306,7 +306,7 @@ export default function SpecializationsPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/doctors">
-              <Button size="lg" variant="secondary">
+              <Button size="lg" variant="default">
                 Find a Doctor Now
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
