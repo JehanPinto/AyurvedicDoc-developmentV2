@@ -23,6 +23,7 @@ import PatientDashboard from "@/pages/patient/dashboard";
 import PatientAppointmentsPage from "@/pages/patient/appointments";
 import PatientReviewsPage from "@/pages/patient/reviews";
 import PatientSettingsPage from "@/pages/patient/settings";
+import VerifyPhonePage from "@/pages/patient/verify-phone";
 import DoctorDashboard from "@/pages/doctor/dashboard";
 import DoctorRegisterPage from "@/pages/doctor/register";
 import DoctorAppointmentsPage from "@/pages/doctor/appointments";
@@ -99,6 +100,7 @@ function Router() {
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientReviewsPage} />
               <Route path="/patient/settings" component={PatientSettingsPage} />
+              <Route path="/patient/verify-phone" component={VerifyPhonePage} />
               <Route component={NotFound} />
             </Switch>
           </DashboardLayout>
