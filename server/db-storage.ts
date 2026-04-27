@@ -3,8 +3,9 @@ import { db } from "./db";
 import {
   users, specializations, hospitals, doctorProfiles, doctorSchedules,
   appointmentSlots, appointments, payments, prescriptions, reviews, notifications,
-  platformSettings,
+  platformSettings, blogs,
   type User, type InsertUser,
+  type Blog, type InsertBlog,
   type Specialization, type InsertSpecialization,
   type Hospital, type InsertHospital,
   type DoctorProfile, type InsertDoctorProfile,
@@ -165,6 +166,21 @@ export class DbStorage implements IStorage {
 
   async deleteSpecialization(id: string): Promise<boolean> {
     const result = await db.delete(specializations).where(eq(specializations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAllBlogs(): Promise<Blog[]> {
+    const result = await db.select().from(blogs).orderBy(desc(blogs.createdAt));
+    return result as Blog[];
+  }
+
+  async createBlog(data: InsertBlog): Promise<Blog> {
+    const result = await db.insert(blogs).values(data).returning();
+    return result[0] as Blog;
+  }
+
+  async deleteBlog(id: string): Promise<boolean> {
+    const result = await db.delete(blogs).where(eq(blogs.id, id)).returning();
     return result.length > 0;
   }
 

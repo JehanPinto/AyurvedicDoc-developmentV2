@@ -848,6 +848,34 @@ export async function registerRoutes(
   });
 
   
+  // ================== BLOG ROUTES ==================
+  app.get("/api/blogs", async (_req: Request, res: Response) => {
+    try {
+      const blogs = await storage.getAllBlogs();
+      res.json(blogs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch blogs" });
+    }
+  });
+
+  app.post("/api/blogs", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const blog = await storage.createBlog(req.body);
+      res.status(201).json(blog);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create blog" });
+    }
+  });
+
+  app.delete("/api/blogs/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteBlog(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete blog" });
+    }
+  });
+
   app.get("/api/specializations", async (_req: Request, res: Response) => {
     try {
       const specializations = await storage.getAllSpecializations();
