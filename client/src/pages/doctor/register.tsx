@@ -123,6 +123,7 @@ const STEPS = [
 ];
 
 interface FileDetail {
+  id: string;
   name: string;
   size: number;
   type: string;
@@ -306,18 +307,38 @@ export default function DoctorRegisterPage() {
       return;
     }
 
-    const newFileDetails = Array.from(files).map((file) => ({
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+    const validFiles = Array.from(files).filter(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File too large",
+          description: `${file.name} is larger than 5MB. Please select a smaller file.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length === 0) {
+      if (event.target) event.target.value = "";
+      return;
+    }
+
+    const newFileDetails = validFiles.map((file) => ({
+      id: Math.random().toString(36).substring(2, 9),
       name: file.name,
       size: file.size,
       type: file.type,
-      previewUrl: URL.createObjectURL(file), // Preview එක හදනවා
+      previewUrl: URL.createObjectURL(file),
     }));
+
     setFileDetails((prev) => [...prev, ...newFileDetails]);
 
     setIsUploading(true);
 
     try {
-      for (const file of Array.from(files)) {
+      for (const file of validFiles) {
         const formData = new FormData();
         formData.append("file", file);
 
@@ -1059,7 +1080,7 @@ export default function DoctorRegisterPage() {
                         const isImage = file.type.includes('image');
 
                         return (
-                          <div key={index} className="border border-border rounded-xl p-4 bg-background shadow-sm flex flex-col">
+                          <div key={file.id} className="border border-border rounded-xl p-4 bg-background shadow-sm flex flex-col">
                             {/* File Info Header */}
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3 overflow-hidden">
