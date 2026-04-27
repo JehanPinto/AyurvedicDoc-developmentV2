@@ -124,18 +124,6 @@ export default function SpecializationsPage() {
               Discover the diverse branches of Ayurvedic medicine and find the right 
               specialist for your health needs.
             </p>
-
-            <div className="max-w-md mx-auto">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  placeholder="Search specializations..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-12 h-12 text-base"
-                />
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -161,8 +149,22 @@ export default function SpecializationsPage() {
       {/* Specializations Grid */}
       <section className="py-12 md:py-16 lg:py-24">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-8 md:mb-12">
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 md:mb-4">
+          {/* Search Bar */}
+          <div className="mx-auto mb-4">
+            <div className="relative">
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none rounded-md bg-primary w-12 h-12 flex items-center justify-center">
+                <Search className="h-6 w-6 text-white" />
+              </div>
+              <Input
+                placeholder="Search specializations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-14 h-12 text-base"
+              />
+            </div>
+          </div>
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
               Browse by Specialization
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -303,7 +305,7 @@ export default function SpecializationsPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-12 md:py-16 lg:py-24 bg-primary text-primary-foreground">
+      <section className="py-16 md:py-24 bg-secondary text-primary-foreground">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 md:mb-4 text-white">
             Ready to Start Your Healing Journey?
@@ -314,7 +316,7 @@ export default function SpecializationsPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/doctors">
-              <Button size="lg" variant="secondary" className="transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:ring-1 hover:ring-white/25 hover:ring-offset-1">
+              <Button size="lg" variant="default" className="transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:ring-1 hover:ring-white/25 hover:ring-offset-1">
                 Find a Doctor Now
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
