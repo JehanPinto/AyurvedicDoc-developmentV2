@@ -9,6 +9,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import rateLimit from "express-rate-limit";
 import { upload } from "../config/cloudinary";
 import path from "path";
+import type { File as MulterFile } from "multer";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
@@ -189,6 +190,10 @@ interface AuthenticatedRequest extends Request {
     role: string;
     fullName: string;
   };
+}
+
+interface RequestWithFile extends Request {
+  file?: MulterFile;
 }
 
 if (!process.env.SESSION_SECRET) {
@@ -765,7 +770,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Request, res: Response) => {
+  app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: RequestWithFile, res: Response) => {
     try {
       const token = req.headers["x-registration-token"] as string;
       const email = req.headers["x-registration-email"] as string;
@@ -1932,7 +1937,7 @@ export async function registerRoutes(
   });
 
   // Profile image upload endpoint for authenticated users
-  app.post("/api/users/profile-image", authMiddleware, upload.single("image"), async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/users/profile-image", authMiddleware, upload.single("image"), async (req: AuthenticatedRequest & { file?: MulterFile }, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No image uploaded" });
@@ -2006,6 +2011,37 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update password" });
+    }
+  });
+
+  // Job Application Submission Endpoint
+  app.post("/api/careers/apply", uploadLimiter, upload.single("cv"), async (req: RequestWithFile, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "CV file is required" });
+      }
+
+      // Cloudinary එකෙන් එන URL එක
+      const cvUrl = req.file.path; 
+      const { jobId, jobTitle, fullName, email } = req.body;
+
+      if (!jobId || !jobTitle || !fullName || !email) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const applicationData = {
+        jobId,
+        jobTitle,
+        fullName,
+        email,
+        cvUrl
+      };
+
+      const savedApplication = await storage.createJobApplication(applicationData);
+      res.status(201).json(savedApplication);
+    } catch (error) {
+      console.error("Career application error:", error);
+      res.status(500).json({ error: "Failed to submit application. Please try again." });
     }
   });
 
