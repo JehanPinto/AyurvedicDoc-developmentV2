@@ -25,8 +25,6 @@ const footerLinks = {
   support: [
     { label: "Help Center", href: "/help" },
     { label: "Privacy Policy", href: "/privacy" },
-    { label: "Terms of Service", href: "/terms" },
-    { label: "FAQs", href: "/faqs" },
   ],
 };
 
@@ -44,11 +42,9 @@ export function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
           <div className="sm:col-span-2 md:col-span-3 lg:col-span-2">
             <Link href="/">
-              <div className="flex items-center gap-2 cursor-pointer mb-4">
-                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold text-xl">A</span>
-                </div>
-                <span className="font-heading font-bold text-xl">AyurvedicDoctor</span>
+              <div className="flex items-center cursor-pointer mb-4">
+                <img src="/logo-light.png" alt="AyurPath" className="h-8 w-auto dark:hidden" />
+                <img src="/logo-dark.png" alt="AyurPath" className="h-8 w-auto hidden dark:block" />
               </div>
             </Link>
             <p className="text-muted-foreground mb-6 max-w-sm">

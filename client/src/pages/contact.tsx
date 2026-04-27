@@ -1,21 +1,15 @@
 import { useState } from "react";
-import { 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Clock,
+import {
+  Mail,
+  Phone,
+  MapPin,
   Send,
-  MessageSquare,
-  HelpCircle,
-  FileText,
-  CheckCircle
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -50,12 +44,6 @@ const contactInfo = [
     title: "Office",
     details: ["123 Galle Road", "Colombo 03, Sri Lanka"],
     description: "Visit us in person",
-  },
-  {
-    icon: Clock,
-    title: "Working Hours",
-    details: ["Monday - Friday: 8am - 6pm", "Saturday: 9am - 1pm"],
-    description: "Sunday closed",
   },
 ];
 
@@ -122,68 +110,49 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    // Simulate form submission
     await new Promise((resolve) => setTimeout(resolve, 1500));
-
     toast({
       title: "Message Sent!",
       description: "Thank you for contacting us. We'll get back to you within 24 hours.",
     });
-
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      inquiryType: "",
-      subject: "",
-      message: "",
-    });
+    setFormData({ name: "", email: "", phone: "", inquiryType: "", subject: "", message: "" });
     setIsSubmitting(false);
   };
 
   return (
     <PublicLayout>
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
-        
-        <div className="container mx-auto px-4 py-16 md:py-24 relative">
-          <div className="max-w-3xl mx-auto text-center">
-            <Badge variant="secondary" className="mb-6 px-4 py-1.5">
-              We're Here to Help
-            </Badge>
-            
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight mb-6">
-              Contact{" "}
-              <span className="text-primary">Us</span>
-            </h1>
-            
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Have questions or need assistance? Our support team is ready to help you 
-              with any inquiries about our platform or services.
-            </p>
-          </div>
+      {/* Hero */}
+      <section className="py-12 md:py-16 bg-background">
+        <div className="container mx-auto px-4 text-center">
+          <h1 className="text-4xl md:text-5xl font-heading font-bold tracking-tight mb-4 text-foreground">
+            Contact Us
+          </h1>
+          <p className="text-muted-foreground text-base md:text-lg">
+            Have questions or need assistance? Our support team is ready to help you with any inquiries about our platform or services.
+          </p>
         </div>
       </section>
 
-      {/* Contact Info Cards */}
-      <section className="py-12 bg-card border-y">
+      {/* 3 Contact Info Cards — centered */}
+      <section className="py-10 bg-background">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="flex flex-col md:flex-row gap-6 justify-center max-w-3xl mx-auto">
             {contactInfo.map((info) => (
-              <Card key={info.title} className="text-center">
+              <Card
+                key={info.title}
+                className="flex-1 text-center transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg hover:border-primary/40 cursor-default"
+              >
                 <CardContent className="p-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
-                    <info.icon className="h-6 w-6 text-primary" />
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 shrink-0">
+                      <info.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <h3 className="font-semibold">{info.title}</h3>
                   </div>
-                  <h3 className="font-semibold mb-2">{info.title}</h3>
-                  {info.details.map((detail, index) => (
-                    <p key={index} className="text-sm text-foreground">
-                      {detail}
-                    </p>
+                  {info.details.map((detail, i) => (
+                    <p key={i} className="text-sm text-foreground text-center">{detail}</p>
                   ))}
-                  <p className="text-xs text-muted-foreground mt-2">{info.description}</p>
+                  <p className="text-xs text-muted-foreground mt-2 text-center">{info.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -191,208 +160,106 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* Contact Form & Map */}
-      <section className="py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-12">
-            {/* Contact Form */}
-            <div>
-              <div className="mb-8">
-                <h2 className="text-3xl font-heading font-bold mb-4">Send us a Message</h2>
-                <p className="text-muted-foreground">
-                  Fill out the form below and we'll get back to you as soon as possible.
-                </p>
+      {/* Send a Message — centered, light green bg */}
+      <section className="py-12 md:py-16">
+        <div className="container mx-auto px-4 max-w-2xl">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-heading font-bold mb-2">Send us a Message</h2>
+            <p className="text-muted-foreground">Fill out the form below and we'll get back to you as soon as possible.</p>
+          </div>
+
+          <div className="bg-primary/10 rounded-2xl p-6 md:p-8">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="Your full name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  required
+                />
               </div>
 
-              <Card>
-                <CardContent className="p-6">
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Full Name *</Label>
-                        <Input
-                          id="name"
-                          placeholder="Your full name"
-                          value={formData.name}
-                          onChange={(e) => handleInputChange("name", e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email Address *</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="your@email.com"
-                          value={formData.email}
-                          onChange={(e) => handleInputChange("email", e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <Input
-                          id="phone"
-                          placeholder="+94 77 123 4567"
-                          value={formData.phone}
-                          onChange={(e) => handleInputChange("phone", e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="inquiryType">Inquiry Type *</Label>
-                        <Select
-                          value={formData.inquiryType}
-                          onValueChange={(value) => handleInputChange("inquiryType", value)}
-                          required
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {inquiryTypes.map((type) => (
-                              <SelectItem key={type.value} value={type.value}>
-                                {type.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Subject *</Label>
-                      <Input
-                        id="subject"
-                        placeholder="Brief subject of your inquiry"
-                        value={formData.subject}
-                        onChange={(e) => handleInputChange("subject", e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="message">Message *</Label>
-                      <Textarea
-                        id="message"
-                        placeholder="Please describe your inquiry in detail..."
-                        rows={5}
-                        value={formData.message}
-                        onChange={(e) => handleInputChange("message", e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
-                      {isSubmitting ? (
-                        "Sending..."
-                      ) : (
-                        <>
-                          Send Message
-                          <Send className="ml-2 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Map & Additional Info */}
-            <div>
-              <div className="mb-8">
-                <h2 className="text-3xl font-heading font-bold mb-4">Visit Our Office</h2>
-                <p className="text-muted-foreground">
-                  Come visit us at our headquarters in Colombo.
-                </p>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  required
+                />
               </div>
 
-              {/* Map Placeholder */}
-              <Card className="mb-6 overflow-hidden">
-                <div className="h-64 bg-muted flex items-center justify-center">
-                  <div className="text-center">
-                    <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">123 Galle Road, Colombo 03</p>
-                    <Button variant="ghost" className="mt-2" asChild>
-                      <a 
-                        href="https://maps.google.com/?q=Colombo+03+Sri+Lanka" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                      >
-                        Open in Google Maps
-                      </a>
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Quick Help Cards */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Card>
-                  <CardContent className="p-4 flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <MessageSquare className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm">Live Chat</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Chat with our support team for immediate assistance.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4 flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <HelpCircle className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm">Help Center</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Browse our guides and tutorials for self-help.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4 flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <FileText className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm">Documentation</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Technical docs for doctors and partners.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4 flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <CheckCircle className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm">System Status</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Check our platform status and uptime.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  placeholder="+94 77 123 4567"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                />
               </div>
-            </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="inquiryType">Inquiry Type *</Label>
+                <Select
+                  value={formData.inquiryType}
+                  onValueChange={(value) => handleInputChange("inquiryType", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inquiryTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject *</Label>
+                <Input
+                  id="subject"
+                  placeholder="Brief subject of your inquiry"
+                  value={formData.subject}
+                  onChange={(e) => handleInputChange("subject", e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="message">Message *</Label>
+                <Textarea
+                  id="message"
+                  placeholder="Please describe your inquiry in detail..."
+                  rows={5}
+                  value={formData.message}
+                  onChange={(e) => handleInputChange("message", e.target.value)}
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Sending..." : (
+                  <>
+                    Send Message
+                    <Send className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </form>
           </div>
         </div>
       </section>
 
-      {/* FAQ Section */}
-      <section className="py-16 md:py-24 bg-card">
+      {/* FAQ */}
+      <section className="py-12 md:py-16 bg-card">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
@@ -402,17 +269,12 @@ export default function ContactPage() {
               Find quick answers to common questions about our platform and services
             </p>
           </div>
-
           <div className="max-w-3xl mx-auto">
             <Accordion type="single" collapsible className="w-full">
               {faqs.map((faq, index) => (
                 <AccordionItem key={index} value={`item-${index}`}>
-                  <AccordionTrigger className="text-left">
-                    {faq.question}
-                  </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground">
-                    {faq.answer}
-                  </AccordionContent>
+                  <AccordionTrigger className="text-left">{faq.question}</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">{faq.answer}</AccordionContent>
                 </AccordionItem>
               ))}
             </Accordion>
@@ -420,25 +282,35 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 md:py-24 bg-primary text-primary-foreground">
+      {/* Still Have Questions CTA */}
+      <section className="py-12 md:py-16 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
             Still Have Questions?
           </h2>
-          <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
-            Our dedicated support team is always ready to help you with any questions 
-            or concerns. Don't hesitate to reach out!
+          <p className="text-primary-foreground/80 max-w-3xl mx-auto mb-8 text-sm md:text-base">
+            Our dedicated support team is always ready to help you with any questions or concerns. Don't hesitate to reach out!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary">
-              <Phone className="mr-2 h-4 w-4" />
-              Call Us Now
-            </Button>
-            <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10">
-              <Mail className="mr-2 h-4 w-4" />
-              Email Support
-            </Button>
+            <a href="tel:+94112345678">
+              <Button
+                size="lg"
+                className="bg-black hover:bg-black/80 text-white transition-all duration-200 hover:scale-105 hover:shadow-lg"
+              >
+                <Phone className="mr-2 h-4 w-4" />
+                Call Us Now
+              </Button>
+            </a>
+            <a href="mailto:support@ayurvedicdoctor.lk">
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 transition-all duration-200 hover:scale-105"
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Email Support
+              </Button>
+            </a>
           </div>
         </div>
       </section>
