@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Users } from "lucide-react";
+import { Users, ArrowUp } from "lucide-react";
 import { DoctorCard } from "@/components/doctors/doctor-card";
 import { DoctorSearchFilters } from "@/components/doctors/doctor-search-filters";
 import { LoadingCard, LoadingPage } from "@/components/ui/loading-spinner";
@@ -15,6 +15,16 @@ export default function DoctorsPage() {
   const params = new URLSearchParams(location.split("?")[1] || "");
   const isPatientRoute = location.startsWith("/patient");
   
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 300);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
   const [searchQuery, setSearchQuery] = useState(params.get("q") || "");
   const [selectedSpecialization, setSelectedSpecialization] = useState(params.get("specialization") || "all");
   const [selectedCity, setSelectedCity] = useState("all");
@@ -119,14 +129,16 @@ export default function DoctorsPage() {
 
   const headingClasses = isPatientRoute
     ? "text-2xl md:text-3xl font-heading font-bold"
-    : "text-3xl md:text-4xl font-heading font-bold";
-  const headingWrapperClasses = isPatientRoute ? "mb-6" : "py-8";
-  const contentWrapperClasses = `container mx-auto px-4 ${isPatientRoute ? "pb-8" : "py-8"}`;
+    : "text-2xl md:text-3xl lg:text-4xl font-heading font-bold";
+  const headingWrapperClasses = isPatientRoute
+    ? "mb-6"
+    : "py-8 md:py-10 bg-gradient-to-b from-primary/5 to-background border-b";
+  const contentWrapperClasses = `container mx-auto px-4 ${isPatientRoute ? "pb-8" : "py-6 md:py-8"}`;
 
   return (
     <PublicLayout showHeader={!isPatientRoute}>
       <div className={headingWrapperClasses}>
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 text-center">
           <h1 className={`${headingClasses} mb-2`}>
             Find Ayurvedic Doctors
           </h1>
@@ -167,7 +179,7 @@ export default function DoctorsPage() {
         </div>
 
         {isLoading ? (
-          <div className="mt-6 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="mt-6 grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {[...Array(6)].map((_, i) => (
               <LoadingCard key={`loading-${i}`} />
             ))}
@@ -183,7 +195,7 @@ export default function DoctorsPage() {
             </p>
           </div>
         ) : filteredDoctors.length > 0 ? (
-          <div className="mt-6 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="mt-6 grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {filteredDoctors.map((doctor) => (
               <DoctorCard key={doctor.id} doctor={doctor} />
             ))}
@@ -200,6 +212,15 @@ export default function DoctorsPage() {
           </div>
         )}
       </div>
+      <button
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+        className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl hover:brightness-110 ${
+          showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+        }`}
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
     </PublicLayout>
   );
 }
