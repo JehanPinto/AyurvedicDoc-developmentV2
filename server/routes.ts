@@ -889,6 +889,19 @@ export async function registerRoutes(
     try {
       const data = insertSpecializationSchema.parse(req.body);
       const specialization = await storage.createSpecialization(data);
+
+      // Announce new specialization to all patients
+      const patients = await storage.getAllUsers("patient");
+      await Promise.all(patients.map((p) =>
+        storage.createNotification({
+          userId: p.id,
+          title: "New specialization available",
+          message: `${specialization.name} is now available on AyurvedicDoctor. Book a consultation with our specialists today.`,
+          type: "system",
+          isRead: false,
+        })
+      ));
+
       res.status(201).json(specialization);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1456,18 +1469,76 @@ export async function registerRoutes(
       const appointment = await storage.updateAppointment(req.params.id, { status: AppointmentStatus.CONFIRMED });
       
       if (appointment) {
+        const doctorProfile = await storage.getDoctorProfile(appointment.doctorId);
+        const doctorUser = doctorProfile ? await storage.getUser(doctorProfile.userId) : null;
+        const doctorName = doctorUser?.fullName || "your doctor";
+        const [yr, mo, dy] = appointment.appointmentDate.split("-");
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+
         await storage.createNotification({
           userId: appointment.patientId,
           title: "Appointment Confirmed",
-          message: `Your appointment for ${appointment.appointmentDate} at ${appointment.appointmentTime} has been confirmed`,
+          message: `Your consultation with Dr. ${doctorName} on ${formattedDate} at ${appointment.appointmentTime} has been confirmed.`,
           type: "appointment",
+          isRead: false,
           relatedId: appointment.id,
         });
       }
-      
+
       res.json(appointment);
     } catch (error) {
       res.status(500).json({ error: "Failed to confirm appointment" });
+    }
+  });
+
+  app.patch("/api/appointments/:id/reschedule", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { newSlotId, reason } = req.body;
+
+      const appointment = await storage.getAppointment(req.params.id);
+      if (!appointment) return res.status(404).json({ error: "Appointment not found" });
+
+      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+      if (!profile || appointment.doctorId !== profile.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const newSlot = await storage.getAppointmentSlot(newSlotId);
+      if (!newSlot || newSlot.isBooked || newSlot.isBlocked) {
+        return res.status(400).json({ error: "New slot not available" });
+      }
+
+      const doctorUser = await storage.getUser(profile.userId);
+      const doctorName = doctorUser?.fullName || "your doctor";
+
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const [,omo,ody] = appointment.appointmentDate.split("-");
+      const originalDate = `${parseInt(ody)} ${months[parseInt(omo) - 1]}`;
+      const [,nmo,ndy] = newSlot.date.split("-");
+      const newDate = `${parseInt(ndy)} ${months[parseInt(nmo) - 1]}`;
+
+      await storage.updateAppointmentSlot(appointment.slotId, { isBooked: false });
+      await storage.updateAppointmentSlot(newSlotId, { isBooked: true });
+
+      const updated = await storage.updateAppointment(req.params.id, {
+        slotId: newSlotId,
+        appointmentDate: newSlot.date,
+        appointmentTime: newSlot.startTime,
+      });
+
+      await storage.createNotification({
+        userId: appointment.patientId,
+        title: "Appointment Rescheduled",
+        message: `Dr. ${doctorName} has rescheduled your ${originalDate} session to ${newDate} at ${newSlot.startTime} due to an emergency.`,
+        type: "appointment",
+        isRead: false,
+        relatedId: appointment.id,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to reschedule appointment" });
     }
   });
 
@@ -1483,17 +1554,38 @@ export async function registerRoutes(
       if (payment) {
         await storage.updatePayment(payment.id, { status: PaymentStatus.COMPLETED });
       }
-      
+
       if (appointment) {
+        const doctorProfile = await storage.getDoctorProfile(appointment.doctorId);
+        const doctorUser = doctorProfile ? await storage.getUser(doctorProfile.userId) : null;
+        const doctorName = doctorUser?.fullName || "your doctor";
+
         await storage.createNotification({
           userId: appointment.patientId,
-          title: "Appointment Completed",
-          message: `Your appointment has been completed. Please leave a review!`,
-          type: "appointment",
+          title: "Doctor approved your request",
+          message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
+          type: "system",
+          isRead: false,
           relatedId: appointment.id,
         });
+
+        if (payment) {
+          const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+          const [,mo,dy] = appointment.appointmentDate.split("-");
+          const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+          const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
+
+          await storage.createNotification({
+            userId: appointment.patientId,
+            title: "Payment successful",
+            message: `${formattedAmount} was successfully charged for your consultation on ${formattedDate}. Receipt has been emailed.`,
+            type: "payment",
+            isRead: false,
+            relatedId: payment.id,
+          });
+        }
       }
-      
+
       res.json(appointment);
     } catch (error) {
       res.status(500).json({ error: "Failed to complete appointment" });
@@ -1503,10 +1595,61 @@ export async function registerRoutes(
   app.patch("/api/appointments/:id/cancel", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { reason } = req.body;
+      const existing = await storage.getAppointment(req.params.id);
       const appointment = await storage.cancelAppointment(req.params.id, reason, req.user!.role);
+
+      if (appointment && existing) {
+        const doctorProfile = await storage.getDoctorProfile(existing.doctorId);
+        const doctorUser = doctorProfile ? await storage.getUser(doctorProfile.userId) : null;
+        const doctorName = doctorUser?.fullName || "your doctor";
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const [,mo,dy] = existing.appointmentDate.split("-");
+        const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+
+        await storage.createNotification({
+          userId: existing.patientId,
+          title: "Appointment cancelled",
+          message: `Your ${formattedDate} appointment with Dr. ${doctorName} has been cancelled. You may rebook at your convenience.`,
+          type: "appointment",
+          isRead: false,
+          relatedId: appointment.id,
+        });
+      }
+
       res.json(appointment);
     } catch (error) {
       res.status(500).json({ error: "Failed to cancel appointment" });
+    }
+  });
+
+  app.patch("/api/payments/:id/fail", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { lastFourDigits } = req.body;
+
+      const payment = await storage.getPayment(req.params.id);
+      if (!payment) return res.status(404).json({ error: "Payment not found" });
+
+      if (req.user!.role !== UserRole.ADMIN && req.user!.id !== payment.patientId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const updated = await storage.updatePayment(req.params.id, { status: PaymentStatus.FAILED });
+
+      const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
+      const last4 = lastFourDigits || "0000";
+
+      await storage.createNotification({
+        userId: payment.patientId,
+        title: "Payment Failed",
+        message: `We were unable to charge your card ending in ${last4} for ${formattedAmount}. Please update your payment method.`,
+        type: "payment",
+        isRead: false,
+        relatedId: payment.id,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update payment status" });
     }
   });
 

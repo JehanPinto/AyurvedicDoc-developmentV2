@@ -1,5 +1,6 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -40,6 +41,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationPanel } from "@/components/notifications/notification-panel";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@shared/schema";
 
@@ -76,6 +78,14 @@ const adminNavItems = [
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const { data: notifications = [] } = useQuery<{ isRead: boolean }[]>({
+    queryKey: ["/api/notifications"],
+    staleTime: 30 * 1000,
+    enabled: !!user,
+  });
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const navItems = 
     user?.role === UserRole.ADMIN ? adminNavItems :
@@ -184,14 +194,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <SidebarTrigger data-testid="button-sidebar-toggle" />
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                data-testid="button-notifications"
+                onClick={() => setNotifOpen(true)}
+              >
                 <Bell className="h-5 w-5" />
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-2xs">
-                  3
-                </Badge>
+                {unreadCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-2xs">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Badge>
+                )}
               </Button>
               <ThemeToggle />
             </div>
+            <NotificationPanel open={notifOpen} onOpenChange={setNotifOpen} />
           </header>
 
           <main className="flex-1 overflow-auto p-6">
