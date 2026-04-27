@@ -134,13 +134,13 @@ export default function ContactPage() {
       </section>
 
       {/* 3 Contact Info Cards — centered */}
-      <section className="py-10 bg-background">
+      <section className="pt-4 pb-10 bg-background">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row gap-6 justify-center max-w-3xl mx-auto">
             {contactInfo.map((info) => (
               <Card
                 key={info.title}
-                className="flex-1 text-center transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg hover:border-primary/40 cursor-default"
+                className="flex-1 text-center border border-primary/40 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg cursor-default"
               >
                 <CardContent className="p-6">
                   <div className="flex items-center justify-center gap-2 mb-3">
@@ -259,7 +259,7 @@ export default function ContactPage() {
       </section>
 
       {/* FAQ */}
-      <section className="py-12 md:py-16 bg-card">
+      <section className="py-12 md:py-16 bg-primary/10">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
@@ -305,7 +305,7 @@ export default function ContactPage() {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 transition-all duration-200 hover:scale-105"
+                className="border-2 border-white text-white bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-105"
               >
                 <Mail className="mr-2 h-4 w-4" />
                 Email Support
