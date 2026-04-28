@@ -34,7 +34,8 @@ import { Input } from "@/components/ui/input";
 import { JobCard } from "@/components/ui/job-card";
 import { ValueCard } from "@/components/ui/value-card";
 import { useToast } from "@/hooks/use-toast";
-import careerImage from "@/assets/image/career image.png";
+import LightcareerImage from "@/assets/image/career image.png";
+import DarkcareerImage from "@/assets/image/career dark mode.png";
 
 // --- DUMMY DATA ---
 const jobsData = [
@@ -220,9 +221,15 @@ export default function CareersPage() {
           {jobs.length === 0 && !selectedJob && (
             <div className="max-w-4xl mx-auto mt-8 mb-20 flex flex-col items-center justify-center text-center">
               <img 
-                src={careerImage} 
+                src={LightcareerImage} 
                 alt="No jobs available" 
-                className="mb-8 object-contain dark:block dark:brightness-0 dark:invert-[0.9] dark:sepia dark:saturate-[500%] dark:hue-rotate-[110deg] dark:drop-shadow-[0_0_2px_rgba(48,166,111,0.5)] light:block"              />
+                className="mb-8 object-contain dark:hidden"              
+              />
+              <img 
+                src={DarkcareerImage} 
+                alt="No jobs available" 
+                className="mb-8 object-contain dark:block hidden" 
+              />
               <h1 className="lg:text-[56px] md:text-[48px] sm:text-[40px] text-[32px] font-bold text-foreground mb-8 tracking-tight">
                 No Open Positions Right Now.
               </h1>
