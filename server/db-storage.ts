@@ -446,32 +446,95 @@ export class DbStorage implements IStorage {
     };
   }
 
+  // Batch-fetch all related data in ~10 parallel queries instead of N×8 sequential ones
+  private async buildAppointmentsWithDetails(rows: any[]): Promise<AppointmentWithDetails[]> {
+    if (rows.length === 0) return [];
+
+    const apts = rows.map(r => ({
+      ...r,
+      createdAt: toISOString(r.createdAt),
+      updatedAt: toISOString(r.updatedAt),
+    })) as Appointment[];
+
+    const patientIds  = [...new Set(apts.map(a => a.patientId))];
+    const doctorIds   = [...new Set(apts.map(a => a.doctorId))];
+    const slotIds     = [...new Set(apts.map(a => a.slotId))];
+    const hospitalIds = [...new Set(apts.filter(a => a.hospitalId).map(a => a.hospitalId!))];
+    const aptIds      = apts.map(a => a.id);
+
+    const [
+      patientRows, profileRows, slotRows, hospitalRows,
+      paymentRows, prescriptionRows, reviewRows, allSpecs, allHosp,
+    ] = await Promise.all([
+      db.select().from(users).where(inArray(users.id, patientIds)),
+      db.select().from(doctorProfiles).where(inArray(doctorProfiles.id, doctorIds)),
+      db.select().from(appointmentSlots).where(inArray(appointmentSlots.id, slotIds)),
+      hospitalIds.length ? db.select().from(hospitals).where(inArray(hospitals.id, hospitalIds)) : [],
+      db.select().from(payments).where(inArray(payments.appointmentId, aptIds)),
+      db.select().from(prescriptions).where(inArray(prescriptions.appointmentId, aptIds)),
+      db.select().from(reviews).where(inArray(reviews.appointmentId, aptIds)),
+      this.getAllSpecializations(),
+      this.getAllHospitals(),
+    ]);
+
+    const doctorUserIds  = [...new Set((profileRows as any[]).map(p => p.userId))];
+    const doctorUserRows = doctorUserIds.length
+      ? await db.select().from(users).where(inArray(users.id, doctorUserIds))
+      : [];
+
+    const patientMap    = new Map((patientRows    as any[]).map(r => [r.id, mapUser(r)]));
+    const doctorUserMap = new Map((doctorUserRows as any[]).map(r => [r.id, mapUser(r)]));
+    const slotMap       = new Map((slotRows       as any[]).map(r => [r.id, r as AppointmentSlot]));
+    const paymentMap    = new Map((paymentRows    as any[]).map(r => [r.appointmentId, { ...r, createdAt: toISOString(r.createdAt), updatedAt: toISOString(r.updatedAt) } as Payment]));
+    const prescMap      = new Map((prescriptionRows as any[]).map(r => [r.appointmentId, { ...r, createdAt: toISOString(r.createdAt) }]));
+    const reviewMap     = new Map((reviewRows     as any[]).map(r => [r.appointmentId, { ...r, createdAt: toISOString(r.createdAt), updatedAt: toISOString(r.updatedAt) }]));
+    const hospitalMap   = new Map(allHosp.map(h => [h.id, h]));
+
+    const doctorMap = new Map<string, DoctorWithDetails>();
+    for (const profileRow of profileRows as any[]) {
+      const profile = mapDoctorProfile(profileRow);
+      const user    = doctorUserMap.get(profile.userId);
+      if (!user) continue;
+      const specs   = allSpecs.filter(s => profile.specializationIds.includes(s.id));
+      const hosps   = allHosp.filter(h => profile.hospitalIds.includes(h.id));
+      doctorMap.set(profile.id, { ...profile, user, specializations: specs, hospitals: hosps });
+    }
+
+    const result: AppointmentWithDetails[] = [];
+    for (const apt of apts) {
+      const patient = patientMap.get(apt.patientId);
+      const doctor  = doctorMap.get(apt.doctorId);
+      const slot    = slotMap.get(apt.slotId);
+      if (!patient || !doctor || !slot) continue;
+      result.push({
+        ...apt,
+        patient,
+        doctor,
+        slot,
+        hospital:     apt.hospitalId ? hospitalMap.get(apt.hospitalId) : undefined,
+        payment:      paymentMap.get(apt.id) as any,
+        prescription: prescMap.get(apt.id)   as any,
+        review:       reviewMap.get(apt.id)  as any,
+      });
+    }
+    return result;
+  }
+
   async getPatientAppointments(patientId: string): Promise<AppointmentWithDetails[]> {
-    const result = await db.select().from(appointments)
+    const rows = await db.select().from(appointments)
       .where(eq(appointments.patientId, patientId))
       .orderBy(desc(appointments.appointmentDate));
-    
-    const detailed: AppointmentWithDetails[] = [];
-    for (const apt of result) {
-      const details = await this.getAppointmentWithDetails(apt.id);
-      if (details) detailed.push(details);
-    }
-    return detailed;
+    return this.buildAppointmentsWithDetails(rows);
   }
 
   async getDoctorAppointments(doctorId: string, date?: string): Promise<AppointmentWithDetails[]> {
-    let query = db.select().from(appointments).where(eq(appointments.doctorId, doctorId));
-    if (date) {
-      query = query.where(and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, date))) as any;
-    }
-    const result = await query.orderBy(appointments.appointmentTime);
-    
-    const detailed: AppointmentWithDetails[] = [];
-    for (const apt of result) {
-      const details = await this.getAppointmentWithDetails(apt.id);
-      if (details) detailed.push(details);
-    }
-    return detailed;
+    const condition = date
+      ? and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, date))
+      : eq(appointments.doctorId, doctorId);
+    const rows = await db.select().from(appointments)
+      .where(condition)
+      .orderBy(appointments.appointmentTime);
+    return this.buildAppointmentsWithDetails(rows);
   }
 
   async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
@@ -749,6 +812,11 @@ export class DbStorage implements IStorage {
       .where(eq(notifications.userId, userId));
   }
 
+  async deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void> {
+    await db.delete(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.relatedId, relatedId)));
+  }
+
   async getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats> {
     const today = new Date().toISOString().split('T')[0];
     
@@ -854,15 +922,9 @@ export class DbStorage implements IStorage {
   }
 
   async getAllAppointments(): Promise<AppointmentWithDetails[]> {
-    const result = await db.select().from(appointments)
+    const rows = await db.select().from(appointments)
       .orderBy(desc(appointments.appointmentDate), desc(appointments.appointmentTime));
-    
-    const detailed: AppointmentWithDetails[] = [];
-    for (const apt of result) {
-      const details = await this.getAppointmentWithDetails(apt.id);
-      if (details) detailed.push(details);
-    }
-    return detailed;
+    return this.buildAppointmentsWithDetails(rows);
   }
 
   async getAllPayments(): Promise<(Payment & { appointment?: AppointmentWithDetails })[]> {

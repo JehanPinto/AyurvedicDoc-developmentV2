@@ -100,6 +100,7 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<Notification | undefined>;
   markAllNotificationsRead(userId: string): Promise<void>;
+  deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void>;
 
   getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats>;
   getDoctorDashboardStats(doctorId: string): Promise<DoctorDashboardStats>;
@@ -923,6 +924,13 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void> {
+    const all = await this.getUserNotifications(userId);
+    for (const n of all.filter(n => n.relatedId === relatedId)) {
+      this.notifications.delete(n.id);
+    }
+  }
+
   async getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats> {
     const appointments = Array.from(this.appointments.values()).filter(a => a.patientId === patientId);
     const today = new Date().toISOString().split('T')[0];
@@ -1031,8 +1039,8 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async markAppointmentNoShow(_appointmentId: string): Promise<Appointment | undefined> {
-    return undefined;
+  async markAppointmentNoShow(appointmentId: string): Promise<Appointment | undefined> {
+    return this.updateAppointment(appointmentId, { status: AppointmentStatus.NO_SHOW });
   }
 
   private platformSettings: PlatformSettings = {

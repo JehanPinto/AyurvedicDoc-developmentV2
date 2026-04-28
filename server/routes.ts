@@ -375,10 +375,23 @@ export async function registerRoutes(
         status: DoctorStatus.PENDING,
       });
       
-      await storage.createDoctorProfile(doctorData);
-      
+      const doctorProfile = await storage.createDoctorProfile(doctorData);
+
+      // Notify all admins about new doctor registration
+      const admins = await storage.getAllUsers("admin");
+      await Promise.all(admins.map((admin) =>
+        storage.createNotification({
+          userId: admin.id,
+          title: "New doctor registration",
+          message: `Submitted credentials: SLMC reg. #${doctorProfile.registrationNumber}, ${doctorData.qualifications}. Waiting for verification queue.`,
+          type: "system",
+          isRead: false,
+          relatedId: doctorProfile.id,
+        })
+      ));
+
       const token = generateToken({ id: user.id, email: user.email, role: user.role, fullName: user.fullName });
-      
+
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json({ user: userWithoutPassword, token });
     } catch (error) {
@@ -1307,6 +1320,7 @@ export async function registerRoutes(
           title: "You're Being Called",
           message: "The doctor is ready for you. Please proceed to the consultation room.",
           type: "appointment",
+          isRead: false,
           relatedId: updated.id,
         });
       }
@@ -1330,6 +1344,24 @@ export async function registerRoutes(
       }
       
       const updated = await storage.markAppointmentNoShow(req.params.id);
+
+      if (updated) {
+        const doctorUser = await storage.getUser(profile.userId);
+        const doctorName = doctorUser?.fullName || "your doctor";
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const [,mo,dy] = appointment.appointmentDate.split("-");
+        const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+
+        await storage.createNotification({
+          userId: appointment.patientId,
+          title: "Appointment No-Show",
+          message: `Your ${formattedDate} appointment with Dr. ${doctorName} was marked as a no-show. Please rebook at your convenience.`,
+          type: "appointment",
+          isRead: false,
+          relatedId: appointment.id,
+        });
+      }
+
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to mark appointment as no-show" });
@@ -1399,15 +1431,47 @@ export async function registerRoutes(
       };
       
       await storage.createPayment(paymentData);
-      
+
+      const doctorUser = await storage.getUser(doctor.userId);
+      const doctorName = doctorUser?.fullName || "your doctor";
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const [,bmo,bdy] = slot.date.split("-");
+      const formattedBookingDate = `${parseInt(bdy)} ${months[parseInt(bmo) - 1]}`;
+      const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
+
+      // Patient notification
       await storage.createNotification({
         userId: req.user!.id,
         title: "Appointment Booked",
-        message: `Your appointment with ${doctor.registrationNumber} has been booked for ${slot.date} at ${slot.startTime}`,
+        message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slot.startTime}. Total: ${formattedAmount}.`,
         type: "appointment",
+        isRead: false,
         relatedId: appointment.id,
       });
-      
+
+      // Doctor notification — new booking
+      await storage.createNotification({
+        userId: doctor.userId,
+        title: "New appointment booked",
+        message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slot.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
+        type: "appointment",
+        isRead: false,
+        relatedId: appointment.id,
+      });
+
+      // Doctor reminder — only for future (non-today) appointments
+      const today = new Date().toISOString().split("T")[0];
+      if (slot.date > today) {
+        await storage.createNotification({
+          userId: doctor.userId,
+          title: `Consultation on ${formattedBookingDate} at ${slot.startTime}`,
+          message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
+          type: "reminder",
+          isRead: false,
+          relatedId: appointment.id,
+        });
+      }
+
       const fullAppointment = await storage.getAppointmentWithDetails(appointment.id);
       res.status(201).json(fullAppointment);
     } catch (error) {
@@ -1478,9 +1542,9 @@ export async function registerRoutes(
 
         await storage.createNotification({
           userId: appointment.patientId,
-          title: "Appointment Confirmed",
-          message: `Your consultation with Dr. ${doctorName} on ${formattedDate} at ${appointment.appointmentTime} has been confirmed.`,
-          type: "appointment",
+          title: "Doctor approved your request",
+          message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
+          type: "system",
           isRead: false,
           relatedId: appointment.id,
         });
@@ -1575,6 +1639,7 @@ export async function registerRoutes(
           const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
           const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
 
+          // Patient payment notification
           await storage.createNotification({
             userId: appointment.patientId,
             title: "Payment successful",
@@ -1583,6 +1648,18 @@ export async function registerRoutes(
             isRead: false,
             relatedId: payment.id,
           });
+
+          // Doctor payment received notification
+          if (doctorProfile) {
+            await storage.createNotification({
+              userId: doctorProfile.userId,
+              title: "Payment received from patient",
+              message: `${formattedAmount} has been received for the consultation on ${formattedDate}. This will be included in your next payout.`,
+              type: "payment",
+              isRead: false,
+              relatedId: payment.id,
+            });
+          }
         }
       }
 
@@ -1601,19 +1678,35 @@ export async function registerRoutes(
       if (appointment && existing) {
         const doctorProfile = await storage.getDoctorProfile(existing.doctorId);
         const doctorUser = doctorProfile ? await storage.getUser(doctorProfile.userId) : null;
+        const patientUser = await storage.getUser(existing.patientId);
         const doctorName = doctorUser?.fullName || "your doctor";
+        const patientName = patientUser?.fullName || "A patient";
         const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
         const [,mo,dy] = existing.appointmentDate.split("-");
         const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+        const formattedTime = existing.appointmentTime;
 
+        // Notify patient — includes "Rebook Appointment" button
         await storage.createNotification({
           userId: existing.patientId,
           title: "Appointment cancelled",
-          message: `Your ${formattedDate} appointment with Dr. ${doctorName} has been cancelled. You may rebook at your convenience.`,
+          message: `Your ${formattedDate} at ${formattedTime} appointment with Dr. ${doctorName} has been cancelled. You may rebook at your convenience.`,
           type: "appointment",
           isRead: false,
           relatedId: appointment.id,
         });
+
+        // Notify doctor — no button (title uses "Cancellation" not "cancelled")
+        if (doctorProfile) {
+          await storage.createNotification({
+            userId: doctorProfile.userId,
+            title: "Appointment Cancellation Notice",
+            message: `${patientName} has cancelled their ${formattedDate} at ${formattedTime} appointment.`,
+            type: "appointment",
+            isRead: false,
+            relatedId: appointment.id,
+          });
+        }
       }
 
       res.json(appointment);
@@ -1638,6 +1731,7 @@ export async function registerRoutes(
       const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
       const last4 = lastFourDigits || "0000";
 
+      // Notify patient
       await storage.createNotification({
         userId: payment.patientId,
         title: "Payment Failed",
@@ -1646,6 +1740,20 @@ export async function registerRoutes(
         isRead: false,
         relatedId: payment.id,
       });
+
+      // Notify all admins about failed high-value transaction
+      const admins = await storage.getAllUsers("admin");
+      const shortId = payment.appointmentId.substring(0, 8).toUpperCase();
+      await Promise.all(admins.map((a) =>
+        storage.createNotification({
+          userId: a.id,
+          title: "Failed transaction — high value",
+          message: `${formattedAmount} payment for consultation ID #${shortId} failed twice. Card issuer declined. Patient has been notified.`,
+          type: "system",
+          isRead: false,
+          relatedId: payment.id,
+        })
+      ));
 
       res.json(updated);
     } catch (error) {
@@ -2060,22 +2168,78 @@ export async function registerRoutes(
     }
   });
 
+  // Check for doctors pending verification > 48 hours and notify admins
+  app.post("/api/admin/check-overdue", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const pendingDoctors = await storage.getPendingDoctors();
+      const now = Date.now();
+      const threshold = 48 * 60 * 60 * 1000; // 48 hours
+      const admins = await storage.getAllUsers("admin");
+
+      for (const doctor of pendingDoctors) {
+        const createdAt = new Date(doctor.createdAt).getTime();
+        if (now - createdAt < threshold) continue;
+
+        const daysOverdue = Math.floor((now - createdAt) / (24 * 60 * 60 * 1000));
+        const expectedTitle = `Verification pending — ${daysOverdue} ${daysOverdue === 1 ? "day" : "days"} overdue`;
+
+        // Skip only if today's exact count already exists (allows count to update each day)
+        const existingNotifs = await storage.getUserNotifications(req.user!.id);
+        const last24h = now - 24 * 60 * 60 * 1000;
+        const alreadyUpToDate = existingNotifs.some(
+          (n) =>
+            n.relatedId === doctor.id &&
+            n.title === expectedTitle &&
+            new Date(n.createdAt).getTime() > last24h
+        );
+        if (alreadyUpToDate) continue;
+
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const d = new Date(doctor.createdAt);
+        const submittedDate = `${d.getDate()} ${months[d.getMonth()]}`;
+
+        // Delete stale overdue notifications for this doctor before creating fresh ones
+        await Promise.all(admins.map((a) =>
+          storage.deleteNotificationsByRelatedId(a.id, doctor.id)
+        ));
+
+        await Promise.all(admins.map((a) =>
+          storage.createNotification({
+            userId: a.id,
+            title: expectedTitle,
+            message: `Documents submitted on ${submittedDate} have not been reviewed. SLMC registration and degree certificates are awaiting approval.`,
+            type: "system",
+            isRead: false,
+            relatedId: doctor.id,
+          })
+        ));
+      }
+
+      res.json({ checked: pendingDoctors.length });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to check overdue verifications" });
+    }
+  });
+
   app.put("/api/admin/settings", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
-      console.log("Updating platform settings with:", {
-        bookingCharges: req.body.bookingCharges,
-        taxRate: req.body.taxRate,
-        platformCommissionRate: req.body.platformCommissionRate,
-      });
+      const prevSettings = await storage.getPlatformSettings();
       const settings = await storage.updatePlatformSettings(req.body);
-      console.log("Settings updated successfully:", {
-        bookingCharges: settings.bookingCharges,
-        taxRate: settings.taxRate,
-        platformCommissionRate: settings.platformCommissionRate,
-      });
+
+      // Notify admins when maintenance mode is toggled
+      if (req.body.maintenanceMode !== undefined && req.body.maintenanceMode !== prevSettings.maintenanceMode) {
+        const admins = await storage.getAllUsers("admin");
+        const title   = req.body.maintenanceMode ? "Maintenance mode enabled" : "Scheduled maintenance completed";
+        const message = req.body.maintenanceMode
+          ? "Maintenance mode has been enabled. The platform is temporarily unavailable to users."
+          : "Maintenance window completed successfully. Uptime restored. All services operational.";
+        await Promise.all(admins.map((a) =>
+          storage.createNotification({ userId: a.id, title, message, type: "system", isRead: false })
+        ));
+      }
+
       res.json(settings);
     } catch (error) {
-      console.error("Failed to update platform settings:", error);
       res.status(500).json({ error: "Failed to update platform settings" });
     }
   });
@@ -2165,15 +2329,29 @@ export async function registerRoutes(
   app.put("/api/users/password", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { currentPassword, newPassword } = req.body;
-      
+
       const user = await storage.getUser(req.user!.id);
       if (!user || !(await verifyPassword(currentPassword, user.password))) {
         return res.status(400).json({ error: "Current password is incorrect" });
       }
-      
+
       const hashedPassword = await hashPassword(newPassword);
       await storage.updateUser(req.user!.id, { password: hashedPassword });
-      
+
+      // If an admin resets their password, notify all admins
+      if (req.user!.role === UserRole.ADMIN) {
+        const admins = await storage.getAllUsers("admin");
+        await Promise.all(admins.map((a) =>
+          storage.createNotification({
+            userId: a.id,
+            title: "Admin account password reset",
+            message: "Password was reset from an unrecognised device. If this was not you, contact the security team immediately.",
+            type: "system",
+            isRead: false,
+          })
+        ));
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update password" });

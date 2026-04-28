@@ -147,7 +147,8 @@ function getBadgeLabel(n: Notification): string {
   if (isAnnouncement(n))     return "Announcement";
   if (n.type === "system" || n.type === "verification") return "Doctor";
   const text = n.title.toLowerCase();
-  if (text.includes("rescheduled") || text.includes("cancelled")) return "Cancelled";
+  if (text.includes("no-show") || text.includes("no show")) return "No Show";
+  if (text.includes("rescheduled") || text.includes("cancell")) return "Cancelled";
   return "Appointment";
 }
 

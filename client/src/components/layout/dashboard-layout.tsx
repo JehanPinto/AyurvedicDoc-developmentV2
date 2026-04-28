@@ -1,6 +1,7 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -42,6 +43,8 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationPanel } from "@/components/notifications/notification-panel";
+import { DoctorNotificationPanel } from "@/components/notifications/doctor-notification-panel";
+import { AdminNotificationPanel } from "@/components/notifications/admin-notification-panel";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@shared/schema";
 
@@ -86,6 +89,27 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     enabled: !!user,
   });
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  // Prefetch all pages for the current role so navigation feels instant
+  useEffect(() => {
+    if (!user) return;
+    const prefetch = (key: string) =>
+      queryClient.prefetchQuery({ queryKey: [key], staleTime: 2 * 60 * 1000 });
+
+    if (user.role === UserRole.DOCTOR) {
+      prefetch("/api/appointments");
+      prefetch("/api/doctor/dashboard");
+      prefetch("/api/doctor/earnings");
+      prefetch("/api/doctor/reviews");
+      prefetch("/api/doctor/patients");
+      prefetch("/api/doctor/profile");
+    } else if (user.role === UserRole.PATIENT) {
+      prefetch("/api/patient/dashboard");
+      prefetch("/api/appointments");
+      prefetch("/api/patient/reviews");
+      prefetch("/api/specializations");
+    }
+  }, [user?.id]);
 
   const navItems = 
     user?.role === UserRole.ADMIN ? adminNavItems :
@@ -210,7 +234,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </Button>
               <ThemeToggle />
             </div>
-            <NotificationPanel open={notifOpen} onOpenChange={setNotifOpen} />
+            {user?.role === UserRole.DOCTOR ? (
+              <DoctorNotificationPanel open={notifOpen} onOpenChange={setNotifOpen} />
+            ) : user?.role === UserRole.ADMIN ? (
+              <AdminNotificationPanel open={notifOpen} onOpenChange={setNotifOpen} />
+            ) : (
+              <NotificationPanel open={notifOpen} onOpenChange={setNotifOpen} />
+            )}
           </header>
 
           <main className="flex-1 overflow-auto p-6">
