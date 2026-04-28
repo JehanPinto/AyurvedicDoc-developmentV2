@@ -38,7 +38,7 @@ function validatePasswordStrength(password: string): { valid: boolean; errors: s
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: process.env.NODE_ENV === 'production' ? 5 : 100,
   message: { error: "Too many login attempts, try again later" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -46,7 +46,7 @@ const loginLimiter = rateLimit({
 
 const registrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 3,
+  max: process.env.NODE_ENV === 'production' ? 3 : 100,
   message: { error: "Too many registration attempts, try again later" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -54,7 +54,7 @@ const registrationLimiter = rateLimit({
 
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: process.env.NODE_ENV === 'production' ? 10 : 1000,
   message: { error: "Too many upload attempts, try again later" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -358,10 +358,11 @@ export async function registerRoutes(
         ? sessionFiles 
         : (req.body.verificationDocuments || []);
       
-      const doctorData = insertDoctorProfileSchema.parse({
+      const rawDoctorData = {
         userId: user.id,
         registrationNumber: req.body.registrationNumber,
         qualifications: req.body.qualifications,
+        biography: req.body.biography || "",
         specializationIds: req.body.specializationIds || [],
         languagesSpoken: req.body.languagesSpoken || ["english"],
         consultationTypes: req.body.consultationTypes || ["in_person"],
@@ -373,7 +374,9 @@ export async function registerRoutes(
         bankAccountNumber: req.body.bankAccountNumber || null,
         bankBranch: req.body.bankBranch || null,
         status: DoctorStatus.PENDING,
-      });
+      };
+
+      const doctorData = insertDoctorProfileSchema.parse(rawDoctorData);
       
       await storage.createDoctorProfile(doctorData);
       
@@ -381,11 +384,16 @@ export async function registerRoutes(
       
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json({ user: userWithoutPassword, token });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("\n🔥 DOCTOR REG ERROR 🔥");
+      console.error(error);
+      
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        console.error("ZOD VALIDATION FAILED:", JSON.stringify(error.errors, null, 2));
+        return res.status(400).json({ error: "Validation Error", details: error.errors });
       }
-      res.status(500).json({ error: "Doctor registration failed" });
+      
+      res.status(500).json({ error: "Doctor registration failed", details: error?.message || "Unknown server error" });
     }
   });
 
