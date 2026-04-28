@@ -11,7 +11,7 @@ import { PublicLayout } from "@/components/layout/public-layout";
 
 import { HelpStepCard } from "@/components/ui/help-step-card"; 
 
-export default function HelpCenterPage() {
+export default function HelpDetailsPage() {
   const steps = [
     {
       id: 1,

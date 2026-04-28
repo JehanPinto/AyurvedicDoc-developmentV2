@@ -40,7 +40,8 @@ import AdminPaymentsPage from "@/pages/admin/payments";
 import AdminSettingsPage from "@/pages/admin/settings";
 import NotFound from "@/pages/not-found";
 import EmailVerificationPage from "./pages/email-verification";
-import HelpCentrePage from "./pages/help-centre";
+import HelpDetailsPage from "./pages/help-details";
+import HelpCenterPage from "./pages/help-center";
 
 
 function ProtectedRoute({ 
@@ -82,7 +83,8 @@ function Router() {
       <Route path="/doctors" component={DoctorsPage} />
       <Route path="/doctors/:id" component={DoctorProfilePage} />
       <Route path="/email-verification" component={EmailVerificationPage} />
-      <Route path="/help" component={HelpCentrePage} />
+      <Route path="/details" component={HelpDetailsPage} />
+      <Route path="/help" component={HelpCenterPage} />
       <Route path="/book/:doctorId">
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
           <BookAppointmentPage />
