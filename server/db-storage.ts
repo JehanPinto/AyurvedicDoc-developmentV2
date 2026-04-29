@@ -1,11 +1,12 @@
 import { eq, and, gte, lte, desc, sql, or, ilike, inArray } from "drizzle-orm";
-import { db } from "./db";
+import { db, pool } from "./db";
 import {
   users, specializations, hospitals, doctorProfiles, doctorSchedules,
   appointmentSlots, appointments, payments, prescriptions, reviews, notifications,
-  platformSettings, blogs,
+  platformSettings, blogs, blogSubmissions,
   type User, type InsertUser,
   type Blog, type InsertBlog,
+  type BlogSubmission, type InsertBlogSubmission,
   type Specialization, type InsertSpecialization,
   type Hospital, type InsertHospital,
   type DoctorProfile, type InsertDoctorProfile,
@@ -1168,6 +1169,54 @@ export class DbStorage implements IStorage {
       maintenanceMode: result[0].maintenanceMode ?? false,
       updatedAt: toISOString(result[0].updatedAt),
     };
+  }
+
+  async createBlogSubmission(data: InsertBlogSubmission): Promise<BlogSubmission> {
+    const result = await db.insert(blogSubmissions).values(data).returning();
+    return result[0] as BlogSubmission;
+  }
+
+  async getAllBlogSubmissions(): Promise<BlogSubmission[]> {
+    const result = await db.select().from(blogSubmissions).orderBy(desc(blogSubmissions.createdAt));
+    return result as BlogSubmission[];
+  }
+
+  async getPendingBlogSubmissions(): Promise<BlogSubmission[]> {
+    const result = await db.select().from(blogSubmissions)
+      .where(eq(blogSubmissions.status, "pending"))
+      .orderBy(desc(blogSubmissions.createdAt));
+    return result as BlogSubmission[];
+  }
+
+  async getBlogSubmission(id: string): Promise<BlogSubmission | undefined> {
+    const result = await db.select().from(blogSubmissions).where(eq(blogSubmissions.id, id)).limit(1);
+    return result[0] as BlogSubmission | undefined;
+  }
+
+  async approveBlogSubmission(id: string): Promise<BlogSubmission | undefined> {
+    const submission = await this.getBlogSubmission(id);
+    if (!submission) return undefined;
+    const shortDesc = submission.content.length > 200
+      ? submission.content.slice(0, 200) + "..."
+      : submission.content;
+    const blogResult = await pool.query(
+      `INSERT INTO blogs (title, description, category) VALUES ($1, $2, $3) RETURNING id`,
+      [submission.title, shortDesc, submission.category]
+    );
+    const blogId = blogResult.rows[0].id;
+    await pool.query(
+      `UPDATE blog_submissions SET status = 'approved', blog_id = $1, updated_at = NOW() WHERE id = $2`,
+      [blogId, id]
+    );
+    return this.getBlogSubmission(id);
+  }
+
+  async rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined> {
+    const result = await db.update(blogSubmissions)
+      .set({ status: "rejected", rejectionReason, updatedAt: new Date() })
+      .where(eq(blogSubmissions.id, id))
+      .returning();
+    return result[0] as BlogSubmission | undefined;
   }
 }
 

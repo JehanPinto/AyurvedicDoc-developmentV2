@@ -15,6 +15,8 @@ import AboutPage from "@/pages/about";
 import SpecializationsPage from "@/pages/specializations";
 import ContactPage from "@/pages/contact";
 import BlogPage from "@/pages/blog";
+import BlogNewPage from "@/pages/blog-new";
+import BlogDetailPage from "@/pages/blog-detail";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import AuthCallbackPage from "@/pages/auth-callback";
@@ -39,6 +41,8 @@ import AdminAppointmentsPage from "@/pages/admin/appointments";
 import AdminSpecializationsPage from "@/pages/admin/specializations";
 import AdminPaymentsPage from "@/pages/admin/payments";
 import AdminSettingsPage from "@/pages/admin/settings";
+import AdminBlogsPage from "@/pages/admin/blogs";
+import AdminBlogViewPage from "@/pages/admin/blog-view";
 import NotFound from "@/pages/not-found";
 import EmailVerificationPage from "./pages/email-verification";
 
@@ -86,6 +90,8 @@ function Router() {
       <Route path="/specializations" component={SpecializationsPage} />
       <Route path="/contact" component={ContactPage} />
       <Route path="/blog" component={BlogPage} />
+      <Route path="/blog/new" component={BlogNewPage} />
+      <Route path="/blog/:id" component={BlogDetailPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
@@ -150,6 +156,11 @@ function Router() {
           </DashboardLayout>
         </ProtectedRoute>
       </Route>
+      <Route path="/admin/blog-view/:id">
+        <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+          <AdminBlogViewPage />
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin/:rest*">
         <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
           <DashboardLayout>
@@ -159,6 +170,7 @@ function Router() {
               <Route path="/admin/appointments" component={AdminAppointmentsPage} />
               <Route path="/admin/specializations" component={AdminSpecializationsPage} />
               <Route path="/admin/payments" component={AdminPaymentsPage} />
+              <Route path="/admin/blogs" component={AdminBlogsPage} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route component={NotFound} />
             </Switch>

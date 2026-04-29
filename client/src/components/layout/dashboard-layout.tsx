@@ -2,11 +2,11 @@ import { type ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  Clock, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Calendar,
+  Clock,
+  FileText,
   Settings,
   Users,
   Stethoscope,
@@ -16,7 +16,8 @@ import {
   Activity,
   LogOut,
   ChevronDown,
-  Menu
+  Menu,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -69,12 +70,16 @@ const doctorNavItems = [
   { icon: Settings, label: "Profile", href: "/doctor/profile" },
 ];
 
-const adminNavItems = [
+const adminMainNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
   { icon: Stethoscope, label: "Doctors", href: "/admin/doctors" },
   { icon: Users, label: "Patients", href: "/admin/patients" },
+];
+
+const adminManagementNavItems = [
   { icon: Activity, label: "Specializations", href: "/admin/specializations" },
   { icon: DollarSign, label: "Payments", href: "/admin/payments" },
+  { icon: BookOpen, label: "Blogs", href: "/admin/blogs" },
   { icon: Settings, label: "Settings", href: "/admin/settings" },
 ];
 
@@ -111,8 +116,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, [user?.id]);
 
-  const navItems = 
-    user?.role === UserRole.ADMIN ? adminNavItems :
+  const navItems =
     user?.role === UserRole.DOCTOR ? doctorNavItems :
     patientNavItems;
 
@@ -160,26 +164,62 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </SidebarHeader>
 
           <SidebarContent className="scrollbar-thin">
-            <SidebarGroup>
-              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {navItems.map((item) => (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton 
-                        asChild
-                        isActive={location === item.href}
-                      >
-                        <Link href={item.href}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {user?.role === UserRole.ADMIN ? (
+              <>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Main</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {adminMainNavItems.map((item) => (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton asChild isActive={location === item.href}>
+                            <Link href={item.href}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Management</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {adminManagementNavItems.map((item) => (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton asChild isActive={location === item.href}>
+                            <Link href={item.href}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </>
+            ) : (
+              <SidebarGroup>
+                <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {navItems.map((item) => (
+                      <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton asChild isActive={location === item.href}>
+                          <Link href={item.href}>
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
           </SidebarContent>
 
           <SidebarFooter className="border-t p-4">

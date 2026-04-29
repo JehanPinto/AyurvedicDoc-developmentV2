@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { randomUUID } from "crypto";
 import { createHash } from "crypto";
 import bcrypt from "bcrypt";
@@ -817,7 +818,17 @@ export async function registerRoutes(
     }
   });
 
-// Allow admins to fetch verification documents by redirecting to Cloudinary
+  // Blog featured image upload — requires login only
+  app.post("/api/blog-image-upload", authMiddleware, upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      res.json({ url: (req.file as any).path });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
+  // Allow admins to fetch verification documents by redirecting to Cloudinary
   // Or access them directly via the Cloudinary URL stored in the database
   app.get("/api/documents/:filename", async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -880,12 +891,85 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/blogs/:id", async (req: Request, res: Response) => {
+    try {
+      const result = await pool.query(
+        `SELECT b.*, s.content, s.featured_image as "featuredImage", s.submitted_by_name as "submittedByName", s.submitted_by_email as "submittedByEmail"
+         FROM blogs b
+         LEFT JOIN blog_submissions s ON s.blog_id = b.id AND s.status = 'approved'
+         WHERE b.id = $1`,
+        [req.params.id]
+      );
+      if (!result.rows[0]) return res.status(404).json({ error: "Blog not found" });
+      res.json(result.rows[0]);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch blog" });
+    }
+  });
+
   app.delete("/api/blogs/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
     try {
       await storage.deleteBlog(req.params.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete blog" });
+    }
+  });
+
+  // ================== BLOG SUBMISSION ROUTES ==================
+  app.post("/api/blog-submissions", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.user!;
+      const submission = await storage.createBlogSubmission({
+        ...req.body,
+        submittedById: user.id,
+        submittedByName: user.fullName,
+        submittedByEmail: user.email,
+      });
+      res.status(201).json(submission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to submit blog" });
+    }
+  });
+
+  app.get("/api/blog-submissions", authMiddleware, roleMiddleware(UserRole.ADMIN), async (_req: Request, res: Response) => {
+    try {
+      const submissions = await storage.getAllBlogSubmissions();
+      res.json(submissions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch blog submissions" });
+    }
+  });
+
+  app.get("/api/blog-submissions/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const submission = await storage.getBlogSubmission(req.params.id);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+      res.json(submission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch submission" });
+    }
+  });
+
+  app.post("/api/blog-submissions/:id/approve", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const submission = await storage.approveBlogSubmission(req.params.id);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+      res.json(submission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to approve submission" });
+    }
+  });
+
+  app.post("/api/blog-submissions/:id/reject", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const { rejectionReason } = req.body;
+      if (!rejectionReason) return res.status(400).json({ error: "Rejection reason is required" });
+      const submission = await storage.rejectBlogSubmission(req.params.id, rejectionReason);
+      if (!submission) return res.status(404).json({ error: "Submission not found" });
+      res.json(submission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to reject submission" });
     }
   });
 

@@ -273,6 +273,25 @@ export const insertBlogSchema = createInsertSchema(blogs).omit({ id: true, creat
 export type Blog = typeof blogs.$inferSelect;
 export type InsertBlog = z.infer<typeof insertBlogSchema>;
 
+export const blogSubmissions = pgTable("blog_submissions", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  featuredImage: text("featured_image"),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  submittedById: varchar("submitted_by_id", { length: 50 }).notNull(),
+  submittedByName: varchar("submitted_by_name", { length: 255 }).notNull(),
+  submittedByEmail: varchar("submitted_by_email", { length: 255 }).notNull(),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertBlogSubmissionSchema = createInsertSchema(blogSubmissions).omit({ id: true, createdAt: true, updatedAt: true, status: true, rejectionReason: true });
+export type BlogSubmission = typeof blogSubmissions.$inferSelect;
+export type InsertBlogSubmission = z.infer<typeof insertBlogSubmissionSchema>;
+
 export const platformSettings = pgTable("platform_settings", {
   id: varchar("id", { length: 50 }).primaryKey().default(sql`'default'`),
   platformCommissionRate: integer("platform_commission_rate").notNull().default(10),
