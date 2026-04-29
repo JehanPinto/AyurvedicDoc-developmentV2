@@ -17,6 +17,8 @@ import {
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
   JobApplication,
   InsertJobApplication,
+  InsertCareer,
+  Career,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -130,6 +132,12 @@ export interface IStorage {
   getPlatformSettings(): Promise<PlatformSettings>;
   updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings>;
   createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
+  getAllJobApplications(): Promise<JobApplication[]>;
+  updateJobApplicationStatus(id: string, status: string): Promise<JobApplication | undefined>;
+  getAllCareers(): Promise<Career[]>;
+  createCareer(career: InsertCareer): Promise<Career>;
+  updateCareer(id: string, updates: Partial<InsertCareer>): Promise<Career | undefined>;
+  deleteCareer(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -145,6 +153,7 @@ export class MemStorage implements IStorage {
   private reviews: Map<string, Review>;
   private notifications: Map<string, Notification>;
   private jobApplications: Map<string, JobApplication>;
+  private careersMap = new Map<string, Career>();
 
   constructor() {
     this.users = new Map();
@@ -159,6 +168,7 @@ export class MemStorage implements IStorage {
     this.reviews = new Map();
     this.notifications = new Map();
     this.jobApplications = new Map();
+    this.careersMap = new Map();
     this.seedData();
   }
 
@@ -1084,6 +1094,32 @@ export class MemStorage implements IStorage {
       updatedAt: new Date().toISOString() 
     };
     return this.platformSettings;
+  }
+
+  async getAllCareers(): Promise<Career[]> {
+    return Array.from(this.careersMap.values()).sort((a, b) => 
+      new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime()
+    );
+  }
+
+  async createCareer(career: InsertCareer): Promise<Career> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const newCareer: Career = { ...career, id, createdAt: now, updatedAt: now } as Career;
+    this.careersMap.set(id, newCareer);
+    return newCareer;
+  }
+
+  async updateCareer(id: string, updates: Partial<InsertCareer>): Promise<Career | undefined> {
+    const existing = this.careersMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() } as Career;
+    this.careersMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteCareer(id: string): Promise<boolean> {
+    return this.careersMap.delete(id);
   }
 }
 

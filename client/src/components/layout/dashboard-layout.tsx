@@ -14,7 +14,8 @@ import {
   Activity,
   LogOut,
   ChevronDown,
-  Menu
+  BriefcaseBusiness,
+  Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -70,6 +71,8 @@ const adminNavItems = [
   { icon: Users, label: "Patients", href: "/admin/patients" },
   { icon: Activity, label: "Specializations", href: "/admin/specializations" },
   { icon: DollarSign, label: "Payments", href: "/admin/payments" },
+  { icon: FileText, label: "Blogs", href: "/admin/blogs" },
+  { icon: BriefcaseBusiness, label: "Careers", href: "/admin/careers" },
   { icon: Settings, label: "Settings", href: "/admin/settings" },
 ];
 

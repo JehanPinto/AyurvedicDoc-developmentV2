@@ -803,14 +803,26 @@ export interface JobApplication extends InsertJobApplication {
   createdAt: string;
 }
 
-export const blogs = pgTable("blogs", {
+export const careers = pgTable("careers", {
   id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  title: varchar("title", { length: 255 }).notNull(),
-  content: text("content"),
-  description: text("description"),
-  category: varchar("category", { length: 100 }),
-  image: text("image"),
-  authorId: varchar("author_id", { length: 50 }),
+  careerTitle: varchar("career_title", { length: 255 }).notNull(),
+  location: varchar("location", { length: 255 }).notNull(),
+  employmentType: varchar("employment_type", { length: 100 }).notNull(),
+  salaryRange: varchar("salary_range", { length: 100 }),
+  description: text("description").notNull(),
+  keyResponsibilities: text("key_responsibilities"),
+  requiredQualifications: text("required_qualifications"),
+  benefits: text("benefits"),
+  isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const insertCareerSchema = createInsertSchema(careers).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
+export type Career = typeof careers.$inferSelect;
+export type InsertCareer = z.infer<typeof insertCareerSchema>;

@@ -41,6 +41,7 @@ import AdminSettingsPage from "@/pages/admin/settings";
 import NotFound from "@/pages/not-found";
 import EmailVerificationPage from "./pages/email-verification";
 import CareerPage from "./pages/careers";
+import AdminCareersPage from "./pages/admin/careers";
 
 function ProtectedRoute({ 
   children, 
@@ -150,6 +151,7 @@ function Router() {
               <Route path="/admin/appointments" component={AdminAppointmentsPage} />
               <Route path="/admin/specializations" component={AdminSpecializationsPage} />
               <Route path="/admin/payments" component={AdminPaymentsPage} />
+              <Route path="/admin/careers" component={AdminCareersPage} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route component={NotFound} />
             </Switch>
