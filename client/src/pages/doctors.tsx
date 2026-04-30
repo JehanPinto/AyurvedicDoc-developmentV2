@@ -17,6 +17,24 @@ export default function DoctorsPage() {
   
   const [showScrollTop, setShowScrollTop] = useState(false);
 
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("q") || "";
+  });
+  
+  const [selectedSpecialization, setSelectedSpecialization] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("specialization") || "all";
+  });
+
+
+  const [selectedCity, setSelectedCity] = useState("all");
+  const [selectedConsultationType, setSelectedConsultationType] = useState("all");
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [minRating, setMinRating] = useState(0);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
+  const [sortBy, setSortBy] = useState("rating");
+
   useEffect(() => {
     const handleScroll = () => setShowScrollTop(window.scrollY > 300);
     window.addEventListener("scroll", handleScroll);
@@ -24,15 +42,6 @@ export default function DoctorsPage() {
   }, []);
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-
-  const [searchQuery, setSearchQuery] = useState(params.get("q") || "");
-  const [selectedSpecialization, setSelectedSpecialization] = useState(params.get("specialization") || "all");
-  const [selectedCity, setSelectedCity] = useState("all");
-  const [selectedConsultationType, setSelectedConsultationType] = useState("all");
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
-  const [minRating, setMinRating] = useState(0);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
-  const [sortBy, setSortBy] = useState("rating");
 
   const { data: specializations = [], isError: specError } = useQuery<Specialization[]>({
     queryKey: ["/api/specializations"],
@@ -55,7 +64,8 @@ export default function DoctorsPage() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(d => 
         d.user?.fullName.toLowerCase().includes(query) ||
-        d.specializations?.some(s => s.name.toLowerCase().includes(query))
+        d.specializations?.some(s => s.name.toLowerCase().includes(query)) ||
+        d.hospitals?.some(h => h.name.toLowerCase().includes(query) || h.city.toLowerCase().includes(query))
       );
     }
     
@@ -125,6 +135,7 @@ export default function DoctorsPage() {
     setSelectedLanguages([]);
     setMinRating(0);
     setPriceRange([0, 10000]);
+    setSearchQuery("");
   };
 
   const headingClasses = isPatientRoute

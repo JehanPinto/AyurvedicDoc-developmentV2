@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import {
   Search,
@@ -8,13 +9,18 @@ import {
   CheckCircle,
   Users,
   Award,
+  Loader2,
+  MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PublicLayout } from "@/components/layout/public-layout";
 import { StarRating } from "@/components/ui/star-rating";
-import { useState, useEffect } from "react";
+import type { DoctorWithDetails } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { AnimatedStat } from "@/components/ui/animated-stat";
 
 const testimonials = [
   {
@@ -68,9 +74,39 @@ const steps = [
   },
 ];
 
+const getInitials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+
 export default function HomePage() {
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Search input Debouncing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch live search results from Backend
+  const { data: searchResults = [], isLoading: isSearching } = useQuery<DoctorWithDetails[]>({
+    queryKey: ["/api/doctors/search", debouncedQuery],
+    queryFn: async () => {
+      const res = await fetch(`/api/doctors/search?q=${encodeURIComponent(debouncedQuery)}`);
+      if (!res.ok) throw new Error("Failed to search");
+      return res.json();
+    },
+    enabled: debouncedQuery.length >= 2,
+  });
 
   useEffect(() => {
     const handleScroll = () => setShowScrollTop(window.scrollY > 300);
@@ -80,15 +116,22 @@ export default function HomePage() {
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    window.location.href = `/doctors?q=${encodeURIComponent(searchQuery)}`;
+    if (searchQuery.trim().length >= 2) {
+      setIsDropdownOpen(true);
+    }
+  };
+
+  const handleSeeAllResults = () => {
+    setIsDropdownOpen(false);
+    setLocation(`/doctors?q=${encodeURIComponent(debouncedQuery)}`); // මෙතනදී තමයි Doctors Page එකට යන්නේ
   };
 
   return (
     <PublicLayout>
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-[#111815] min-h-[580px] flex items-center">
+      <section className="relative bg-[#111815] min-h-[580px] flex items-center z-50">
         {/* Full-width background image */}
         <img
           src="/hero-doctor.png"
@@ -110,24 +153,101 @@ export default function HomePage() {
             in-person, and experience holistic healthcare rooted in ancient wisdom.
           </p>
 
-          <form onSubmit={handleSearch} className="mb-6">
-            <div className="flex items-center bg-[#0d1410] border border-primary/50 rounded-xl overflow-hidden">
-              <input
-                placeholder="Search doctors, specializations, or locations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/40 outline-none text-sm"
-                data-testid="input-hero-search"
-              />
-              <button
-                type="submit"
-                className="h-12 w-12 bg-primary flex items-center justify-center shrink-0 hover:bg-primary/90 transition-colors"
-                data-testid="button-hero-search"
-              >
-                <Search className="h-5 w-5 text-white" />
-              </button>
-            </div>
-          </form>
+          <div className="relative mb-6">
+            <form onSubmit={handleSearchSubmit} className="relative z-50">
+              <div className="flex items-center bg-[#0d1410] border border-primary/50 rounded-xl overflow-hidden">
+                <input
+                  placeholder="Search doctors, specializations, or locations..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setIsDropdownOpen(true);
+                  }}
+                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/40 outline-none text-sm"
+                  data-testid="input-hero-search"
+                  autoComplete="off"
+                />
+                <button
+                  type="submit"
+                  className="h-12 w-12 bg-primary flex items-center justify-center shrink-0 hover:bg-primary/90 transition-colors"
+                  data-testid="button-hero-search"
+                >
+                  {isSearching ? (
+                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                  ) : (
+                    <Search className="h-5 w-5 text-white" />
+                  )}
+                </button>
+              </div>
+            </form>
+              
+            {/* Search results dropdown */}
+            {isDropdownOpen && debouncedQuery.length >= 2 && (
+              <>
+                <div 
+                  className="fixed inset-0 z-[60]" 
+                  onClick={() => setIsDropdownOpen(false)}
+                />
+                
+                {/* 👉 අලුත් වෙනස: z-index එක z-[100] කරලා ගොඩක් උඩට ගත්තා */}
+                <div className="absolute top-full left-0 w-full mt-2 bg-[#1a231f] border border-primary/30 rounded-xl shadow-2xl z-[100] overflow-hidden max-h-[300px] overflow-y-auto scrollbar-thin">
+                  {searchResults.length > 0 ? (
+                    <div className="flex flex-col">
+                      {searchResults.map((doctor) => (
+                        <div
+                          key={doctor.id}
+                          onClick={() => {
+                            setLocation(`/doctors/${doctor.id}`);
+                            setIsDropdownOpen(false);
+                          }}
+                          className="flex items-center gap-3 p-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 transition-colors"
+                        >
+                          <Avatar className="h-10 w-10 border border-primary/20 shrink-0">
+                            <AvatarImage src={doctor.user.profileImage || ""} />
+                            <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                              {getInitials(doctor.user.fullName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-medium text-sm truncate">
+                              {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-white/50 mt-0.5">
+                              <span className="text-primary/90 truncate max-w-[120px]">
+                                {doctor.specializations?.[0]?.name || "Ayurvedic Doctor"}
+                              </span>
+                              {doctor.hospitals?.[0] && (
+                                <>
+                                  <span>•</span>
+                                  <span className="flex items-center truncate">
+                                    <MapPin className="h-3 w-3 mr-1 shrink-0" />
+                                    {doctor.hospitals[0].city}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      <button 
+                        type="submit"
+                        onClick={handleSeeAllResults}
+                        className="w-full p-3 text-sm text-primary font-medium hover:bg-primary/10 text-center transition-colors"
+                      >
+                        See all results for "{debouncedQuery}"
+                      </button>
+                    </div>
+                  ) : !isSearching ? (
+                    <div className="p-4 text-center text-white/50 text-sm">
+                      No doctors found matching "{debouncedQuery}"
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </div>
+          
 
           <div className="flex flex-wrap items-center gap-4 md:gap-6 text-sm text-white/60">
             <div className="flex items-center gap-2">
@@ -147,17 +267,16 @@ export default function HomePage() {
       </section>
 
       {/* Stats bar */}
-      <div className="bg-primary/20">
+      <div className="bg-primary/20 relative z-0">
         <div className="container mx-auto px-4 py-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
             {stats.map((stat) => (
-              <div key={stat.label}>
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/20 mb-3">
-                  <stat.icon className="h-6 w-6 text-primary" />
-                </div>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
-              </div>
+              <AnimatedStat 
+                key={stat.label} 
+                value={stat.value} 
+                label={stat.label} 
+                icon={stat.icon} 
+              />
             ))}
           </div>
         </div>
