@@ -3,7 +3,7 @@ import { db } from "./db";
 import {
   users, specializations, hospitals, doctorProfiles, doctorSchedules,
   appointmentSlots, appointments, payments, prescriptions, reviews, notifications,
-  platformSettings,
+  platformSettings, jobApplications,
   type User, type InsertUser,
   type Specialization, type InsertSpecialization,
   type Hospital, type InsertHospital,
@@ -19,6 +19,8 @@ import {
   type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
   type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
+  InsertJobApplication,
+  JobApplication,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -1090,6 +1092,14 @@ export class DbStorage implements IStorage {
       maintenanceMode: result[0].maintenanceMode ?? false,
       updatedAt: toISOString(result[0].updatedAt),
     };
+  }
+  
+  async createJobApplication(application: InsertJobApplication): Promise<JobApplication> {
+    const result = await db.insert(jobApplications).values(application).returning();
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+    } as JobApplication;
   }
 }
 

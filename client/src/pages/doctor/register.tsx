@@ -164,11 +164,13 @@ export default function DoctorRegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo | null>(null);
-  const [professionalInfo, setProfessionalInfo] = useState<ProfessionalInfo | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [professionalInfo, setProfessionalInfo] =
+    useState<ProfessionalInfo | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadToken, setUploadToken] = useState<string | null>(null);
-  const [authRegistrationToken, setAuthRegistrationToken] = useState< string | null >(null);
+  const [authRegistrationToken, setAuthRegistrationToken] = useState<string | null >(null);
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [fileDetails, setFileDetails] = useState<FileDetail[]>([]);
   const [isSocialFlow, setIsSocialFlow] = useState(false);
   const [, setLocation] = useLocation();
   const { login } = useAuth();
@@ -252,6 +254,12 @@ export default function DoctorRegisterPage() {
       }
     }
   }, [personalForm]);
+
+  useEffect(() => {
+    return () => {
+      fileDetails.forEach(file => URL.revokeObjectURL(file.previewUrl));
+    };
+  }, [fileDetails]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1518,7 +1526,7 @@ export default function DoctorRegisterPage() {
             <p className="mt-6 text-center text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link href="/login">
-                <Button variant="ghost" className="px-0 h-auto">
+                <Button variant="ghost" className="px-0 h-auto underline">
                   Sign in
                 </Button>
               </Link>
