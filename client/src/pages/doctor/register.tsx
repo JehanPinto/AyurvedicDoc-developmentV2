@@ -122,6 +122,14 @@ const STEPS = [
   { id: 4, title: "Bank Details", icon: Building2 },
 ];
 
+interface FileDetail {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  previewUrl: string;
+}
+
 export default function DoctorRegisterPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -129,12 +137,11 @@ export default function DoctorRegisterPage() {
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo | null>(null);
   const [professionalInfo, setProfessionalInfo] =
     useState<ProfessionalInfo | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadToken, setUploadToken] = useState<string | null>(null);
-  const [authRegistrationToken, setAuthRegistrationToken] = useState<
-    string | null
-  >(null);
+  const [authRegistrationToken, setAuthRegistrationToken] = useState<string | null >(null);
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [fileDetails, setFileDetails] = useState<FileDetail[]>([]);
   const [isSocialFlow, setIsSocialFlow] = useState(false);
   const [, setLocation] = useLocation();
   const { login } = useAuth();
@@ -211,6 +218,12 @@ export default function DoctorRegisterPage() {
       }
     }
   }, [personalForm]);
+
+  useEffect(() => {
+    return () => {
+      fileDetails.forEach(file => URL.revokeObjectURL(file.previewUrl));
+    };
+  }, [fileDetails]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -294,10 +307,38 @@ export default function DoctorRegisterPage() {
       return;
     }
 
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+    const validFiles = Array.from(files).filter(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File too large",
+          description: `${file.name} is larger than 5MB. Please select a smaller file.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length === 0) {
+      if (event.target) event.target.value = "";
+      return;
+    }
+
+    const newFileDetails = validFiles.map((file) => ({
+      id: Math.random().toString(36).substring(2, 9),
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      previewUrl: URL.createObjectURL(file),
+    }));
+
+    setFileDetails((prev) => [...prev, ...newFileDetails]);
+
     setIsUploading(true);
 
     try {
-      for (const file of Array.from(files)) {
+      for (const file of validFiles) {
         const formData = new FormData();
         formData.append("file", file);
 
@@ -331,11 +372,19 @@ export default function DoctorRegisterPage() {
       });
     } finally {
       setIsUploading(false);
+      if (event.target) event.target.value = "";
     }
   };
 
   const removeFile = (index: number) => {
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    // 👉 ALUTH WENAS KAM: Remove කරද්දී preview එකත් අයින් කරනවා
+    setFileDetails((prev) => {
+      const updated = [...prev];
+      URL.revokeObjectURL(updated[index].previewUrl); // Clear memory
+      updated.splice(index, 1);
+      return updated;
+    });
   };
 
   const handlePersonalSubmit = async (data: PersonalInfo) => {
@@ -971,17 +1020,22 @@ export default function DoctorRegisterPage() {
               </Form>
             )}
 
+            {/* Step 3 - Interactive Image/PDF Previews */}
             {currentStep === 3 && (
               <div className="space-y-6">
-                <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-medium mb-2">
-                    Upload Verification Documents
-                  </h3>
+                
+                {/* Upload Box matching Careers page style */}
+                <div 
+                  className={`border-2 border-dashed border-border rounded-xl p-10 text-center bg-background cursor-pointer hover:border-primary transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  onClick={() => !isUploading && document.getElementById("file-upload")?.click()}
+                >
+                  <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-xl font-bold text-foreground mb-2">Upload Verification Documents</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Upload your medical council registration certificate, degree
-                    certificates, and any other relevant documents.
+                    Upload your medical council registration certificate, degree certificates, and any other relevant documents.<br/>
+                    Supported Formats: PDF, JPG, PNG (Max 5MB each)
                   </p>
+                  
                   <input
                     type="file"
                     id="file-upload"
@@ -992,13 +1046,15 @@ export default function DoctorRegisterPage() {
                     disabled={isUploading}
                     data-testid="input-file-upload"
                   />
+                  
                   <Button
                     variant="outline"
-                    onClick={() =>
-                      document.getElementById("file-upload")?.click()
-                    }
+                    type="button"
                     disabled={isUploading}
-                    data-testid="button-upload-files"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent the div click from triggering again
+                      document.getElementById("file-upload")?.click();
+                    }}
                   >
                     {isUploading ? (
                       <>
@@ -1012,49 +1068,86 @@ export default function DoctorRegisterPage() {
                       </>
                     )}
                   </Button>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Supported formats: PDF, JPG, PNG (max 5MB each)
-                  </p>
                 </div>
 
-                {uploadedFiles.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Uploaded Documents</h4>
-                    {uploadedFiles.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                      >
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-primary" />
-                          <span className="text-sm truncate max-w-[200px]">
-                            Document {index + 1}
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeFile(index)}
-                          data-testid={`button-remove-file-${index}`}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                {/* Previews Grid matching Careers page logic */}
+                {fileDetails.length > 0 && (
+                  <div className="space-y-4 mt-6">
+                    <h4 className="font-medium text-foreground">Uploaded Documents</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {fileDetails.map((file, index) => {
+                        const isPdf = file.type.includes('pdf');
+                        const isImage = file.type.includes('image');
+
+                        return (
+                          <div key={file.id} className="border border-border rounded-xl p-4 bg-background shadow-sm flex flex-col">
+                            {/* File Info Header */}
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3 overflow-hidden">
+                                <div className="w-10 h-10 shrink-0 bg-primary/10 rounded-lg flex items-center justify-center">
+                                  <FileText className="w-5 h-5 text-primary" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-foreground font-semibold text-sm truncate" title={file.name}>
+                                    {file.name}
+                                  </p>
+                                  <p className="text-muted-foreground text-xs">
+                                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeFile(index);
+                                }}
+                                disabled={isUploading}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            {/* Visual Preview Section */}
+                            <div className="w-full h-[180px] bg-muted/30 rounded-lg overflow-hidden border border-border/50 flex items-center justify-center relative mt-auto">
+                              {isPdf ? (
+                                <iframe
+                                  src={`${file.previewUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                                  className="w-full h-full object-cover pointer-events-none"
+                                  title={`Preview ${index}`}
+                                />
+                              ) : isImage ? (
+                                <img
+                                  src={file.previewUrl}
+                                  alt={`Preview ${index}`}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center text-muted-foreground">
+                                  <FileText className="w-10 h-10 mb-2 opacity-30" />
+                                  <span className="text-xs">No visual preview</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
                 <div className="flex justify-between pt-4">
                   <Button variant="ghost" onClick={() => setCurrentStep(2)}>
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
+                    <ArrowLeft className="h-4 w-4 mr-2" /> Back
                   </Button>
                   <Button
                     onClick={handleDocumentsNext}
                     data-testid="button-next-step3"
                   >
-                    Next
-                    <ArrowRight className="h-4 w-4 ml-2" />
+                    Next <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
               </div>
@@ -1198,7 +1291,7 @@ export default function DoctorRegisterPage() {
             <p className="mt-6 text-center text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link href="/login">
-                <Button variant="link" className="px-0 h-auto">
+                <Button variant="ghost" className="px-0 h-auto underline">
                   Sign in
                 </Button>
               </Link>
