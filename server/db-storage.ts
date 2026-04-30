@@ -1540,25 +1540,6 @@ export class DbStorage implements IStorage {
     })) as JobApplication[];
   }
 
-  // Admin: Update job application status (PENDING, ACCEPTED, REJECTED)
-  async updateJobApplicationStatus(
-    id: string,
-    status: string,
-  ): Promise<JobApplication | undefined> {
-    const result = await db
-      .update(jobApplications)
-      .set({ status: status as any })
-      .where(eq(jobApplications.id, id))
-      .returning();
-
-    if (!result[0]) return undefined;
-
-    return {
-      ...result[0],
-      createdAt: toISOString(result[0].createdAt),
-    } as JobApplication;
-  }
-
   async getAllCareers(): Promise<Career[]> {
     const result = await db
       .select()
@@ -1592,6 +1573,21 @@ export class DbStorage implements IStorage {
       .where(eq(careers.id, id))
       .returning();
     return result.length > 0;
+  }
+
+  async updateApplicationStatus(id: string, status: string): Promise<JobApplication | undefined> {
+    const [updatedApp] = await db
+      .update(jobApplications)
+      .set({ status })
+      .where(eq(jobApplications.id, id))
+      .returning();
+
+    if (!updatedApp) return undefined;
+
+    return {
+      ...updatedApp,
+      createdAt: updatedApp.createdAt.toISOString(),
+    } as JobApplication;
   }
 }
 

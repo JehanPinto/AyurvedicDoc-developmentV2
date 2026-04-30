@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { sendApplicationEmail } from "./util/email";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { randomUUID } from "crypto";
@@ -2057,20 +2058,20 @@ export async function registerRoutes(
   });
 
   // Admin: Update application status (Accept / Reject)
-  app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const { status } = req.body;
-      if (!['ACCEPTED', 'REJECTED'].includes(status)) {
-        return res.status(400).json({ error: "Invalid status" });
-      }
+  // app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+  //   try {
+  //     const { status } = req.body;
+  //     if (!['ACCEPTED', 'REJECTED'].includes(status)) {
+  //       return res.status(400).json({ error: "Invalid status" });
+  //     }
       
-      // Create this in storage: updateJobApplicationStatus(id, status)
-      const updatedApplication = await storage.updateJobApplicationStatus(req.params.id, status);
-      res.json(updatedApplication);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update application status" });
-    }
-  });
+  //     // Create this in storage: updateJobApplicationStatus(id, status)
+  //     const updatedApplication = await storage.updateJobApplicationStatus(req.params.id, status);
+  //     res.json(updatedApplication);
+  //   } catch (error) {
+  //     res.status(500).json({ error: "Failed to update application status" });
+  //   }
+  // });
 
   // ==========================================
   // PUBLIC CAREERS ROUTE
@@ -2109,10 +2110,10 @@ export async function registerRoutes(
       const data = insertCareerSchema.parse(req.body);
       const newCareer = await storage.createCareer(data);
       
-      console.log("🟢 Career Saved:", newCareer.careerTitle);
+      console.log("Career Saved:", newCareer.careerTitle);
       res.status(201).json(newCareer);
     } catch (error) {
-      console.error("🔴 Create career error:", error);
+      console.error("Create career error:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
@@ -2133,7 +2134,7 @@ export async function registerRoutes(
       
       res.json(updatedCareer);
     } catch (error) {
-      console.error("🔴 Update career error:", error);
+      console.error("Update career error:", error);
       res.status(500).json({ error: "Failed to update career" });
     }
   });
@@ -2153,6 +2154,38 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Deactivate career error:", error);
       res.status(500).json({ error: "Failed to deactivate career" });
+    }
+  });
+
+  app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+        const { status, message } = req.body;
+        const applicationId = req.params.id;
+
+        if (!status || !['ACCEPTED', 'REJECTED'].includes(status)) {
+            return res.status(400).json({ error: "Invalid status" });
+        }
+
+        // 1. Database Status Update
+        const updatedApplication = await storage.updateApplicationStatus(applicationId, status);
+
+        if (!updatedApplication) {
+             return res.status(404).json({ error: "Application not found" });
+        }
+
+        // 2. Email send
+        await sendApplicationEmail(
+             updatedApplication.email, 
+             updatedApplication.fullName, 
+             updatedApplication.jobTitle, 
+             status as "ACCEPTED" | "REJECTED", 
+             message || "No additional comments provided."
+        );
+
+        res.json(updatedApplication);
+    } catch (error) {
+        console.error("Failed to update application status:", error);
+        res.status(500).json({ error: "Failed to update application status" });
     }
   });
 

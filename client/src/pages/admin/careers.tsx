@@ -81,6 +81,13 @@ export default function AdminCareersPage() {
     const [viewingJob, setViewingJob] = useState<Career | null>(null);
     const [selectedJob, setSelectedJob] = useState<Career | null>(null);
 
+    const [actionModal, setActionModal] = useState<{
+        isOpen: boolean;
+        type: "ACCEPTED" | "REJECTED" | null;
+        appId: string | null;
+    }>({ isOpen: false, type: null, appId: null });
+    const [actionMessage, setActionMessage] = useState("");
+
     const { data: applications = [], isLoading: isLoadingApps } = useQuery<JobApplication[]>({
         queryKey: ["/api/admin/applications"],
     });
@@ -106,21 +113,42 @@ export default function AdminCareersPage() {
     });
 
     const updateStatusMutation = useMutation({
-        mutationFn: async ({ id, status }: { id: string; status: "ACCEPTED" | "REJECTED" }) => {
-            const res = await apiRequest("PATCH", `/api/admin/applications/${id}/status`, { status });
+        mutationFn: async ({ id, status, message }: { id: string; status: "ACCEPTED" | "REJECTED", message: string }) => {
+            const res = await apiRequest("PATCH", `/api/admin/applications/${id}/status`, { status, message });
             return res;
         },
         onSuccess: (data, variables) => {
             toast({
-                title: "Status Updated",
-                description: `Application has been marked as ${variables.status.toLowerCase()}.`,
+                title: variables.status === "ACCEPTED" ? "Application Accepted" : "Application Rejected",
+                description: `Applicant has been notified via email.`,
             });
             queryClient.invalidateQueries({ queryKey: ["/api/admin/applications"] });
+            
+            // Close all modals related to applications
+            setActionModal({ isOpen: false, type: null, appId: null });
+            setIsAppModalOpen(false);
+            setActionMessage("");
+            setTimeout(() => setSelectedApp(null), 300);
         },
         onError: () => {
-            toast({ title: "Update Failed", description: "Could not change the application status.", variant: "destructive" });
+            toast({ title: "Update Failed", description: "Could not change the application status or send email.", variant: "destructive" });
         }
     });
+
+    const handleActionClick = (id: string, type: "ACCEPTED" | "REJECTED") => {
+        setActionModal({ isOpen: true, type, appId: id });
+        setActionMessage("");
+    };
+
+    const confirmAction = () => {
+        if (actionModal.appId && actionModal.type) {
+             updateStatusMutation.mutate({ 
+                 id: actionModal.appId, 
+                 status: actionModal.type,
+                 message: actionMessage 
+             });
+        }
+    };
 
     const createCareerMutation = useMutation({
         mutationFn: async (data: CareerFormValues) => {
@@ -228,11 +256,11 @@ export default function AdminCareersPage() {
         setIsAppModalOpen(true);
     };
 
-    const handleAppStatusUpdate = (id: string, status: "ACCEPTED" | "REJECTED") => {
-        updateStatusMutation.mutate({ id, status });
-        setIsAppModalOpen(false);
-        setTimeout(() => setSelectedApp(null), 300);
-    };
+    // const handleAppStatusUpdate = (id: string, status: "ACCEPTED" | "REJECTED") => {
+    //     updateStatusMutation.mutate({ id, status });
+    //     setIsAppModalOpen(false);
+    //     setTimeout(() => setSelectedApp(null), 300);
+    // };
 
     const pendingApps = applications.filter(app => app.status.toLowerCase() === "pending");
     const isPending = createCareerMutation.isPending || updateCareerMutation.isPending;
@@ -273,10 +301,10 @@ export default function AdminCareersPage() {
                                     jobTitle={app.jobTitle}
                                     applicantName={app.fullName}
                                     appliedDate={format(new Date(app.createdAt), "MMM dd, yyyy")}
-                                    isLoading={updateStatusMutation.isPending}
+                                    isLoading={updateStatusMutation.isPending && actionModal.appId === app.id}
                                     onView={() => handleViewApp(app)}
-                                    onReject={() => updateStatusMutation.mutate({ id: app.id, status: "REJECTED" })}
-                                    onAccept={() => updateStatusMutation.mutate({ id: app.id, status: "ACCEPTED" })}
+                                    onReject={() => handleActionClick(app.id, "REJECTED")}
+                                    onAccept={() => handleActionClick(app.id, "ACCEPTED")}
                                 />
                             ))
                         )}
@@ -406,7 +434,7 @@ export default function AdminCareersPage() {
                 title={selectedApp?.jobTitle || "Job Application"}
                 description={`Applied on: ${selectedApp ? format(new Date(selectedApp.createdAt), "PPP") : ""}`}
                 icon={<FileText className="w-5 h-5 text-primary" />}
-                className="max-w-4xl bg-[#eef6f1]"
+                className="max-w-4xl"
                 footer={
                     <div className="flex w-full justify-between items-center">
                         <Button variant="outline" onClick={() => setIsAppModalOpen(false)} className="rounded-full px-5 text-primary border-primary hover:bg-primary/10 bg-transparent">
@@ -415,14 +443,14 @@ export default function AdminCareersPage() {
                         <div className="flex gap-3">
                             <Button
                                 variant="outline"
-                                onClick={() => handleAppStatusUpdate(selectedApp!.id, "REJECTED")}
+                                onClick={() => handleActionClick(selectedApp!.id, "REJECTED")}
                                 disabled={updateStatusMutation.isPending}
                                 className="rounded-full px-6 text-destructive border-destructive hover:bg-destructive hover:text-white bg-transparent"
                             >
                                 Reject <Ban className="ml-2 w-4 h-4" />
                             </Button>
                             <Button
-                                onClick={() => handleAppStatusUpdate(selectedApp!.id, "ACCEPTED")}
+                                onClick={() => handleActionClick(selectedApp!.id, "ACCEPTED")}
                                 disabled={updateStatusMutation.isPending}
                                 className="rounded-full px-6 bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white shadow-sm"
                             >
@@ -444,63 +472,86 @@ export default function AdminCareersPage() {
                         <div className="flex flex-col gap-3">
                             <span className="font-bold text-foreground text-[15px]">CV/ Resume Uploaded:</span>
 
-                            <div className="relative w-full h-[600px] border border-primary/20 rounded-2xl overflow-hidden bg-white shadow-sm group">
-                                {/* PDF Preview */}
-                                {selectedApp.cvUrl.toLowerCase().includes('.pdf') ? (
-                                    <iframe
-                                        src={`${selectedApp.cvUrl}#toolbar=0`}
-                                        className="w-full h-full border-0"
-                                        title="CV Preview"
-                                    />
-                                ) : selectedApp.cvUrl.toLowerCase().match(/\.(jpeg|jpg|gif|png)$/) != null ? (
-                                    /* Image Preview */
-                                    <div className="w-full h-full flex items-center justify-center p-4">
-                                        <img
-                                            src={selectedApp.cvUrl}
-                                            alt="CV Preview"
-                                            className="max-w-full max-h-full object-contain"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground bg-gray-50">
-                                        <FileText className="w-16 h-16 mb-4 text-[#2a9d5c]/50" />
-                                        <h3 className="text-lg font-semibold text-gray-800 mb-2">Preview Not Available</h3>
-                                        <p className="text-sm mb-6 text-center max-w-md">
-                                            This file type cannot be previewed in the browser. Please download it to view the contents.
-                                        </p>
-                                        <Button
-                                            className="bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white rounded-full px-6"
-                                            onClick={() => window.open(selectedApp.cvUrl, "_blank")}
-                                        >
-                                            <Download className="mr-2 w-4 h-4" /> Download File
-                                        </Button>
-                                    </div>
-                                )}
+                            <div className="relative w-full h-[600px] rounded-2xl overflow-hidden bg-white shadow-sm group">
+                                {/* Preview Logic */}
+                                {(() => {
+                                    const url = selectedApp.cvUrl.toLowerCase();
+                                    const isPdf = url.includes('.pdf');
+                                    const isImage = url.match(/\.(jpeg|jpg|gif|png|webp)$/) != null;
 
-                                {(selectedApp.cvUrl.toLowerCase().includes('.pdf') || selectedApp.cvUrl.toLowerCase().match(/\.(jpeg|jpg|gif|png)$/) != null) && (
-                                    <div className="absolute bottom-6 right-6 flex gap-3 opacity-90 hover:opacity-100 transition-opacity">
-                                        {/* Download Button */}
-                                        <Button
-                                            variant="secondary"
-                                            className="bg-white hover:bg-gray-100 text-gray-800 rounded-full shadow-lg px-5 h-11 border border-gray-200"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                const downloadUrl = selectedApp.cvUrl.replace('/upload/', '/upload/fl_attachment/');
-                                                window.location.href = downloadUrl;
-                                            }}
-                                        >
-                                            <Download className="mr-2 w-4 h-4" /> Download
-                                        </Button>
+                                    if (isPdf) {
+                                        return (
+                                            <iframe
+                                                src={`${selectedApp.cvUrl}#toolbar=0`}
+                                                className="w-full h-full border-0"
+                                                title="CV Preview"
+                                                onError={(e) => console.error("Error loading iframe", e)}
+                                            />
+                                        );
+                                    } else if (isImage) {
+                                        return (
+                                            <div className="w-full h-full flex items-center justify-center p-4 bg-muted/10">
+                                                <img
+                                                    src={selectedApp.cvUrl}
+                                                    alt="CV Preview"
+                                                    className="max-w-full max-h-full object-contain rounded-md"
+                                                />
+                                            </div>
+                                        );
+                                    } else {
+                                        // Fallback for .doc, .docx, and other types, or if PDF fails due to CORS/Auth
+                                        return (
+                                            <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground bg-gray-50 p-6 text-center">
+                                                <FileText className="w-16 h-16 mb-4 text-[#2a9d5c]/50" />
+                                                <h3 className="text-lg font-semibold text-gray-800 mb-2">Document Preview</h3>
+                                                <p className="text-sm mb-6 max-w-md">
+                                                    This document type may not preview directly in the browser, or access is restricted. Please use the buttons below to open or download the file.
+                                                </p>
+                                            </div>
+                                        );
+                                    }
+                                })()}
 
-                                        {/* Open in New Tab Button */}
-                                        <Button
-                                            className="bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white rounded-full shadow-lg px-5 h-11"
-                                            onClick={() => window.open(selectedApp.cvUrl, "_blank")}
-                                        >
-                                            Open Full <ExternalLink className="ml-2 w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                )}
+                                {/* Action Buttons Overlay */}
+                                <div className="absolute top-4 right-4 flex gap-2 opacity-90 hover:opacity-100 transition-opacity z-10">
+                                    {/* Download Button */}
+                                    <Button
+                                        variant="secondary"
+                                        size="icon"
+                                        title="Download File"
+                                        className="bg-white/80 backdrop-blur-sm hover:bg-white text-gray-800 rounded-full shadow-sm border border-gray-200 h-10 w-10"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            // Cloudinary download trick: change /upload/ to /upload/fl_attachment/
+                                            let downloadUrl = selectedApp.cvUrl;
+                                            if (downloadUrl.includes('/upload/')) {
+                                                downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
+                                            }
+                                            // Create an invisible link to trigger download
+                                            const a = document.createElement('a');
+                                            a.href = downloadUrl;
+                                            a.download = 'Applicant_CV'; // Fallback name
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
+                                        }}
+                                    >
+                                        <Download className="w-4 h-4" />
+                                    </Button>
+
+                                    {/* Open in New Tab Button */}
+                                    <Button
+                                        size="icon"
+                                        title="Open in New Tab"
+                                        className="bg-[#2a9d5c]/90 hover:bg-[#2a9d5c] text-white rounded-full shadow-sm h-10 w-10"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            window.open(selectedApp.cvUrl, "_blank", "noopener,noreferrer");
+                                        }}
+                                    >
+                                        <ExternalLink className="w-4 h-4" />
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -508,75 +559,114 @@ export default function AdminCareersPage() {
             </Modal>
 
             <Modal
-                    isOpen={!!viewingJob}
-                    onClose={() => setViewingJob(null)}
-                    title={viewingJob?.careerTitle || "Career Details"}
-                    description={`${viewingJob?.location} • ${viewingJob?.employmentType} ${viewingJob?.salaryRange ? `• ${viewingJob.salaryRange}` : ''}`}
-                    icon={<Briefcase className="w-5 h-5 text-[#30A66F]" />}
-                    className="max-w-3xl"
-                    footer={
-                      <div className="flex w-full justify-between items-center">
+                isOpen={!!viewingJob}
+                onClose={() => setViewingJob(null)}
+                title={viewingJob?.careerTitle || "Career Details"}
+                description={`${viewingJob?.location} • ${viewingJob?.employmentType} ${viewingJob?.salaryRange ? `• ${viewingJob.salaryRange}` : ''}`}
+                icon={<Briefcase className="w-5 h-5 text-[#30A66F]" />}
+                className="max-w-3xl"
+                footer={
+                    <div className="flex w-full justify-between items-center">
                         <Button variant="outline" onClick={() => setViewingJob(null)} className="rounded-full px-6">
-                          Close
+                            Close
                         </Button>
-                        <Button
-                          onClick={() => {
-                            setSelectedJob(viewingJob);
-                            setViewingJob(null);
-                          }}
-                          className="bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white rounded-full px-8 shadow-sm"
-                        >
-                          Apply Now <ArrowUpRight className="ml-2 w-4 h-4" />
-                        </Button>
-                      </div>
-                    }
-                  >
-                    {viewingJob && (
-                      <div className="flex flex-col gap-6 text-foreground text-[15px] sm:text-base px-2 pb-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-            
+                    </div>
+                }
+            >
+                {viewingJob && (
+                    <div className="flex flex-col gap-6 text-foreground text-[15px] sm:text-base px-2 pb-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+
                         {/* Description */}
                         {viewingJob.description && (
-                          <div>
-                            <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Job Description</h4>
-                            <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
-                              {viewingJob.description}
-                            </p>
-                          </div>
+                            <div>
+                                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Job Description</h4>
+                                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                                    {viewingJob.description}
+                                </p>
+                            </div>
                         )}
-            
+
                         {/* Key Responsibilities */}
                         {viewingJob.keyResponsibilities && (
-                          <div>
-                            <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Key Responsibilities</h4>
-                            <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
-                              {viewingJob.keyResponsibilities}
-                            </p>
-                          </div>
+                            <div>
+                                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Key Responsibilities</h4>
+                                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                                    {viewingJob.keyResponsibilities}
+                                </p>
+                            </div>
                         )}
-            
+
                         {/* Qualifications */}
                         {viewingJob.requiredQualifications && (
-                          <div>
-                            <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Required Qualifications</h4>
-                            <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
-                              {viewingJob.requiredQualifications}
-                            </p>
-                          </div>
+                            <div>
+                                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Required Qualifications</h4>
+                                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                                    {viewingJob.requiredQualifications}
+                                </p>
+                            </div>
                         )}
-            
+
                         {/* Benefits */}
                         {viewingJob.benefits && (
-                          <div>
-                            <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Benefits</h4>
-                            <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
-                              {viewingJob.benefits}
-                            </p>
-                          </div>
+                            <div>
+                                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Benefits</h4>
+                                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                                    {viewingJob.benefits}
+                                </p>
+                            </div>
                         )}
-            
-                      </div>
-                    )}
-                  </Modal>
+
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={actionModal.isOpen}
+                onClose={() => setActionModal({ isOpen: false, type: null, appId: null })}
+                title={actionModal.type === "ACCEPTED" ? "Accept This Application?" : "Reject This Application?"}
+                description={actionModal.type === "ACCEPTED" ? "Do you want to accept this application?" : "Do you want to permanently reject this application?"}
+                className="max-w-2xl"
+                icon={actionModal.type === "ACCEPTED" ? <CheckCircle className="w-5 h-5 text-[#2a9d5c]" /> : <Ban className="w-5 h-5 text-[#d32f2f]" />}
+                footer={
+                    <div className="flex w-full justify-center gap-4 mt-4">
+                        <Button 
+                            variant="outline" 
+                            onClick={() => setActionModal({ isOpen: false, type: null, appId: null })} 
+                            className="rounded-full px-6 text-[#2a9d5c] border-[#2a9d5c] hover:bg-[#2a9d5c]/10"
+                        >
+                            <ArrowLeft className="mr-2 w-4 h-4" /> Back to Application
+                        </Button>
+                        <Button 
+                            onClick={confirmAction}
+                            disabled={updateStatusMutation.isPending || (actionModal.type === "REJECTED" && actionMessage.trim() === "")}
+                            className={`rounded-full px-8 text-white ${
+                                actionModal.type === "ACCEPTED" 
+                                    ? "bg-[#2a9d5c] hover:bg-[#2a9d5c]/90" 
+                                    : "bg-[#d32f2f] hover:bg-[#b71c1c]"
+                            }`}
+                        >
+                            {updateStatusMutation.isPending ? "Processing..." : (actionModal.type === "ACCEPTED" ? "Accept" : "Reject")}
+                            {actionModal.type === "REJECTED" && <Ban className="ml-2 w-4 h-4" />}
+                            {actionModal.type === "ACCEPTED" && <CheckCircle className="ml-2 w-4 h-4" />}
+                        </Button>
+                    </div>
+                }
+            >
+                <div className="flex flex-col gap-2 p-2">
+                    <label className="text-sm font-medium text-gray-700">
+                        {actionModal.type === "ACCEPTED" 
+                            ? "Give a brief explanation of the next steps:" 
+                            : "Tell why you reject this application to the person who applied:"}
+                        {actionModal.type === "REJECTED" && <span className="text-red-500">*</span>}
+                    </label>
+                    <Textarea 
+                        placeholder={actionModal.type === "ACCEPTED" ? "Enter the explanation..." : "Enter the reason..."}
+                        value={actionMessage}
+                        onChange={(e) => setActionMessage(e.target.value)}
+                        className="min-h-[250px] rounded-xl border-gray-300 focus-visible:ring-[#2a9d5c]"
+                    />
+                </div>
+            </Modal>
         </div>
     );
 }
