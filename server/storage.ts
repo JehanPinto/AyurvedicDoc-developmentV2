@@ -130,6 +130,7 @@ export interface IStorage {
   getPlatformSettings(): Promise<PlatformSettings>;
   updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings>;
   createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
+  getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -1084,6 +1085,12 @@ export class MemStorage implements IStorage {
       updatedAt: new Date().toISOString() 
     };
     return this.platformSettings;
+  }
+
+  async getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined> {
+    return Array.from(this.doctorProfiles.values()).find(
+      (profile) => profile.registrationNumber === registrationNumber
+    );
   }
 }
 

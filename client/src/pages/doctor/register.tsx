@@ -16,6 +16,7 @@ import {
   GraduationCap,
   FileText,
   Building2,
+  PlusCircle,
 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -147,6 +148,10 @@ export default function DoctorRegisterPage() {
   const { login } = useAuth();
   const { toast } = useToast();
 
+  const [customSpecs, setCustomSpecs] = useState<{id: string, name: string}[]>([]);
+  const [isOtherChecked, setIsOtherChecked] = useState(false);
+  const [otherInputValue, setOtherInputValue] = useState("");
+
   const { data: specializations = [] } = useQuery<Specialization[]>({
     queryKey: ["/api/specializations"],
   });
@@ -155,6 +160,22 @@ export default function DoctorRegisterPage() {
     () => buildPersonalInfoSchema(!isSocialFlow),
     [isSocialFlow],
   );
+
+  const handleAddCustomSpec = (e?: React.MouseEvent | React.KeyboardEvent) => {
+    if (e) e.preventDefault();
+    if (!otherInputValue.trim()) return;
+    
+    const newSpecId = `custom-${otherInputValue.trim()}`;
+    
+    if (!customSpecs.find(s => s.id === newSpecId)) {
+      setCustomSpecs(prev => [...prev, { id: newSpecId, name: otherInputValue.trim() }]);
+      
+      const currentValues = professionalForm.getValues("specializationIds") || [];
+      professionalForm.setValue("specializationIds", [...currentValues, newSpecId], { shouldValidate: true });
+    }
+    
+    setOtherInputValue("");
+  };
 
   const personalForm = useForm<PersonalInfo>({
     resolver: zodResolver(personalSchema),
@@ -826,43 +847,85 @@ export default function DoctorRegisterPage() {
                   <FormField
                     control={professionalForm.control}
                     name="specializationIds"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Specializations *</FormLabel>
-                        <div className="grid grid-cols-2 gap-2">
-                          {specializations.map((spec) => (
-                            <div
-                              key={spec.id}
-                              className="flex items-center space-x-2"
-                            >
+                    render={({ field }) => {
+                      // API එකෙන් එන ඒවායි, අපි අලුතින් ගහන ඒවායි එකට එකතු කරනවා
+                      const allSpecs = [...specializations, ...customSpecs];
+
+                      return (
+                        <FormItem>
+                          <FormLabel>Specializations *</FormLabel>
+                          <div className="grid grid-cols-2 gap-2">
+                            {allSpecs.map((spec) => (
+                              <div
+                                key={spec.id}
+                                className="flex items-center space-x-2"
+                              >
+                                <Checkbox
+                                  id={spec.id}
+                                  checked={field.value.includes(spec.id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      field.onChange([...field.value, spec.id]);
+                                    } else {
+                                      field.onChange(
+                                        field.value.filter(
+                                          (id) => id !== spec.id,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={spec.id}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {spec.name}
+                                </label>
+                              </div>
+                            ))}
+
+                            <div className="flex items-center space-x-2">
                               <Checkbox
-                                id={spec.id}
-                                checked={field.value.includes(spec.id)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    field.onChange([...field.value, spec.id]);
-                                  } else {
-                                    field.onChange(
-                                      field.value.filter(
-                                        (id) => id !== spec.id,
-                                      ),
-                                    );
-                                  }
-                                }}
-                                data-testid={`checkbox-spec-${spec.id}`}
+                                id="other-spec"
+                                checked={isOtherChecked}
+                                onCheckedChange={(checked) => setIsOtherChecked(!!checked)}
                               />
                               <label
-                                htmlFor={spec.id}
+                                htmlFor="other-spec"
                                 className="text-sm cursor-pointer"
                               >
-                                {spec.name}
+                                Other (+ Add new)
                               </label>
                             </div>
-                          ))}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                          </div>
+
+                          {isOtherChecked && (
+                            <div className="flex items-center gap-2 mt-3 bg-muted/30 rounded-xl animate-in fade-in zoom-in duration-200">
+                              <Input
+                                placeholder="Type new specialization..."
+                                value={otherInputValue}
+                                onChange={(e) => setOtherInputValue(e.target.value)}
+                                className="flex-1 bg-background h-9"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleAddCustomSpec(e);
+                                  }
+                                }}
+                              />
+                              <Button 
+                                type="button" 
+                                onClick={handleAddCustomSpec}
+                                size="sm"
+                                className="h-9 px-4 shrink-0 bg-primary hover:bg-primary/80 text-primary-foreground"
+                              >
+                                <PlusCircle className="h-4 w-4 mr-1.5" /> Add
+                              </Button>
+                            </div>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
 
                   <FormField

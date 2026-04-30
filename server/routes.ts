@@ -180,6 +180,7 @@ import {
   insertSpecializationSchema, insertDoctorScheduleSchema, insertAppointmentSlotSchema,
   bookingSchema, doctorSearchSchema,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus, PaymentMethod, AuthProvider, Language, ConsultationType,
+  doctorProfiles,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -355,6 +356,14 @@ export async function registerRoutes(
       if (existingUser) {
         return res.status(400).json({ error: "Email already registered" });
       }
+
+      if (req.body.registrationNumber) {
+        const existingDoctor = await storage.getDoctorByRegistrationNumber(req.body.registrationNumber);
+        
+        if (existingDoctor) {
+          return res.status(400).json({ error: "Please check SLAMC number again." });
+        }
+      }
       
       const hashedPassword = await hashPassword(userData.password);
       const user = await storage.createUser({ ...userData, password: hashedPassword });
@@ -501,8 +510,28 @@ export async function registerRoutes(
       const { email, password } = loginSchema.parse(req.body);
       
       const user = await storage.getUserByEmail(email);
+
       if (!user || !(await verifyPassword(password, user.password))) {
         return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      if (user.role === UserRole.DOCTOR) {
+        const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
+        
+        if (doctorProfile) {
+          
+          if (doctorProfile.status === DoctorStatus.SUSPENDED) {
+            return res.status(403).json({ error: "Your doctor account has been suspended by the administrator." });
+          }
+
+          if (doctorProfile.status === DoctorStatus.REJECTED) {
+             return res.status(403).json({ error: "Your doctor account application was rejected." });
+          }
+        }
+      }
+
+      if (user.isActive === false) {
+         return res.status(403).json({ error: "Your account has been deactivated." });
       }
 
       if (!user.registrationComplete && user.provider !== AuthProvider.LOCAL) {
