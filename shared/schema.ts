@@ -768,3 +768,49 @@ export interface AdminDashboardStats {
   totalRevenue: number;
   platformEarnings: number;
 }
+
+// ================== CAREERS / JOB APPLICATIONS ==================
+export const jobApplications = pgTable("job_applications", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id", { length: 50 }).notNull(),
+  jobTitle: varchar("job_title", { length: 255 }).notNull(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  cvUrl: text("cv_url").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertJobApplicationSchemaDb = createInsertSchema(jobApplications).omit({
+  id: true,
+  status: true,
+  createdAt: true,
+});
+
+export const insertJobApplicationSchema = z.object({
+  jobId: z.string(),
+  jobTitle: z.string(),
+  fullName: z.string().min(2, "Full name is required"),
+  email: z.string().email("Invalid email address"),
+  cvUrl: z.string().url("Invalid CV URL"),
+});
+
+export type InsertJobApplication = z.infer<typeof insertJobApplicationSchema>;
+
+export interface JobApplication extends InsertJobApplication {
+  id: string;
+  status: string;
+  createdAt: string;
+}
+
+export const blogs = pgTable("blogs", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content"),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  image: text("image"),
+  authorId: varchar("author_id", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

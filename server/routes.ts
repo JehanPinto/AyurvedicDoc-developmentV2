@@ -9,6 +9,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import rateLimit from "express-rate-limit";
 import { upload } from "../config/cloudinary";
 import path from "path";
+import type { File as MulterFile } from "multer";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): {
@@ -219,6 +220,10 @@ interface AuthenticatedRequest extends Request {
     role: string;
     fullName: string;
   };
+}
+
+interface RequestWithFile extends Request {
+  file?: MulterFile;
 }
 
 if (!process.env.SESSION_SECRET) {
@@ -1012,52 +1017,45 @@ export async function registerRoutes(
     }
   });
 
-  app.post(
-    "/api/upload",
-    uploadLimiter,
-    upload.single("file"),
-    async (req: Request, res: Response) => {
-      try {
-        const token = req.headers["x-registration-token"] as string;
-        const email = req.headers["x-registration-email"] as string;
-        const session = validateRegistrationSession(token);
+app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: RequestWithFile, res: Response) => {
+    try {
+      const token = req.headers["x-registration-token"] as string;
+      const email = req.headers["x-registration-email"] as string;
+      const session = validateRegistrationSession(token);
 
-        if (!session) {
-          return res
-            .status(401)
-            .json({ error: "Invalid or expired registration session" });
-        }
+      if (!session) {
+        return res.status(401).json({ error: "Invalid or expired registration session" });
+      }
 
-        if (!email || email.toLowerCase() !== session.email) {
-          return res
-            .status(401)
-            .json({ error: "Email mismatch with registration session" });
-        }
+      if (!email || email.toLowerCase() !== session.email) {
+        return res.status(401).json({ error: "Email mismatch with registration session" });
+      }
 
-        if (session.uploadCount >= MAX_UPLOADS_PER_SESSION) {
-          return res
-            .status(429)
-            .json({ error: "Maximum uploads reached for this session" });
-        }
+      if (session.uploadCount >= MAX_UPLOADS_PER_SESSION) {
+        return res.status(429).json({ error: "Maximum uploads reached for this session" });
+      }
 
-        if (!req.file) {
-          return res.status(400).json({ error: "No file uploaded" });
-        }
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
 
-        // With Cloudinary, req.file.path contains the full cloud URL
-        const fileUrl = req.file.path;
-        session.uploadedFiles.push(fileUrl);
-        session.uploadCount++;
+      // With Cloudinary, req.file.path contains the full cloud URL
+      const fileUrl = req.file.path;
+      session.uploadedFiles.push(fileUrl);
+      session.uploadCount++;
 
-        res.json({
-          url: fileUrl,
-          filename: req.file.filename,
-          originalName: req.file.originalname,
-          size: req.file.size,
-          cloudinary: true, // Indicates this is a Cloudinary URL
-        });
-      } catch (error) {
-        res.status(500).json({ error: "Failed to upload file" });
+      res.json({
+        url: fileUrl,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        cloudinary: true,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  }
+);
       }
     },
   );
@@ -2591,15 +2589,11 @@ export async function registerRoutes(
   );
 
   // Profile image upload endpoint for authenticated users
-  app.post(
-    "/api/users/profile-image",
-    authMiddleware,
-    upload.single("image"),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        if (!req.file) {
-          return res.status(400).json({ error: "No image uploaded" });
-        }
+  app.post("/api/users/profile-image", authMiddleware, upload.single("image"), async (req: AuthenticatedRequest & { file?: MulterFile }, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No image uploaded" });
+      }
 
         // Validate file type
         const allowedTypes = [
@@ -2709,6 +2703,37 @@ export async function registerRoutes(
       }
     },
   );
+
+  // Job Application Submission Endpoint
+  app.post("/api/careers/apply", uploadLimiter, upload.single("cv"), async (req: RequestWithFile, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "CV file is required" });
+      }
+
+      // Cloudinary එකෙන් එන URL එක
+      const cvUrl = req.file.path; 
+      const { jobId, jobTitle, fullName, email } = req.body;
+
+      if (!jobId || !jobTitle || !fullName || !email) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const applicationData = {
+        jobId,
+        jobTitle,
+        fullName,
+        email,
+        cvUrl
+      };
+
+      const savedApplication = await storage.createJobApplication(applicationData);
+      res.status(201).json(savedApplication);
+    } catch (error) {
+      console.error("Career application error:", error);
+      res.status(500).json({ error: "Failed to submit application. Please try again." });
+    }
+  });
 
   return httpServer;
 }
