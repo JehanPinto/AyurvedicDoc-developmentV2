@@ -64,35 +64,32 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-14 md:h-16 items-center justify-between px-4 gap-2 md:gap-4">
-        <div className="flex items-center gap-4 md:gap-6 lg:gap-8">
-          <Link href="/" data-testid="link-home">
-            <div className="flex items-center gap-2 cursor-pointer">
-              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">A</span>
-              </div>
-              <span className="font-heading font-bold text-xl hidden lg:block">
-                AyurvedicDoctor
-              </span>
-            </div>
-          </Link>
+    <header className="sticky top-0 z-50 w-full border-b border-black dark:border-white bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4 gap-4">
+        {/* Left: Logo */}
+        <Link href="/" data-testid="link-home">
+          <div className="flex items-center cursor-pointer">
+            <img src="/logo-light.png" alt="AyurPath" className="h-8 w-auto dark:hidden" />
+            <img src="/logo-dark.png" alt="AyurPath" className="h-8 w-auto hidden dark:block" />
+          </div>
+        </Link>
 
-          <nav className="hidden lg:flex items-center gap-1">
-            {publicNavItems.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <Button 
-                  variant="ghost" 
-                  className={location === item.href ? "text-orange-500 bg-orange-500/10" : ""}
-                  data-testid={`link-nav-${item.label.toLowerCase().replace(" ", "-")}`}
-                >
-                  {item.label}
-                </Button>
-              </Link>
-            ))}
-          </nav>
-        </div>
+        {/* Center: Nav */}
+        <nav className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
+          {publicNavItems.map((item) => (
+            <Link key={item.href} href={item.href}>
+              <Button
+                variant="ghost"
+                className={location === item.href ? "bg-accent" : ""}
+                data-testid={`link-nav-${item.label.toLowerCase().replace(" ", "-")}`}
+              >
+                {item.label}
+              </Button>
+            </Link>
+          ))}
+        </nav>
 
+        {/* Right: Actions */}
         <div className="flex items-center gap-2">
           <ThemeToggle />
 
