@@ -25,6 +25,7 @@ import PatientDashboard from "@/pages/patient/dashboard";
 import PatientAppointmentsPage from "@/pages/patient/appointments";
 import PatientReviewsPage from "@/pages/patient/reviews";
 import PatientSettingsPage from "@/pages/patient/settings";
+import VerifyPhonePage from "@/pages/patient/verify-phone";
 import DoctorDashboard from "@/pages/doctor/dashboard";
 import DoctorRegisterPage from "@/pages/doctor/register";
 import DoctorAppointmentsPage from "@/pages/doctor/appointments";
@@ -41,7 +42,10 @@ import AdminPaymentsPage from "@/pages/admin/payments";
 import AdminSettingsPage from "@/pages/admin/settings";
 import NotFound from "@/pages/not-found";
 import EmailVerificationPage from "./pages/email-verification";
+import HelpDetailsPage from "./pages/help-details";
+import HelpCenterPage from "./pages/help-center";
 
+import CareerPage from "./pages/careers";
 
 function ProtectedRoute({ 
   children, 
@@ -93,6 +97,10 @@ function Router() {
       <Route path="/doctors" component={DoctorsPage} />
       <Route path="/doctors/:id" component={DoctorProfilePage} />
       <Route path="/email-verification" component={EmailVerificationPage} />
+      <Route path="/details" component={HelpDetailsPage} />
+      <Route path="/help" component={HelpCenterPage} />
+      <Route path="/careers" component={CareerPage} />
+
       <Route path="/book/:doctorId">
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
           <BookAppointmentPage />
@@ -115,6 +123,7 @@ function Router() {
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientReviewsPage} />
               <Route path="/patient/settings" component={PatientSettingsPage} />
+              <Route path="/patient/verify-phone" component={VerifyPhonePage} />
               <Route component={NotFound} />
             </Switch>
           </DashboardLayout>
