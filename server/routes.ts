@@ -1,15 +1,35 @@
-import type { Express, Request, Response, NextFunction } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { randomUUID } from "crypto";
-import { createHash } from "crypto";
+import {
+  AppointmentStatus,
+  AuthProvider,
+  bookingSchema,
+  ConsultationType,
+  DoctorStatus,
+  insertAppointmentSlotSchema,
+  insertDoctorProfileSchema,
+  insertDoctorScheduleSchema,
+  insertHospitalSchema,
+  insertPrescriptionSchema,
+  insertReviewSchema,
+  insertSpecializationSchema,
+  insertUserSchema,
+  Language,
+  loginSchema,
+  PaymentMethod,
+  PaymentStatus,
+  UserRole,
+} from "@shared/schema";
 import bcrypt from "bcrypt";
+import { createHash, randomUUID } from "crypto";
+import type { Express, NextFunction, Request, Response } from "express";
+import rateLimit from "express-rate-limit";
+import { type Server } from "http";
+import type { File as MulterFile } from "multer";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import rateLimit from "express-rate-limit";
-import { upload } from "../config/cloudinary";
 import path from "path";
-import type { File as MulterFile } from "multer";
+import { z } from "zod";
+import { upload } from "../config/cloudinary";
+import { storage } from "./storage";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): {
@@ -42,7 +62,7 @@ function validatePasswordStrength(password: string): {
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 5 : 100,
+  max: process.env.NODE_ENV === "production" ? 5 : 100,
   message: { error: "Too many login attempts, try again later" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -50,7 +70,7 @@ const loginLimiter = rateLimit({
 
 const registrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 3 : 100,
+  max: process.env.NODE_ENV === "production" ? 3 : 100,
   message: { error: "Too many registration attempts, try again later" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -58,7 +78,7 @@ const registrationLimiter = rateLimit({
 
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 10 : 1000,
+  max: process.env.NODE_ENV === "production" ? 10 : 1000,
   message: { error: "Too many upload attempts, try again later" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -187,31 +207,6 @@ function consumeSession(token: string): string[] | null {
   registrationSessions.delete(token);
   return files;
 }
-import {
-  insertUserSchema,
-  loginSchema,
-  insertDoctorProfileSchema,
-  insertAppointmentSchema,
-  insertPaymentSchema,
-  insertPrescriptionSchema,
-  insertReviewSchema,
-  insertNotificationSchema,
-  insertHospitalSchema,
-  insertSpecializationSchema,
-  insertDoctorScheduleSchema,
-  insertAppointmentSlotSchema,
-  bookingSchema,
-  doctorSearchSchema,
-  UserRole,
-  DoctorStatus,
-  AppointmentStatus,
-  PaymentStatus,
-  PaymentMethod,
-  AuthProvider,
-  Language,
-  ConsultationType,
-} from "@shared/schema";
-import { z } from "zod";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -396,71 +391,6 @@ export async function registerRoutes(
           ...data,
           password: hashedPassword,
         });
-      }
-      
-      const existingUser = await storage.getUserByEmail(userData.email);
-      if (existingUser) {
-        return res.status(400).json({ error: "Email already registered" });
-      }
-      
-      const hashedPassword = await hashPassword(userData.password);
-      const user = await storage.createUser({ ...userData, password: hashedPassword });
-      
-      const verificationDocs = sessionFiles.length > 0 
-        ? sessionFiles 
-        : (req.body.verificationDocuments || []);
-      
-      const rawDoctorData = {
-        userId: user.id,
-        registrationNumber: req.body.registrationNumber,
-        qualifications: req.body.qualifications,
-        biography: req.body.biography || "",
-        specializationIds: req.body.specializationIds || [],
-        languagesSpoken: req.body.languagesSpoken || ["english"],
-        consultationTypes: req.body.consultationTypes || ["in_person"],
-        consultationFee: parseInt(req.body.consultationFee) || 0,
-        onlineConsultationFee: req.body.onlineConsultationFee ? parseInt(req.body.onlineConsultationFee) : undefined,
-        homeVisitFee: req.body.homeVisitFee ? parseInt(req.body.homeVisitFee) : undefined,
-        verificationDocuments: verificationDocs,
-        bankName: req.body.bankName || null,
-        bankAccountNumber: req.body.bankAccountNumber || null,
-        bankBranch: req.body.bankBranch || null,
-        status: DoctorStatus.PENDING,
-      };
-
-      const doctorData = insertDoctorProfileSchema.parse(rawDoctorData);
-      
-      const doctorProfile = await storage.createDoctorProfile(doctorData);
-
-      // Notify all admins about new doctor registration
-      const admins = await storage.getAllUsers("admin");
-      await Promise.all(admins.map((admin) =>
-        storage.createNotification({
-          userId: admin.id,
-          title: "New doctor registration",
-          message: `Submitted credentials: SLMC reg. #${doctorProfile.registrationNumber}, ${doctorData.qualifications}. Waiting for verification queue.`,
-          type: "system",
-          isRead: false,
-          relatedId: doctorProfile.id,
-        })
-      ));
-
-      const token = generateToken({ id: user.id, email: user.email, role: user.role, fullName: user.fullName });
-
-      const { password: _, ...userWithoutPassword } = user;
-      res.status(201).json({ user: userWithoutPassword, token });
-    } catch (error: any) {
-      console.error("\n🔥 DOCTOR REG ERROR 🔥");
-      console.error(error);
-      
-      if (error instanceof z.ZodError) {
-        console.error("ZOD VALIDATION FAILED:", JSON.stringify(error.errors, null, 2));
-        return res.status(400).json({ error: "Validation Error", details: error.errors });
-      }
-      
-      res.status(500).json({ error: "Doctor registration failed", details: error?.message || "Unknown server error" });
-    }
-  });
 
         const token = generateToken({
           id: user.id,
@@ -471,11 +401,13 @@ export async function registerRoutes(
 
         const { password: _, ...userWithoutPassword } = user;
         res.status(201).json({ user: userWithoutPassword, token });
-      } catch (error) {
+      } catch (error: any) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
         }
-        res.status(500).json({ error: "Registration failed" });
+        res
+          .status(500)
+          .json({ error: "Registration failed", details: error?.message });
       }
     },
   );
@@ -739,12 +671,10 @@ export async function registerRoutes(
           !user.registrationComplete &&
           user.provider !== AuthProvider.LOCAL
         ) {
-          return res
-            .status(400)
-            .json({
-              error:
-                "Please finish signing up with your social account before logging in.",
-            });
+          return res.status(400).json({
+            error:
+              "Please finish signing up with your social account before logging in.",
+          });
         }
 
         const token = generateToken({
@@ -1059,20 +989,16 @@ export async function registerRoutes(
       const clientIp = req.ip || req.socket.remoteAddress || "unknown";
 
       if (!checkSessionCreationLimit(clientIp)) {
-        return res
-          .status(429)
-          .json({
-            error: "Too many registration attempts. Please try again later.",
-          });
+        return res.status(429).json({
+          error: "Too many registration attempts. Please try again later.",
+        });
       }
 
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
-        return res
-          .status(400)
-          .json({
-            error: "This email is already registered. Please login instead.",
-          });
+        return res.status(400).json({
+          error: "This email is already registered. Please login instead.",
+        });
       }
 
       const token = createRegistrationSession(email);
@@ -1082,45 +1008,52 @@ export async function registerRoutes(
     }
   });
 
-app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: RequestWithFile, res: Response) => {
-    try {
-      const token = req.headers["x-registration-token"] as string;
-      const email = req.headers["x-registration-email"] as string;
-      const session = validateRegistrationSession(token);
+  app.post(
+    "/api/upload",
+    uploadLimiter,
+    upload.single("file"),
+    async (req: RequestWithFile, res: Response) => {
+      try {
+        const token = req.headers["x-registration-token"] as string;
+        const email = req.headers["x-registration-email"] as string;
+        const session = validateRegistrationSession(token);
 
-      if (!session) {
-        return res.status(401).json({ error: "Invalid or expired registration session" });
-      }
+        if (!session) {
+          return res
+            .status(401)
+            .json({ error: "Invalid or expired registration session" });
+        }
 
-      if (!email || email.toLowerCase() !== session.email) {
-        return res.status(401).json({ error: "Email mismatch with registration session" });
-      }
+        if (!email || email.toLowerCase() !== session.email) {
+          return res
+            .status(401)
+            .json({ error: "Email mismatch with registration session" });
+        }
 
-      if (session.uploadCount >= MAX_UPLOADS_PER_SESSION) {
-        return res.status(429).json({ error: "Maximum uploads reached for this session" });
-      }
+        if (session.uploadCount >= MAX_UPLOADS_PER_SESSION) {
+          return res
+            .status(429)
+            .json({ error: "Maximum uploads reached for this session" });
+        }
 
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
 
-      // With Cloudinary, req.file.path contains the full cloud URL
-      const fileUrl = req.file.path;
-      session.uploadedFiles.push(fileUrl);
-      session.uploadCount++;
+        // With Cloudinary, req.file.path contains the full cloud URL
+        const fileUrl = req.file.path;
+        session.uploadedFiles.push(fileUrl);
+        session.uploadCount++;
 
-      res.json({
-        url: fileUrl,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        cloudinary: true,
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to upload file" });
-    }
-  }
-);
+        res.json({
+          url: fileUrl,
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          size: req.file.size,
+          cloudinary: true,
+        });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to upload file" });
       }
     },
   );
@@ -1175,7 +1108,6 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
     },
   );
 
-  
   // ================== BLOG ROUTES ==================
   app.get("/api/blogs", async (_req: Request, res: Response) => {
     try {
@@ -1186,23 +1118,33 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
     }
   });
 
-  app.post("/api/blogs", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const blog = await storage.createBlog(req.body);
-      res.status(201).json(blog);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create blog" });
-    }
-  });
+  app.post(
+    "/api/blogs",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const blog = await storage.createBlog(req.body);
+        res.status(201).json(blog);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to create blog" });
+      }
+    },
+  );
 
-  app.delete("/api/blogs/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      await storage.deleteBlog(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete blog" });
-    }
-  });
+  app.delete(
+    "/api/blogs/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        await storage.deleteBlog(req.params.id);
+        res.json({ success: true });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to delete blog" });
+      }
+    },
+  );
 
   app.get("/api/specializations", async (_req: Request, res: Response) => {
     try {
@@ -1213,27 +1155,35 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
     }
   });
 
-  app.post("/api/specializations", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const data = insertSpecializationSchema.parse(req.body);
-      const specialization = await storage.createSpecialization(data);
+  app.post(
+    "/api/specializations",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const data = insertSpecializationSchema.parse(req.body);
+        const specialization = await storage.createSpecialization(data);
 
-      // Announce new specialization to all patients
-      const patients = await storage.getAllUsers("patient");
-      await Promise.all(patients.map((p) =>
-        storage.createNotification({
-          userId: p.id,
-          title: "New specialization available",
-          message: `${specialization.name} is now available on AyurvedicDoctor. Book a consultation with our specialists today.`,
-          type: "system",
-          isRead: false,
-        })
-      ));
+        // Announce new specialization to all patients
+        const patients = await storage.getAllUsers("patient");
+        await Promise.all(
+          patients.map((p) =>
+            storage.createNotification({
+              userId: p.id,
+              title: "New specialization available",
+              message: `${specialization.name} is now available on AyurvedicDoctor. Book a consultation with our specialists today.`,
+              type: "system",
+              isRead: false,
+            }),
+          ),
+        );
 
-      res.status(201).json(specialization);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        res.status(201).json(specialization);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create specialization" });
       }
     },
   );
@@ -1312,18 +1262,29 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
   app.get("/api/doctors/search", async (req: Request, res: Response) => {
     try {
       const query = req.query.q?.toString().toLowerCase();
-      
+
       if (!query || query.length < 2) {
         return res.json([]);
       }
 
-      const allDoctors = await storage.getAllDoctors({ status: DoctorStatus.VERIFIED }); 
-      
-      const searchResults = allDoctors.filter((d: any) => 
-        d.user?.fullName.toLowerCase().includes(query) ||
-        d.specializations?.some((s: any) => s.name.toLowerCase().includes(query)) ||
-        d.hospitals?.some((h: any) => h.name.toLowerCase().includes(query) || h.city.toLowerCase().includes(query))
-      ).slice(0, 5);
+      const allDoctors = await storage.getAllDoctors({
+        status: DoctorStatus.VERIFIED,
+      });
+
+      const searchResults = allDoctors
+        .filter(
+          (d: any) =>
+            d.user?.fullName.toLowerCase().includes(query) ||
+            d.specializations?.some((s: any) =>
+              s.name.toLowerCase().includes(query),
+            ) ||
+            d.hospitals?.some(
+              (h: any) =>
+                h.name.toLowerCase().includes(query) ||
+                h.city.toLowerCase().includes(query),
+            ),
+        )
+        .slice(0, 5);
 
       res.json(searchResults);
     } catch (error) {
@@ -1521,28 +1482,10 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
           return res.status(404).json({ error: "Doctor profile not found" });
         }
 
-  app.patch("/api/doctor/appointments/:id/call", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const appointment = await storage.getAppointment(req.params.id);
-      if (!appointment) {
-        return res.status(404).json({ error: "Appointment not found" });
-      }
-      
-      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
-      if (!profile || appointment.doctorId !== profile.id) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      
-      const updated = await storage.markAppointmentAsCalled(req.params.id);
-      
-      if (updated) {
-        await storage.createNotification({
-          userId: updated.patientId,
-          title: "You're Being Called",
-          message: "The doctor is ready for you. Please proceed to the consultation room.",
-          type: "appointment",
-          isRead: false,
-          relatedId: updated.id,
+        // Add this missing code:
+        const data = insertAppointmentSlotSchema.parse({
+          ...req.body,
+          doctorId: profile.id,
         });
         const slot = await storage.createAppointmentSlot(data);
         res.status(201).json(slot);
@@ -1551,6 +1494,46 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
           return res.status(400).json({ error: error.errors });
         }
         res.status(500).json({ error: "Failed to create slot" });
+      }
+    },
+  );
+
+  app.patch(
+    "/api/doctor/appointments/:id/call",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const appointment = await storage.getAppointment(req.params.id);
+        if (!appointment) {
+          return res.status(404).json({ error: "Appointment not found" });
+        }
+
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+        if (!profile || appointment.doctorId !== profile.id) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+
+        const updated = await storage.markAppointmentAsCalled(req.params.id);
+
+        if (updated) {
+          await storage.createNotification({
+            userId: updated.patientId,
+            title: "You're Being Called",
+            message:
+              "The doctor is ready for you. Please proceed to the consultation room.",
+            type: "appointment",
+            isRead: false,
+            relatedId: updated.id,
+          });
+        }
+
+        res.status(200).json({ success: true });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: error.errors });
+        }
+        res.status(500).json({ error: "Failed to call appointment" });
       }
     },
   );
@@ -1566,141 +1549,152 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
       } catch (error) {
         res.status(500).json({ error: "Failed to block slot" });
       }
-      
-      const updated = await storage.markAppointmentNoShow(req.params.id);
+    },
+  );
 
-      if (updated) {
-        const doctorUser = await storage.getUser(profile.userId);
+  app.post(
+    "/api/appointments",
+    authMiddleware,
+    roleMiddleware(UserRole.PATIENT),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const bookingData = bookingSchema.parse(req.body);
+
+        const slot = await storage.getAppointmentSlot(bookingData.slotId);
+        if (!slot || slot.isBooked || slot.isBlocked) {
+          return res.status(400).json({ error: "Slot not available" });
+        }
+
+        const doctor = await storage.getDoctorProfile(bookingData.doctorId);
+        if (!doctor || doctor.status !== DoctorStatus.VERIFIED) {
+          return res.status(400).json({ error: "Doctor not available" });
+        }
+
+        const appointmentData = {
+          patientId: req.user!.id,
+          doctorId: bookingData.doctorId,
+          slotId: bookingData.slotId,
+          hospitalId: bookingData.hospitalId,
+          appointmentDate: slot.date,
+          appointmentTime: slot.startTime,
+          consultationType: bookingData.consultationType,
+          symptoms: bookingData.symptoms,
+          isForDependent: bookingData.isForDependent,
+          dependentName: bookingData.dependentName,
+          dependentAge: bookingData.dependentAge,
+          dependentGender: bookingData.dependentGender,
+          dependentContact: bookingData.dependentContact,
+          status: AppointmentStatus.PENDING,
+        };
+
+        const appointment = await storage.createAppointment(appointmentData);
+
+        let consultationFee = doctor.consultationFee;
+        if (
+          bookingData.consultationType === "online" &&
+          doctor.onlineConsultationFee
+        ) {
+          consultationFee = doctor.onlineConsultationFee;
+        } else if (
+          bookingData.consultationType === "home_visit" &&
+          doctor.homeVisitFee
+        ) {
+          consultationFee = doctor.homeVisitFee;
+        }
+
+        // Get platform settings for fee calculations
+        const platformSettings = await storage.getPlatformSettings();
+        const bookingCharges = platformSettings.bookingCharges;
+        const tax = Math.round(
+          consultationFee * (platformSettings.taxRate / 100),
+        );
+        const platformCommission = Math.round(
+          consultationFee * (platformSettings.platformCommissionRate / 100),
+        );
+        const doctorEarnings = consultationFee - platformCommission;
+        const totalAmount = consultationFee + bookingCharges + tax;
+
+        const paymentData = {
+          appointmentId: appointment.id,
+          patientId: req.user!.id,
+          doctorId: bookingData.doctorId,
+          consultationFee,
+          bookingCharges,
+          tax,
+          platformCommission,
+          doctorEarnings,
+          totalAmount,
+          status:
+            bookingData.paymentMethod === PaymentMethod.ONLINE
+              ? PaymentStatus.PENDING
+              : PaymentStatus.PENDING,
+          method: bookingData.paymentMethod,
+        };
+
+        await storage.createPayment(paymentData);
+
+        const doctorUser = await storage.getUser(doctor.userId);
         const doctorName = doctorUser?.fullName || "your doctor";
-        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-        const [,mo,dy] = appointment.appointmentDate.split("-");
-        const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+        const months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        const [, bmo, bdy] = slot.date.split("-");
+        const formattedBookingDate = `${parseInt(bdy)} ${months[parseInt(bmo) - 1]}`;
+        const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
 
+        // Patient notification
         await storage.createNotification({
-          userId: appointment.patientId,
-          title: "Appointment No-Show",
-          message: `Your ${formattedDate} appointment with Dr. ${doctorName} was marked as a no-show. Please rebook at your convenience.`,
+          userId: req.user!.id,
+          title: "Appointment Booked",
+          message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slot.startTime}. Total: ${formattedAmount}.`,
           type: "appointment",
           isRead: false,
           relatedId: appointment.id,
         });
-      }
 
-      res.json(updated);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to mark appointment as no-show" });
-    }
-  });
-
-  app.post("/api/appointments", authMiddleware, roleMiddleware(UserRole.PATIENT), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const bookingData = bookingSchema.parse(req.body);
-      
-      const slot = await storage.getAppointmentSlot(bookingData.slotId);
-      if (!slot || slot.isBooked || slot.isBlocked) {
-        return res.status(400).json({ error: "Slot not available" });
-      }
-      
-      const doctor = await storage.getDoctorProfile(bookingData.doctorId);
-      if (!doctor || doctor.status !== DoctorStatus.VERIFIED) {
-        return res.status(400).json({ error: "Doctor not available" });
-      }
-      
-      const appointmentData = {
-        patientId: req.user!.id,
-        doctorId: bookingData.doctorId,
-        slotId: bookingData.slotId,
-        hospitalId: bookingData.hospitalId,
-        appointmentDate: slot.date,
-        appointmentTime: slot.startTime,
-        consultationType: bookingData.consultationType,
-        symptoms: bookingData.symptoms,
-        isForDependent: bookingData.isForDependent,
-        dependentName: bookingData.dependentName,
-        dependentAge: bookingData.dependentAge,
-        dependentGender: bookingData.dependentGender,
-        dependentContact: bookingData.dependentContact,
-        status: AppointmentStatus.PENDING,
-      };
-      
-      const appointment = await storage.createAppointment(appointmentData);
-      
-      let consultationFee = doctor.consultationFee;
-      if (bookingData.consultationType === "online" && doctor.onlineConsultationFee) {
-        consultationFee = doctor.onlineConsultationFee;
-      } else if (bookingData.consultationType === "home_visit" && doctor.homeVisitFee) {
-        consultationFee = doctor.homeVisitFee;
-      }
-      
-      // Get platform settings for fee calculations
-      const platformSettings = await storage.getPlatformSettings();
-      const bookingCharges = platformSettings.bookingCharges;
-      const tax = Math.round(consultationFee * (platformSettings.taxRate / 100));
-      const platformCommission = Math.round(consultationFee * (platformSettings.platformCommissionRate / 100));
-      const doctorEarnings = consultationFee - platformCommission;
-      const totalAmount = consultationFee + bookingCharges + tax;
-      
-      const paymentData = {
-        appointmentId: appointment.id,
-        patientId: req.user!.id,
-        doctorId: bookingData.doctorId,
-        consultationFee,
-        bookingCharges,
-        tax,
-        platformCommission,
-        doctorEarnings,
-        totalAmount,
-        status: bookingData.paymentMethod === PaymentMethod.ONLINE ? PaymentStatus.PENDING : PaymentStatus.PENDING,
-        method: bookingData.paymentMethod,
-      };
-      
-      await storage.createPayment(paymentData);
-
-      const doctorUser = await storage.getUser(doctor.userId);
-      const doctorName = doctorUser?.fullName || "your doctor";
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      const [,bmo,bdy] = slot.date.split("-");
-      const formattedBookingDate = `${parseInt(bdy)} ${months[parseInt(bmo) - 1]}`;
-      const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
-
-      // Patient notification
-      await storage.createNotification({
-        userId: req.user!.id,
-        title: "Appointment Booked",
-        message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slot.startTime}. Total: ${formattedAmount}.`,
-        type: "appointment",
-        isRead: false,
-        relatedId: appointment.id,
-      });
-
-      // Doctor notification — new booking
-      await storage.createNotification({
-        userId: doctor.userId,
-        title: "New appointment booked",
-        message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slot.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
-        type: "appointment",
-        isRead: false,
-        relatedId: appointment.id,
-      });
-
-      // Doctor reminder — only for future (non-today) appointments
-      const today = new Date().toISOString().split("T")[0];
-      if (slot.date > today) {
+        // Doctor notification — new booking
         await storage.createNotification({
           userId: doctor.userId,
-          title: `Consultation on ${formattedBookingDate} at ${slot.startTime}`,
-          message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
-          type: "reminder",
+          title: "New appointment booked",
+          message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slot.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
+          type: "appointment",
           isRead: false,
           relatedId: appointment.id,
         });
-      }
 
-      const fullAppointment = await storage.getAppointmentWithDetails(appointment.id);
-      res.status(201).json(fullAppointment);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        // Doctor reminder — only for future (non-today) appointments
+        const today = new Date().toISOString().split("T")[0];
+        if (slot.date > today) {
+          await storage.createNotification({
+            userId: doctor.userId,
+            title: `Consultation on ${formattedBookingDate} at ${slot.startTime}`,
+            message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
+            type: "reminder",
+            isRead: false,
+            relatedId: appointment.id,
+          });
+        }
+
+        const fullAppointment = await storage.getAppointmentWithDetails(
+          appointment.id,
+        );
+        res.status(201).json(fullAppointment);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: error.errors });
+        }
+        res.status(500).json({ error: "Failed to book appointment" });
       }
     },
   );
@@ -1767,25 +1761,58 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
     },
   );
 
-  app.patch("/api/appointments/:id/confirm", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const appointment = await storage.updateAppointment(req.params.id, { status: AppointmentStatus.CONFIRMED });
-      
-      if (appointment) {
-        const doctorProfile = await storage.getDoctorProfile(appointment.doctorId);
-        const doctorUser = doctorProfile ? await storage.getUser(doctorProfile.userId) : null;
-        const doctorName = doctorUser?.fullName || "your doctor";
-        const [yr, mo, dy] = appointment.appointmentDate.split("-");
-        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-        const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+  app.patch(
+    "/api/appointments/:id/confirm",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const appointment = await storage.updateAppointment(req.params.id, {
+          status: AppointmentStatus.CONFIRMED,
+        });
 
-        await storage.createNotification({
-          userId: appointment.patientId,
-          title: "Doctor approved your request",
-          message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
-          type: "system",
-          isRead: false,
-          relatedId: appointment.id,
+        if (appointment) {
+          const doctorProfile = await storage.getDoctorProfile(
+            appointment.doctorId,
+          );
+          const doctorUser = doctorProfile
+            ? await storage.getUser(doctorProfile.userId)
+            : null;
+          const doctorName = doctorUser?.fullName || "your doctor";
+          const [yr, mo, dy] = appointment.appointmentDate.split("-");
+          const months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
+          const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+
+          await storage.createNotification({
+            userId: appointment.patientId,
+            title: "Doctor approved your request",
+            message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
+            type: "system",
+            isRead: false,
+            relatedId: appointment.id,
+          });
+        }
+
+        res.json(appointment);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to confirm appointment" });
+      }
+    },
+  );
+
   app.get(
     "/api/doctor/dashboard",
     authMiddleware,
@@ -1828,246 +1855,331 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
       } catch (error) {
         res.status(500).json({ error: "Failed to get dashboard stats" });
       }
+    },
+  );
 
-      res.json(appointment);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to confirm appointment" });
-    }
-  });
+  app.patch(
+    "/api/appointments/:id/reschedule",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { newSlotId, reason } = req.body;
 
-  app.patch("/api/appointments/:id/reschedule", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { newSlotId, reason } = req.body;
+        const appointment = await storage.getAppointment(req.params.id);
+        if (!appointment)
+          return res.status(404).json({ error: "Appointment not found" });
 
-      const appointment = await storage.getAppointment(req.params.id);
-      if (!appointment) return res.status(404).json({ error: "Appointment not found" });
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+        if (!profile || appointment.doctorId !== profile.id) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
 
-      const profile = await storage.getDoctorProfileByUserId(req.user!.id);
-      if (!profile || appointment.doctorId !== profile.id) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
+        const newSlot = await storage.getAppointmentSlot(newSlotId);
+        if (!newSlot || newSlot.isBooked || newSlot.isBlocked) {
+          return res.status(400).json({ error: "New slot not available" });
+        }
 
-      const newSlot = await storage.getAppointmentSlot(newSlotId);
-      if (!newSlot || newSlot.isBooked || newSlot.isBlocked) {
-        return res.status(400).json({ error: "New slot not available" });
-      }
-
-      const doctorUser = await storage.getUser(profile.userId);
-      const doctorName = doctorUser?.fullName || "your doctor";
-
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      const [,omo,ody] = appointment.appointmentDate.split("-");
-      const originalDate = `${parseInt(ody)} ${months[parseInt(omo) - 1]}`;
-      const [,nmo,ndy] = newSlot.date.split("-");
-      const newDate = `${parseInt(ndy)} ${months[parseInt(nmo) - 1]}`;
-
-      await storage.updateAppointmentSlot(appointment.slotId, { isBooked: false });
-      await storage.updateAppointmentSlot(newSlotId, { isBooked: true });
-
-      const updated = await storage.updateAppointment(req.params.id, {
-        slotId: newSlotId,
-        appointmentDate: newSlot.date,
-        appointmentTime: newSlot.startTime,
-      });
-
-      await storage.createNotification({
-        userId: appointment.patientId,
-        title: "Appointment Rescheduled",
-        message: `Dr. ${doctorName} has rescheduled your ${originalDate} session to ${newDate} at ${newSlot.startTime} due to an emergency.`,
-        type: "appointment",
-        isRead: false,
-        relatedId: appointment.id,
-      });
-
-      res.json(updated);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to reschedule appointment" });
-    }
-  });
-
-  app.patch("/api/appointments/:id/complete", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { consultationNotes } = req.body;
-      const appointment = await storage.updateAppointment(req.params.id, { 
-        status: AppointmentStatus.COMPLETED,
-        consultationNotes,
-      });
-      
-      const payment = await storage.getPaymentByAppointment(req.params.id);
-      if (payment) {
-        await storage.updatePayment(payment.id, { status: PaymentStatus.COMPLETED });
-      }
-
-      if (appointment) {
-        const doctorProfile = await storage.getDoctorProfile(appointment.doctorId);
-        const doctorUser = doctorProfile ? await storage.getUser(doctorProfile.userId) : null;
+        const doctorUser = await storage.getUser(profile.userId);
         const doctorName = doctorUser?.fullName || "your doctor";
+
+        const months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        const [, omo, ody] = appointment.appointmentDate.split("-");
+        const originalDate = `${parseInt(ody)} ${months[parseInt(omo) - 1]}`;
+        const [, nmo, ndy] = newSlot.date.split("-");
+        const newDate = `${parseInt(ndy)} ${months[parseInt(nmo) - 1]}`;
+
+        await storage.updateAppointmentSlot(appointment.slotId, {
+          isBooked: false,
+        });
+        await storage.updateAppointmentSlot(newSlotId, { isBooked: true });
+
+        const updated = await storage.updateAppointment(req.params.id, {
+          slotId: newSlotId,
+          appointmentDate: newSlot.date,
+          appointmentTime: newSlot.startTime,
+        });
 
         await storage.createNotification({
           userId: appointment.patientId,
-          title: "Doctor approved your request",
-          message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
-          type: "system",
-          isRead: false,
-          relatedId: appointment.id,
-        });
-
-        if (payment) {
-          const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-          const [,mo,dy] = appointment.appointmentDate.split("-");
-          const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
-          const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
-
-          // Patient payment notification
-          await storage.createNotification({
-            userId: appointment.patientId,
-            title: "Payment successful",
-            message: `${formattedAmount} was successfully charged for your consultation on ${formattedDate}. Receipt has been emailed.`,
-            type: "payment",
-            isRead: false,
-            relatedId: payment.id,
-          });
-
-          // Doctor payment received notification
-          if (doctorProfile) {
-            await storage.createNotification({
-              userId: doctorProfile.userId,
-              title: "Payment received from patient",
-              message: `${formattedAmount} has been received for the consultation on ${formattedDate}. This will be included in your next payout.`,
-              type: "payment",
-              isRead: false,
-              relatedId: payment.id,
-            });
-          }
-        }
-      }
-
-      res.json(appointment);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to complete appointment" });
-    }
-  });
-
-  app.patch("/api/appointments/:id/cancel", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { reason } = req.body;
-      const existing = await storage.getAppointment(req.params.id);
-      const appointment = await storage.cancelAppointment(req.params.id, reason, req.user!.role);
-
-      if (appointment && existing) {
-        const doctorProfile = await storage.getDoctorProfile(existing.doctorId);
-        const doctorUser = doctorProfile ? await storage.getUser(doctorProfile.userId) : null;
-        const patientUser = await storage.getUser(existing.patientId);
-        const doctorName = doctorUser?.fullName || "your doctor";
-        const patientName = patientUser?.fullName || "A patient";
-        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-        const [,mo,dy] = existing.appointmentDate.split("-");
-        const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
-        const formattedTime = existing.appointmentTime;
-
-        // Notify patient — includes "Rebook Appointment" button
-        await storage.createNotification({
-          userId: existing.patientId,
-          title: "Appointment cancelled",
-          message: `Your ${formattedDate} at ${formattedTime} appointment with Dr. ${doctorName} has been cancelled. You may rebook at your convenience.`,
+          title: "Appointment Rescheduled",
+          message: `Dr. ${doctorName} has rescheduled your ${originalDate} session to ${newDate} at ${newSlot.startTime} due to an emergency.`,
           type: "appointment",
           isRead: false,
           relatedId: appointment.id,
         });
 
-        // Notify doctor — no button (title uses "Cancellation" not "cancelled")
-        if (doctorProfile) {
+        res.json(updated);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to reschedule appointment" });
+      }
+    },
+  );
+
+  app.patch(
+    "/api/appointments/:id/complete",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { consultationNotes } = req.body;
+        const appointment = await storage.updateAppointment(req.params.id, {
+          status: AppointmentStatus.COMPLETED,
+          consultationNotes,
+        });
+
+        const payment = await storage.getPaymentByAppointment(req.params.id);
+        if (payment) {
+          await storage.updatePayment(payment.id, {
+            status: PaymentStatus.COMPLETED,
+          });
+        }
+
+        if (appointment) {
+          const doctorProfile = await storage.getDoctorProfile(
+            appointment.doctorId,
+          );
+          const doctorUser = doctorProfile
+            ? await storage.getUser(doctorProfile.userId)
+            : null;
+          const doctorName = doctorUser?.fullName || "your doctor";
+
           await storage.createNotification({
-            userId: doctorProfile.userId,
-            title: "Appointment Cancellation Notice",
-            message: `${patientName} has cancelled their ${formattedDate} at ${formattedTime} appointment.`,
+            userId: appointment.patientId,
+            title: "Doctor approved your request",
+            message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
+            type: "system",
+            isRead: false,
+            relatedId: appointment.id,
+          });
+
+          if (payment) {
+            const months = [
+              "Jan",
+              "Feb",
+              "Mar",
+              "Apr",
+              "May",
+              "Jun",
+              "Jul",
+              "Aug",
+              "Sep",
+              "Oct",
+              "Nov",
+              "Dec",
+            ];
+            const [, mo, dy] = appointment.appointmentDate.split("-");
+            const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+            const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
+
+            // Patient payment notification
+            await storage.createNotification({
+              userId: appointment.patientId,
+              title: "Payment successful",
+              message: `${formattedAmount} was successfully charged for your consultation on ${formattedDate}. Receipt has been emailed.`,
+              type: "payment",
+              isRead: false,
+              relatedId: payment.id,
+            });
+
+            // Doctor payment received notification
+            if (doctorProfile) {
+              await storage.createNotification({
+                userId: doctorProfile.userId,
+                title: "Payment received from patient",
+                message: `${formattedAmount} has been received for the consultation on ${formattedDate}. This will be included in your next payout.`,
+                type: "payment",
+                isRead: false,
+                relatedId: payment.id,
+              });
+            }
+          }
+        }
+
+        res.json(appointment);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to complete appointment" });
+      }
+    },
+  );
+
+  app.patch(
+    "/api/appointments/:id/cancel",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { reason } = req.body;
+        const existing = await storage.getAppointment(req.params.id);
+        const appointment = await storage.cancelAppointment(
+          req.params.id,
+          reason,
+          req.user!.role,
+        );
+
+        if (appointment && existing) {
+          const doctorProfile = await storage.getDoctorProfile(
+            existing.doctorId,
+          );
+          const doctorUser = doctorProfile
+            ? await storage.getUser(doctorProfile.userId)
+            : null;
+          const patientUser = await storage.getUser(existing.patientId);
+          const doctorName = doctorUser?.fullName || "your doctor";
+          const patientName = patientUser?.fullName || "A patient";
+          const months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
+          const [, mo, dy] = existing.appointmentDate.split("-");
+          const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+          const formattedTime = existing.appointmentTime;
+
+          // Notify patient — includes "Rebook Appointment" button
+          await storage.createNotification({
+            userId: existing.patientId,
+            title: "Appointment cancelled",
+            message: `Your ${formattedDate} at ${formattedTime} appointment with Dr. ${doctorName} has been cancelled. You may rebook at your convenience.`,
             type: "appointment",
             isRead: false,
             relatedId: appointment.id,
           });
+
+          // Notify doctor — no button (title uses "Cancellation" not "cancelled")
+          if (doctorProfile) {
+            await storage.createNotification({
+              userId: doctorProfile.userId,
+              title: "Appointment Cancellation Notice",
+              message: `${patientName} has cancelled their ${formattedDate} at ${formattedTime} appointment.`,
+              type: "appointment",
+              isRead: false,
+              relatedId: appointment.id,
+            });
+          }
         }
+
+        res.json(appointment);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to cancel appointment" });
       }
+    },
+  );
 
-      res.json(appointment);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to cancel appointment" });
-    }
-  });
+  app.patch(
+    "/api/payments/:id/fail",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { lastFourDigits } = req.body;
 
-  app.patch("/api/payments/:id/fail", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { lastFourDigits } = req.body;
+        const payment = await storage.getPayment(req.params.id);
+        if (!payment)
+          return res.status(404).json({ error: "Payment not found" });
 
-      const payment = await storage.getPayment(req.params.id);
-      if (!payment) return res.status(404).json({ error: "Payment not found" });
+        if (
+          req.user!.role !== UserRole.ADMIN &&
+          req.user!.id !== payment.patientId
+        ) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
 
-      if (req.user!.role !== UserRole.ADMIN && req.user!.id !== payment.patientId) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
+        const updated = await storage.updatePayment(req.params.id, {
+          status: PaymentStatus.FAILED,
+        });
 
-      const updated = await storage.updatePayment(req.params.id, { status: PaymentStatus.FAILED });
+        const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
+        const last4 = lastFourDigits || "0000";
 
-      const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
-      const last4 = lastFourDigits || "0000";
-
-      // Notify patient
-      await storage.createNotification({
-        userId: payment.patientId,
-        title: "Payment Failed",
-        message: `We were unable to charge your card ending in ${last4} for ${formattedAmount}. Please update your payment method.`,
-        type: "payment",
-        isRead: false,
-        relatedId: payment.id,
-      });
-
-      // Notify all admins about failed high-value transaction
-      const admins = await storage.getAllUsers("admin");
-      const shortId = payment.appointmentId.substring(0, 8).toUpperCase();
-      await Promise.all(admins.map((a) =>
-        storage.createNotification({
-          userId: a.id,
-          title: "Failed transaction — high value",
-          message: `${formattedAmount} payment for consultation ID #${shortId} failed twice. Card issuer declined. Patient has been notified.`,
-          type: "system",
+        // Notify patient
+        await storage.createNotification({
+          userId: payment.patientId,
+          title: "Payment Failed",
+          message: `We were unable to charge your card ending in ${last4} for ${formattedAmount}. Please update your payment method.`,
+          type: "payment",
           isRead: false,
           relatedId: payment.id,
-        })
-      ));
+        });
 
-      res.json(updated);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update payment status" });
-    }
-  });
+        // Notify all admins about failed high-value transaction
+        const admins = await storage.getAllUsers("admin");
+        const shortId = payment.appointmentId.substring(0, 8).toUpperCase();
+        await Promise.all(
+          admins.map((a) =>
+            storage.createNotification({
+              userId: a.id,
+              title: "Failed transaction — high value",
+              message: `${formattedAmount} payment for consultation ID #${shortId} failed twice. Card issuer declined. Patient has been notified.`,
+              type: "system",
+              isRead: false,
+              relatedId: payment.id,
+            }),
+          ),
+        );
 
-  app.post("/api/appointments/:id/prescription", authMiddleware, roleMiddleware(UserRole.DOCTOR), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const appointment = await storage.getAppointment(req.params.id);
-      if (!appointment) {
-        return res.status(404).json({ error: "Appointment not found" });
+        res.json(updated);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to update payment status" });
       }
-      
-      const data = insertPrescriptionSchema.parse({
-        ...req.body,
-        appointmentId: appointment.id,
-        patientId: appointment.patientId,
-        doctorId: appointment.doctorId,
-      });
-      
-      const prescription = await storage.createPrescription(data);
-      
-      await storage.createNotification({
-        userId: appointment.patientId,
-        title: "New Prescription",
-        message: "Your doctor has created a new prescription for you",
-        type: "appointment",
-        relatedId: prescription.id,
-      });
-      
-      res.status(201).json(prescription);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+    },
+  );
+
+  app.post(
+    "/api/appointments/:id/prescription",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const appointment = await storage.getAppointment(req.params.id);
+        if (!appointment) {
+          return res.status(404).json({ error: "Appointment not found" });
+        }
+
+        const data = insertPrescriptionSchema.parse({
+          ...req.body,
+          appointmentId: appointment.id,
+          patientId: appointment.patientId,
+          doctorId: appointment.doctorId,
+        });
+
+        const prescription = await storage.createPrescription(data);
+
+        await storage.createNotification({
+          userId: appointment.patientId,
+          title: "New Prescription",
+          message: "Your doctor has created a new prescription for you",
+          type: "appointment",
+          relatedId: prescription.id,
+        });
+
+        res.status(201).json(prescription);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create prescription" });
+      }
     },
   );
 
@@ -3029,109 +3141,121 @@ app.post("/api/upload", uploadLimiter, upload.single("file"), async (req: Reques
     },
   );
 
-// ✅ Check overdue doctors (keep as-is)
-app.post(
-  "/api/admin/check-overdue",
-  authMiddleware,
-  roleMiddleware(UserRole.ADMIN),
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const pendingDoctors = await storage.getPendingDoctors();
-      const now = Date.now();
-      const threshold = 48 * 60 * 60 * 1000;
-      const admins = await storage.getAllUsers("admin");
-
-      for (const doctor of pendingDoctors) {
-        const createdAt = new Date(doctor.createdAt).getTime();
-        if (now - createdAt < threshold) continue;
-
-        const daysOverdue = Math.floor((now - createdAt) / (24 * 60 * 60 * 1000));
-        const expectedTitle = `Verification pending — ${daysOverdue} ${daysOverdue === 1 ? "day" : "days"} overdue`;
-
-        const existingNotifs = await storage.getUserNotifications(req.user!.id);
-        const last24h = now - 24 * 60 * 60 * 1000;
-
-        const alreadyUpToDate = existingNotifs.some(
-          (n) =>
-            n.relatedId === doctor.id &&
-            n.title === expectedTitle &&
-            new Date(n.createdAt).getTime() > last24h
-        );
-        if (alreadyUpToDate) continue;
-
-        const d = new Date(doctor.createdAt);
-        const submittedDate = `${d.getDate()} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]}`;
-
-        await Promise.all(admins.map((a) =>
-          storage.deleteNotificationsByRelatedId(a.id, doctor.id)
-        ));
-
-        await Promise.all(admins.map((a) =>
-          storage.createNotification({
-            userId: a.id,
-            title: expectedTitle,
-            message: `Documents submitted on ${submittedDate} have not been reviewed.`,
-            type: "system",
-            isRead: false,
-            relatedId: doctor.id,
-          })
-        ));
-      }
-
-      res.json({ checked: pendingDoctors.length });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to check overdue verifications" });
-    }
-  }
-);
-
-// ✅ Merged settings endpoint
-app.put(
-  "/api/admin/settings",
-  authMiddleware,
-  roleMiddleware(UserRole.ADMIN),
-  async (req: Request, res: Response) => {
-    try {
-      console.log("Updating platform settings with:", req.body);
-
-      const prevSettings = await storage.getPlatformSettings();
-      const settings = await storage.updatePlatformSettings(req.body);
-
-      // 🔔 Maintenance mode notification
-      if (
-        req.body.maintenanceMode !== undefined &&
-        req.body.maintenanceMode !== prevSettings.maintenanceMode
-      ) {
+  // ✅ Check overdue doctors (keep as-is)
+  app.post(
+    "/api/admin/check-overdue",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const pendingDoctors = await storage.getPendingDoctors();
+        const now = Date.now();
+        const threshold = 48 * 60 * 60 * 1000;
         const admins = await storage.getAllUsers("admin");
 
-        const title = req.body.maintenanceMode
-          ? "Maintenance mode enabled"
-          : "Maintenance completed";
+        for (const doctor of pendingDoctors) {
+          const createdAt = new Date(doctor.createdAt).getTime();
+          if (now - createdAt < threshold) continue;
 
-        const message = req.body.maintenanceMode
-          ? "Platform temporarily unavailable."
-          : "Platform is now fully operational.";
+          const daysOverdue = Math.floor(
+            (now - createdAt) / (24 * 60 * 60 * 1000),
+          );
+          const expectedTitle = `Verification pending — ${daysOverdue} ${daysOverdue === 1 ? "day" : "days"} overdue`;
 
-        await Promise.all(admins.map((a) =>
-          storage.createNotification({
-            userId: a.id,
-            title,
-            message,
-            type: "system",
-            isRead: false,
-          })
-        ));
+          const existingNotifs = await storage.getUserNotifications(
+            req.user!.id,
+          );
+          const last24h = now - 24 * 60 * 60 * 1000;
+
+          const alreadyUpToDate = existingNotifs.some(
+            (n) =>
+              n.relatedId === doctor.id &&
+              n.title === expectedTitle &&
+              new Date(n.createdAt).getTime() > last24h,
+          );
+          if (alreadyUpToDate) continue;
+
+          const d = new Date(doctor.createdAt);
+          const submittedDate = `${d.getDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]}`;
+
+          await Promise.all(
+            admins.map((a) =>
+              storage.deleteNotificationsByRelatedId(a.id, doctor.id),
+            ),
+          );
+
+          await Promise.all(
+            admins.map((a) =>
+              storage.createNotification({
+                userId: a.id,
+                title: expectedTitle,
+                message: `Documents submitted on ${submittedDate} have not been reviewed.`,
+                type: "system",
+                isRead: false,
+                relatedId: doctor.id,
+              }),
+            ),
+          );
+        }
+
+        res.json({ checked: pendingDoctors.length });
+      } catch (error) {
+        res
+          .status(500)
+          .json({ error: "Failed to check overdue verifications" });
       }
+    },
+  );
 
-      console.log("Settings updated successfully:", settings);
+  // ✅ Merged settings endpoint
+  app.put(
+    "/api/admin/settings",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        console.log("Updating platform settings with:", req.body);
 
-      res.json(settings);
-    } catch (error) {
-      console.error("Failed to update platform settings:", error);
-      res.status(500).json({ error: "Failed to update platform settings" });
-    }
-  }
-);
+        const prevSettings = await storage.getPlatformSettings();
+        const settings = await storage.updatePlatformSettings(req.body);
+
+        // 🔔 Maintenance mode notification
+        if (
+          req.body.maintenanceMode !== undefined &&
+          req.body.maintenanceMode !== prevSettings.maintenanceMode
+        ) {
+          const admins = await storage.getAllUsers("admin");
+
+          const title = req.body.maintenanceMode
+            ? "Maintenance mode enabled"
+            : "Maintenance completed";
+
+          const message = req.body.maintenanceMode
+            ? "Platform temporarily unavailable."
+            : "Platform is now fully operational.";
+
+          await Promise.all(
+            admins.map((a) =>
+              storage.createNotification({
+                userId: a.id,
+                title,
+                message,
+                type: "system",
+                isRead: false,
+              }),
+            ),
+          );
+        }
+
+        console.log("Settings updated successfully:", settings);
+
+        res.json(settings);
+      } catch (error) {
+        console.error("Failed to update platform settings:", error);
+        res.status(500).json({ error: "Failed to update platform settings" });
+      }
+    },
+  );
 
   app.put(
     "/api/admin/specializations/:id",
@@ -3169,11 +3293,18 @@ app.put(
   );
 
   // Profile image upload endpoint for authenticated users
-  app.post("/api/users/profile-image", authMiddleware, upload.single("image"), async (req: AuthenticatedRequest & { file?: MulterFile }, res: Response) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No image uploaded" });
-      }
+  app.post(
+    "/api/users/profile-image",
+    authMiddleware,
+    upload.single("image"),
+    async (
+      req: AuthenticatedRequest & { file?: MulterFile },
+      res: Response,
+    ) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No image uploaded" });
+        }
 
         // Validate file type
         const allowedTypes = [
@@ -3186,12 +3317,10 @@ app.put(
           try {
             fs.unlinkSync(req.file.path);
           } catch (e) {}
-          return res
-            .status(400)
-            .json({
-              error:
-                "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
-            });
+          return res.status(400).json({
+            error:
+              "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
+          });
         }
 
         const imageUrl = `/uploads/${req.file.filename}`;
@@ -3261,66 +3390,78 @@ app.put(
   );
 
   app.put(
-  "/api/users/password",
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { currentPassword, newPassword } = req.body;
-      const user = await storage.getUser(req.user!.id);
-      if (!user || !(await verifyPassword(currentPassword, user.password))) {
-        return res
-          .status(400)
-          .json({ error: "Current password is incorrect" });
-      }
-      const hashedPassword = await hashPassword(newPassword);
-      await storage.updateUser(req.user!.id, { password: hashedPassword });
-      
-      // If an admin resets their password, notify all admins
-      if (req.user!.role === UserRole.ADMIN) {
-        const admins = await storage.getAllUsers("admin");
-        await Promise.all(admins.map((a) =>
-          storage.createNotification({
-            userId: a.id,
-            title: "Admin account password reset",
-            message: "Password was reset from an unrecognised device. If this was not you, contact the security team immediately.",
-            type: "system",
-            isRead: false,
-          })
-        ));
-      }
-      
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update password" });
-    }
-  },
-);
+    "/api/users/password",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { currentPassword, newPassword } = req.body;
+        const user = await storage.getUser(req.user!.id);
+        if (!user || !(await verifyPassword(currentPassword, user.password))) {
+          return res
+            .status(400)
+            .json({ error: "Current password is incorrect" });
+        }
+        const hashedPassword = await hashPassword(newPassword);
+        await storage.updateUser(req.user!.id, { password: hashedPassword });
 
-// Job Application Submission Endpoint
-app.post("/api/careers/apply", uploadLimiter, upload.single("cv"), async (req: RequestWithFile, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "CV file is required" });
-    }
-    // Cloudinary එකෙන් එන URL එක
-    const cvUrl = req.file.path; 
-    const { jobId, jobTitle, fullName, email } = req.body;
-    if (!jobId || !jobTitle || !fullName || !email) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-    const applicationData = {
-      jobId,
-      jobTitle,
-      fullName,
-      email,
-      cvUrl
-    };
-    const savedApplication = await storage.createJobApplication(applicationData);
-    res.status(201).json(savedApplication);
-  } catch (error) {
-    console.error("Career application error:", error);
-    res.status(500).json({ error: "Failed to submit application. Please try again." });
-  }
-});
+        // If an admin resets their password, notify all admins
+        if (req.user!.role === UserRole.ADMIN) {
+          const admins = await storage.getAllUsers("admin");
+          await Promise.all(
+            admins.map((a) =>
+              storage.createNotification({
+                userId: a.id,
+                title: "Admin account password reset",
+                message:
+                  "Password was reset from an unrecognised device. If this was not you, contact the security team immediately.",
+                type: "system",
+                isRead: false,
+              }),
+            ),
+          );
+        }
 
-return httpServer;
+        res.json({ success: true });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to update password" });
+      }
+    },
+  );
+
+  // Job Application Submission Endpoint
+  app.post(
+    "/api/careers/apply",
+    uploadLimiter,
+    upload.single("cv"),
+    async (req: RequestWithFile, res: Response) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "CV file is required" });
+        }
+        // Cloudinary එකෙන් එන URL එක
+        const cvUrl = req.file.path;
+        const { jobId, jobTitle, fullName, email } = req.body;
+        if (!jobId || !jobTitle || !fullName || !email) {
+          return res.status(400).json({ error: "Missing required fields" });
+        }
+        const applicationData = {
+          jobId,
+          jobTitle,
+          fullName,
+          email,
+          cvUrl,
+        };
+        const savedApplication =
+          await storage.createJobApplication(applicationData);
+        res.status(201).json(savedApplication);
+      } catch (error) {
+        console.error("Career application error:", error);
+        res
+          .status(500)
+          .json({ error: "Failed to submit application. Please try again." });
+      }
+    },
+  );
+
+  return httpServer;
+}
