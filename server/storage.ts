@@ -14,6 +14,7 @@ import {
   type PlatformSettings, type InsertPlatformSettings,
   type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
   type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
+  type BlogSubmission, type InsertBlogSubmission,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
   JobApplication,
   InsertJobApplication,
@@ -130,6 +131,13 @@ export interface IStorage {
 
   getPlatformSettings(): Promise<PlatformSettings>;
   updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings>;
+
+  createBlogSubmission(data: InsertBlogSubmission): Promise<BlogSubmission>;
+  getAllBlogSubmissions(): Promise<BlogSubmission[]>;
+  getPendingBlogSubmissions(): Promise<BlogSubmission[]>;
+  getBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
+  approveBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
+  rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined>;
   createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
 }
 

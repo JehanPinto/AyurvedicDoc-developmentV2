@@ -1,19 +1,33 @@
-import { Link } from "wouter";
-import { ArrowUpRight } from "lucide-react";
+import { useLocation, Link } from "wouter";
+import { ArrowUpRight, PlusCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { PublicLayout } from "@/components/layout/public-layout";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
-const blogPosts = [
-  { category: "Consultation", title: "Discovering Your Dosha", description: "Learn how Ayurveda identifies your Vata, Pitta, or Kapha type and uses it to guide personalized wellness care." },
-  { category: "Consultation", title: "The Ayurvedic Consultation Process", description: "Learn how Ayurveda identifies your Vata, Pitta, or Kapha type and uses it to guide personalized wellness care." },
-  { category: "Therapy", title: "The Healing Power of Oil Massage", description: "Explore how warm herbal oil massage supports relaxation, circulation, and stress relief." },
-  { category: "Therapy", title: "Ayurvedic Therapies for Daily Balance", description: "Discover traditional therapies that help restore harmony in the body and mind." },
-  { category: "Consultation", title: "Herbal Remedies for Better Wellness", description: "Learn how herbs and natural preparations are used in Ayurvedic care." },
-  { category: "Therapy", title: "Ayurvedic Self-Care Rituals", description: "See how daily routine, massage, and mindful habits can support long-term well-being." },
+const blogPosts: { id: string; category: string; title: string; description: string }[] = [
+  { id: "", category: "Consultation", title: "Discovering Your Dosha", description: "Learn how Ayurveda identifies your Vata, Pitta, or Kapha type and uses it to guide personalized wellness care." },
+  { id: "", category: "Consultation", title: "The Ayurvedic Consultation Process", description: "Learn how Ayurveda identifies your Vata, Pitta, or Kapha type and uses it to guide personalized wellness care." },
+  { id: "", category: "Therapy", title: "The Healing Power of Oil Massage", description: "Explore how warm herbal oil massage supports relaxation, circulation, and stress relief." },
+  { id: "", category: "Therapy", title: "Ayurvedic Therapies for Daily Balance", description: "Discover traditional therapies that help restore harmony in the body and mind." },
+  { id: "", category: "Consultation", title: "Herbal Remedies for Better Wellness", description: "Learn how herbs and natural preparations are used in Ayurvedic care." },
+  { id: "", category: "Therapy", title: "Ayurvedic Self-Care Rituals", description: "See how daily routine, massage, and mindful habits can support long-term well-being." },
 ];
 
 export default function BlogPage() {
-  const { data: apiBlogs = [], isLoading } = useQuery<{ id: string; title: string; description: string; category: string }[]>({
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  const handleAddBlog = () => {
+    if (!user) {
+      toast({ title: "Login required", description: "Please login before adding a blog.", variant: "destructive" });
+      return;
+    }
+    setLocation("/blog/new");
+  };
+
+  const { data: apiBlogs = [], isLoading } = useQuery<{ id: string; title: string; description: string; category: string; }[]>({
     queryKey: ["/api/blogs"],
     staleTime: 5 * 60 * 1000,
   });
@@ -89,7 +103,7 @@ export default function BlogPage() {
 
                 {/* Learn More — full width at bottom */}
                 <div className="mt-auto">
-                  <Link href="#">
+                  <Link href={post.id ? `/blog/${post.id}` : "#"}>
                     <button className="w-full flex items-center justify-center gap-2 bg-primary text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-all duration-200 hover:bg-primary/90 hover:scale-[1.02] hover:shadow-md active:scale-[0.98] group">
                       Learn More
                       <ArrowUpRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -98,6 +112,17 @@ export default function BlogPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Add New Blog Button — right-aligned under the grid */}
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={handleAddBlog}
+              className="flex items-center gap-2 bg-primary text-white text-sm font-semibold px-5 py-2 rounded-full transition-all duration-200 hover:bg-primary/90 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
+            >
+              Add New Blog
+              <PlusCircle className="h-5 w-5 text-white" strokeWidth={2} />
+            </button>
           </div>
         </div>
       </section>
