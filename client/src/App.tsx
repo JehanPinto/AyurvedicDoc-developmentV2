@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation, Redirect } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,6 +14,9 @@ import HomePage from "@/pages/home";
 import AboutPage from "@/pages/about";
 import SpecializationsPage from "@/pages/specializations";
 import ContactPage from "@/pages/contact";
+import BlogPage from "@/pages/blog";
+import BlogNewPage from "@/pages/blog-new";
+import BlogDetailPage from "@/pages/blog-detail";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import AuthCallbackPage from "@/pages/auth-callback";
@@ -38,9 +42,16 @@ import AdminAppointmentsPage from "@/pages/admin/appointments";
 import AdminSpecializationsPage from "@/pages/admin/specializations";
 import AdminPaymentsPage from "@/pages/admin/payments";
 import AdminSettingsPage from "@/pages/admin/settings";
+import AdminBlogsPage from "@/pages/admin/blogs";
+import AdminBlogViewPage from "@/pages/admin/blog-view";
 import NotFound from "@/pages/not-found";
 import EmailVerificationPage from "./pages/email-verification";
+import HelpDetailsPage from "./pages/help-details";
+import HelpCenterPage from "./pages/help-center";
+
 import CareerPage from "./pages/careers";
+import AdminCareersPage from "./pages/admin/careers";
+import PrivacyPolicyPage from "@/pages/privacy";
 
 function ProtectedRoute({ 
   children, 
@@ -67,13 +78,26 @@ function ProtectedRoute({
   return <>{children}</>;
 }
 
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
+
 function Router() {
   return (
+    <>
+      <ScrollToTop />
     <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/about" component={AboutPage} />
       <Route path="/specializations" component={SpecializationsPage} />
       <Route path="/contact" component={ContactPage} />
+      <Route path="/blog" component={BlogPage} />
+      <Route path="/blog/new" component={BlogNewPage} />
+      <Route path="/blog/:id" component={BlogDetailPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
@@ -81,7 +105,10 @@ function Router() {
       <Route path="/doctors" component={DoctorsPage} />
       <Route path="/doctors/:id" component={DoctorProfilePage} />
       <Route path="/email-verification" component={EmailVerificationPage} />
+      <Route path="/details" component={HelpDetailsPage} />
+      <Route path="/help" component={HelpCenterPage} />
       <Route path="/careers" component={CareerPage} />
+      <Route path="/privacy" component={PrivacyPolicyPage} />
 
       <Route path="/book/:doctorId">
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
@@ -141,6 +168,11 @@ function Router() {
           </DashboardLayout>
         </ProtectedRoute>
       </Route>
+      <Route path="/admin/blog-view/:id">
+        <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+          <AdminBlogViewPage />
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin/:rest*">
         <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
           <DashboardLayout>
@@ -150,6 +182,8 @@ function Router() {
               <Route path="/admin/appointments" component={AdminAppointmentsPage} />
               <Route path="/admin/specializations" component={AdminSpecializationsPage} />
               <Route path="/admin/payments" component={AdminPaymentsPage} />
+              <Route path="/admin/careers" component={AdminCareersPage} />
+              <Route path="/admin/blogs" component={AdminBlogsPage} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route component={NotFound} />
             </Switch>
@@ -159,6 +193,7 @@ function Router() {
       
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 
