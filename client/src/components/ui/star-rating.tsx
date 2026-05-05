@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Star, StarHalf } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,9 @@ export function StarRating({
   onRatingChange,
   className,
 }: StarRatingProps) {
+  const [hoverRating, setHoverRating] = useState(0);
+  const [savedRating, setSavedRating] = useState(rating);
+
   const sizeClasses = {
     sm: "h-3 w-3",
     md: "h-4 w-4",
@@ -35,32 +39,39 @@ export function StarRating({
   };
 
   const handleClick = (value: number) => {
-    if (interactive && onRatingChange) {
-      onRatingChange(value);
-    }
+    if (!interactive) return;
+    setSavedRating(value);
+    onRatingChange?.(value);
   };
 
+  const displayRating = interactive ? (hoverRating || savedRating) : rating;
+
   const renderStar = (index: number) => {
-    const fillValue = rating - index;
+    const value = index + 1;
+    const fillValue = displayRating - index;
     const isFull = fillValue >= 1;
-    const isHalf = fillValue >= 0.5 && fillValue < 1;
+    const isHalf = !interactive && fillValue >= 0.5 && fillValue < 1;
+    const isGolden = interactive ? value <= displayRating : isFull;
 
     return (
       <button
         key={index}
         type="button"
         disabled={!interactive}
-        onClick={() => handleClick(index + 1)}
+        onClick={() => handleClick(value)}
+        onMouseEnter={() => interactive && setHoverRating(value)}
+        onMouseLeave={() => interactive && setHoverRating(0)}
         className={cn(
-          "relative",
-          interactive && "cursor-pointer hover:scale-110 transition-transform"
+          "relative transition-all duration-150",
+          interactive && "cursor-pointer hover:scale-110"
         )}
       >
         <Star
           className={cn(
             sizeClasses[size],
-            isFull
-              ? "fill-secondary text-secondary"
+            "transition-colors duration-150",
+            isGolden
+              ? "fill-yellow-400 text-yellow-400"
               : "fill-muted text-muted-foreground/30"
           )}
         />
@@ -68,7 +79,7 @@ export function StarRating({
           <StarHalf
             className={cn(
               sizeClasses[size],
-              "absolute top-0 left-0 fill-secondary text-secondary"
+              "absolute top-0 left-0 fill-yellow-400 text-yellow-400"
             )}
           />
         )}
@@ -83,7 +94,7 @@ export function StarRating({
       </div>
       {showValue && (
         <span className={cn("font-medium", textSizeClasses[size])}>
-          {rating.toFixed(1)}
+          {(interactive ? savedRating : rating).toFixed(1)}
         </span>
       )}
       {reviewCount !== undefined && (

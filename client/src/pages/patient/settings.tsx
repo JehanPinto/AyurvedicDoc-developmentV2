@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -71,6 +72,7 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 export default function PatientSettings() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("profile");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -620,7 +622,7 @@ export default function PatientSettings() {
                     Verified
                   </Badge>
                 ) : (
-                  <Button variant="outline" size="sm" data-testid="button-verify-phone">
+                  <Button variant="outline" size="sm" data-testid="button-verify-phone" onClick={() => navigate("/patient/verify-phone")}>
                     Verify Phone
                   </Button>
                 )}

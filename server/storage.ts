@@ -16,6 +16,8 @@ import {
   type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
   type BlogSubmission, type InsertBlogSubmission,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
+  JobApplication,
+  InsertJobApplication,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -136,6 +138,7 @@ export interface IStorage {
   getBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
   approveBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
   rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined>;
+  createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
 }
 
 export class MemStorage implements IStorage {
@@ -150,6 +153,7 @@ export class MemStorage implements IStorage {
   private prescriptions: Map<string, Prescription>;
   private reviews: Map<string, Review>;
   private notifications: Map<string, Notification>;
+  private jobApplications: Map<string, JobApplication>;
 
   constructor() {
     this.users = new Map();
@@ -163,7 +167,7 @@ export class MemStorage implements IStorage {
     this.prescriptions = new Map();
     this.reviews = new Map();
     this.notifications = new Map();
-
+    this.jobApplications = new Map();
     this.seedData();
   }
 
@@ -401,6 +405,19 @@ export class MemStorage implements IStorage {
         });
       }
     });
+  }
+
+  async createJobApplication(application: InsertJobApplication): Promise<JobApplication> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const newApp: JobApplication = {
+      ...application,
+      id,
+      status: "pending",
+      createdAt: now,
+    };
+    this.jobApplications.set(id, newApp);
+    return newApp;
   }
 
   async getUser(id: string): Promise<User | undefined> {
