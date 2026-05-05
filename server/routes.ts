@@ -488,15 +488,8 @@ export async function registerRoutes(
           });
         } catch (profileError) {
           // ROLLBACK: Delete the user if doctor profile creation fails
-          console.error(
-            "Doctor profile creation failed, rolling back user creation:",
-            profileError,
-          );
           try {
             await storage.deleteUser(user.id);
-            console.log(
-              `Rolled back user ${user.id} due to doctor profile creation failure`,
-            );
           } catch (deleteError) {
             console.error("Failed to rollback user creation:", deleteError);
           }
@@ -514,7 +507,6 @@ export async function registerRoutes(
         const { password: _, ...userWithoutPassword } = user;
         res.status(201).json({ user: userWithoutPassword, token });
       } catch (error) {
-        console.error("Doctor registration error:", error);
         if (error instanceof z.ZodError) {
           return res.status(400).json({
             error: "Validation failed",
