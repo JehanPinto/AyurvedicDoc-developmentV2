@@ -237,6 +237,7 @@ export interface IStorage {
   approveBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
   rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined>;
   createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
+  getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -1513,6 +1514,11 @@ export class MemStorage implements IStorage {
     return this.platformSettings;
   }
 
+  async getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined> {
+    return Array.from(this.doctorProfiles.values()).find(
+      (profile) => profile.registrationNumber === registrationNumber
+    );
+  }
   async getAllCareers(): Promise<Career[]> {
     return Array.from(this.careersMap.values()).sort(
       (a, b) =>

@@ -224,6 +224,7 @@ import {
   insertSpecializationSchema, insertDoctorScheduleSchema, insertAppointmentSlotSchema,
   bookingSchema, doctorSearchSchema, insertCareerSchema,
   UserRole, DoctorStatus, AppointmentStatus, PaymentStatus, PaymentMethod, AuthProvider, Language, ConsultationType,
+  doctorProfiles,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -410,6 +411,58 @@ export async function registerRoutes(
           ...data,
           password: hashedPassword,
         });
+      }
+      
+      const existingUser = await storage.getUserByEmail(userData.email);
+      if (existingUser) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
+
+      if (req.body.registrationNumber) {
+        const existingDoctor = await storage.getDoctorByRegistrationNumber(req.body.registrationNumber);
+        
+        if (existingDoctor) {
+          return res.status(400).json({ error: "Please check SLAMC number again." });
+        }
+      }
+      
+      const hashedPassword = await hashPassword(userData.password);
+      const user = await storage.createUser({ ...userData, password: hashedPassword });
+      
+      const verificationDocs = sessionFiles.length > 0 
+        ? sessionFiles 
+        : (req.body.verificationDocuments || []);
+      
+      const doctorData = insertDoctorProfileSchema.parse({
+        userId: user.id,
+        registrationNumber: req.body.registrationNumber,
+        qualifications: req.body.qualifications,
+        specializationIds: req.body.specializationIds || [],
+        languagesSpoken: req.body.languagesSpoken || ["english"],
+        consultationTypes: req.body.consultationTypes || ["in_person"],
+        consultationFee: parseInt(req.body.consultationFee) || 0,
+        onlineConsultationFee: req.body.onlineConsultationFee ? parseInt(req.body.onlineConsultationFee) : undefined,
+        homeVisitFee: req.body.homeVisitFee ? parseInt(req.body.homeVisitFee) : undefined,
+        verificationDocuments: verificationDocs,
+        bankName: req.body.bankName || null,
+        bankAccountNumber: req.body.bankAccountNumber || null,
+        bankBranch: req.body.bankBranch || null,
+        status: DoctorStatus.PENDING,
+      });
+      
+      await storage.createDoctorProfile(doctorData);
+      
+      const token = generateToken({ id: user.id, email: user.email, role: user.role, fullName: user.fullName });
+      
+      const { password: _, ...userWithoutPassword } = user;
+      res.status(201).json({ user: userWithoutPassword, token });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Doctor registration failed" });
+    }
+  });
 
         const token = generateToken({
           id: user.id,
@@ -533,35 +586,37 @@ export async function registerRoutes(
           });
         }
 
-        // Handle database constraint errors
-        if (error instanceof Error) {
-          const errorMessage = error.message;
+  app.post("/api/auth/login", loginLimiter, async (req: Request, res: Response) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+      
+      const user = await storage.getUserByEmail(email);
 
-          if (
-            errorMessage.includes("duplicate key") &&
-            errorMessage.includes("registration_number")
-          ) {
-            return res.status(400).json({
-              error:
-                "This registration number is already in use. Please use a different registration number.",
-            });
+      if (!user || !(await verifyPassword(password, user.password))) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      if (user.role === UserRole.DOCTOR) {
+        const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
+        
+        if (doctorProfile) {
+          
+          if (doctorProfile.status === DoctorStatus.SUSPENDED) {
+            return res.status(403).json({ error: "Your doctor account has been suspended by the administrator." });
           }
 
-          if (
-            errorMessage.includes("duplicate key") &&
-            errorMessage.includes("email")
-          ) {
-            return res.status(400).json({
-              error: "Email already registered. Please login instead.",
-            });
+          if (doctorProfile.status === DoctorStatus.REJECTED) {
+             return res.status(403).json({ error: "Your doctor account application was rejected." });
           }
         }
+      }
 
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        res
-          .status(500)
-          .json({ error: "Doctor registration failed", details: message });
+      if (user.isActive === false) {
+         return res.status(403).json({ error: "Your account has been deactivated." });
+      }
+
+      if (!user.registrationComplete && user.provider !== AuthProvider.LOCAL) {
+        return res.status(400).json({ error: "Please finish signing up with your social account before logging in." });
       }
     },
   );

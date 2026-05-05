@@ -1660,6 +1660,14 @@ export class DbStorage implements IStorage {
       createdAt: updatedApp.createdAt.toISOString(),
     } as JobApplication;
   }
+
+  async getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined> {
+    const [doctor] = await db
+      .select()
+      .from(doctorProfiles)
+      .where(eq(doctorProfiles.registrationNumber, registrationNumber));
+    return doctor ? mapDoctorProfile(doctor) : undefined;
+  }
 }
 
 export const dbStorage = new DbStorage();
