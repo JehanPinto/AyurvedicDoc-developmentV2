@@ -1,5 +1,6 @@
 
 import type { Express, Request, Response, NextFunction } from "express";
+import { sendApplicationEmail } from "./util/email";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { pool } from "./db";
@@ -216,6 +217,15 @@ function consumeSession(token: string): string[] | null {
   registrationSessions.delete(token);
   return files;
 }
+import {
+  insertUserSchema, loginSchema, insertDoctorProfileSchema,
+  insertAppointmentSchema, insertPaymentSchema, insertPrescriptionSchema,
+  insertReviewSchema, insertNotificationSchema, insertHospitalSchema,
+  insertSpecializationSchema, insertDoctorScheduleSchema, insertAppointmentSlotSchema,
+  bookingSchema, doctorSearchSchema, insertCareerSchema,
+  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus, PaymentMethod, AuthProvider, Language, ConsultationType,
+} from "@shared/schema";
+import { z } from "zod";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -355,7 +365,7 @@ function authMiddleware(
 function roleMiddleware(...roles: string[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json({ error: "Forbidden: You don't have permission to do this" });
     }
     next();
   };
@@ -3600,6 +3610,149 @@ export async function registerRoutes(
       }
     },
   );
+
+  // Admin: Get all applications
+  app.get("/api/admin/applications", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      // Create this in storage: getAllJobApplications()
+      const applications = await storage.getAllJobApplications(); 
+      res.json(applications);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch applications" });
+    }
+  });
+
+  // Admin: Update application status (Accept / Reject)
+  // app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+  //   try {
+  //     const { status } = req.body;
+  //     if (!['ACCEPTED', 'REJECTED'].includes(status)) {
+  //       return res.status(400).json({ error: "Invalid status" });
+  //     }
+      
+  //     // Create this in storage: updateJobApplicationStatus(id, status)
+  //     const updatedApplication = await storage.updateJobApplicationStatus(req.params.id, status);
+  //     res.json(updatedApplication);
+  //   } catch (error) {
+  //     res.status(500).json({ error: "Failed to update application status" });
+  //   }
+  // });
+
+  // ==========================================
+  // PUBLIC CAREERS ROUTE
+  // ==========================================
+  app.get("/api/careers", async (req: Request, res: Response) => {
+    try {
+      // Database එකෙන් Careers ඔක්කොම ගන්නවා
+      const allCareers = await storage.getAllCareers();
+      
+      res.json(allCareers);
+    } catch (error) {
+      console.error("Fetch public careers error:", error);
+      res.status(500).json({ error: "Failed to fetch careers" });
+    }
+  });
+
+  // ==========================================
+  // ADMIN CAREERS ROUTES
+  // ==========================================
+
+  // 1. Get all careers
+  app.get("/api/admin/careers", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const allCareers = await storage.getAllCareers();
+      const activeCareers = allCareers.filter(career => career.isActive === true);
+      res.json(activeCareers);
+    } catch (error) {
+      console.error("Fetch careers error:", error);
+      res.status(500).json({ error: "Failed to fetch careers" });
+    }
+  });
+
+  // 2. Create a new career
+  app.post("/api/admin/careers", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const data = insertCareerSchema.parse(req.body);
+      const newCareer = await storage.createCareer(data);
+      
+      console.log("Career Saved:", newCareer.careerTitle);
+      res.status(201).json(newCareer);
+    } catch (error) {
+      console.error("Create career error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create new career" });
+    }
+  });
+
+  // 3. Update an existing career
+  app.put("/api/admin/careers/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const careerId = req.params.id;
+      const data = insertCareerSchema.partial().parse(req.body);
+      const updatedCareer = await storage.updateCareer(careerId, data);
+      
+      if (!updatedCareer) {
+        return res.status(404).json({ error: "Career not found" });
+      }
+      
+      res.json(updatedCareer);
+    } catch (error) {
+      console.error("Update career error:", error);
+      res.status(500).json({ error: "Failed to update career" });
+    }
+  });
+
+  // 4. Soft Delete (Deactivate) a career
+  app.patch("/api/admin/careers/:id/deactivate", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const careerId = req.params.id;
+      
+      const updatedCareer = await storage.updateCareer(careerId, { isActive: false });
+      
+      if (!updatedCareer) {
+        return res.status(404).json({ error: "Career not found" });
+      }
+      
+      res.json({ message: "Career deactivated successfully" });
+    } catch (error) {
+      console.error("Deactivate career error:", error);
+      res.status(500).json({ error: "Failed to deactivate career" });
+    }
+  });
+
+  app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+        const { status, message } = req.body;
+        const applicationId = req.params.id;
+
+        if (!status || !['ACCEPTED', 'REJECTED'].includes(status)) {
+            return res.status(400).json({ error: "Invalid status" });
+        }
+
+        // 1. Database Status Update
+        const updatedApplication = await storage.updateApplicationStatus(applicationId, status);
+
+        if (!updatedApplication) {
+             return res.status(404).json({ error: "Application not found" });
+        }
+
+        // 2. Email send
+        await sendApplicationEmail(
+             updatedApplication.email, 
+             updatedApplication.fullName, 
+             updatedApplication.jobTitle, 
+             status as "ACCEPTED" | "REJECTED", 
+             message || "No additional comments provided."
+        );
+
+        res.json(updatedApplication);
+    } catch (error) {
+        console.error("Failed to update application status:", error);
+        res.status(500).json({ error: "Failed to update application status" });
+    }
+  });
 
   return httpServer;
 }

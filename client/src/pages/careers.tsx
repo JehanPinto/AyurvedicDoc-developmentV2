@@ -2,22 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { 
-  HeartPulse, 
-  Leaf, 
-  ShieldCheck, 
-  Globe2, 
-  UploadCloud, 
+import {
+  HeartPulse,
+  Leaf,
+  ShieldCheck,
+  Globe2,
+  UploadCloud,
   CheckSquare,
-  Telescope,
-  TrendingUp,
   X,
   FileText,
   Loader2,
-  Stethoscope,
-  Activity,
-  Syringe,
-  Pill
+  Briefcase,
+  ArrowUpRight
 } from "lucide-react";
 
 import { PublicLayout } from "@/components/layout/public-layout";
@@ -36,64 +32,22 @@ import { ValueCard } from "@/components/ui/value-card";
 import { useToast } from "@/hooks/use-toast";
 import LightcareerImage from "@/assets/image/career image.png";
 import DarkcareerImage from "@/assets/image/career dark mode.png";
+import { useQuery } from "@tanstack/react-query";
+import { Modal } from "@/components/ui/modal";
+import { LoadingPage } from "@/components/ui/loading-spinner";
 
-// --- DUMMY DATA ---
-const jobsData = [
-  // {
-  //   id: "1",
-  //   title: "Doctor",
-  //   subtitle: "Senior Ayurvedic Physician",
-  //   department: "Clinical / Wellness",
-  //   location: "Hospital Premises",
-  //   type: "Full-time",
-  //   icon: Stethoscope, 
-  // },
-  // {
-  //   id: "2",
-  //   title: "Medical Officer",
-  //   subtitle: "Resident Medical Officer",
-  //   department: "In-patient Department (IPD)",
-  //   location: "Hospital Premises",
-  //   type: "Full-time",
-  //   icon: Activity,
-  // },
-  // {
-  //   id: "3",
-  //   title: "Specialist",
-  //   subtitle: "Senior Panchakarma Specialist",
-  //   department: "Therapy & Rehabilitation",
-  //   location: "Hospital Premises",
-  //   type: "Full-time",
-  //   icon: Leaf,
-  // },
-  // {
-  //   id: "4",
-  //   title: "Nurse",
-  //   subtitle: "Senior Nurse",
-  //   department: "Clinical / Wellness",
-  //   location: "Hospital Premises",
-  //   type: "Full-time",
-  //   icon: Syringe,
-  // },
-  // {
-  //   id: "5",
-  //   title: "Medicine Pharmacist",
-  //   subtitle: "Resident Pharmacist",
-  //   department: "In-patient Department (IPD)",
-  //   location: "Hospital Premises",
-  //   type: "Full-time",
-  //   icon: Pill,
-  // },
-  // {
-  //   id: "6",
-  //   title: "Specialist",
-  //   subtitle: "Senior Panchakarma Specialist",
-  //   department: "Therapy & Rehabilitation",
-  //   location: "Hospital Premises",
-  //   type: "Full-time",
-  //   icon: Leaf,
-  // },
-];
+interface Career {
+  id: string;
+  careerTitle: string;
+  location: string;
+  employmentType: string;
+  salaryRange?: string;
+  description?: string;
+  keyResponsibilities?: string;
+  requiredQualifications?: string;
+  benefits?: string;
+  isActive: boolean;
+}
 
 const valuesData = [
   {
@@ -108,7 +62,7 @@ const valuesData = [
   },
   {
     icon: ShieldCheck,
-    title: "Verified Professionals", 
+    title: "Verified Professionals",
     description: "All doctors on our platform are verified professionals with proper certifications and credentials."
   },
   {
@@ -126,14 +80,20 @@ const applySchema = z.object({
 type ApplyInput = z.infer<typeof applySchema>;
 
 export default function CareersPage() {
-  const [jobs] = useState(jobsData); 
-  const [selectedJob, setSelectedJob] = useState<typeof jobsData[0] | null>(null);
+  const { data: dbCareers = [], isLoading, isPending, isError } = useQuery<Career[]>({
+    queryKey: ["/api/careers"],
+  });
 
+  const activeJobs = dbCareers.filter(career => career.isActive);
+  const [viewingJob, setViewingJob] = useState<Career | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Career | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const showEmptyState = (!isLoading && !isPending) && (isError || activeJobs.length === 0);
+
 
   const form = useForm<ApplyInput>({
     resolver: zodResolver(applySchema),
@@ -152,7 +112,7 @@ export default function CareersPage() {
     try {
       const formData = new FormData();
       formData.append("jobId", selectedJob.id);
-      formData.append("jobTitle", selectedJob.title);
+      formData.append("jobTitle", selectedJob.careerTitle);
       formData.append("fullName", data.name);
       formData.append("email", data.email);
       formData.append("cv", uploadedFile);
@@ -164,19 +124,19 @@ export default function CareersPage() {
 
       if (!response.ok) throw new Error("Submission failed");
 
-      toast({ 
-        title: "Application Submitted! 🎉", 
-        description: "We have received your application. Our talent team will contact you soon." 
+      toast({
+        title: "Application Submitted! 🎉",
+        description: "We have received your application. Our talent team will contact you soon."
       });
 
       setSelectedJob(null);
       removeFile();
       form.reset();
     } catch (error) {
-      toast({ 
-        title: "Submission Failed", 
-        description: "Something went wrong while submitting your application. Please try again.", 
-        variant: "destructive" 
+      toast({
+        title: "Submission Failed",
+        description: "Something went wrong while submitting your application. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsSubmitting(false);
@@ -208,27 +168,35 @@ export default function CareersPage() {
     };
   }, [previewUrl]);
 
+  if (isLoading || isPending) {
+    return (
+      <PublicLayout>
+        <LoadingPage message="Loading careers..." />
+      </PublicLayout>
+    );
+  }
+
   return (
     <PublicLayout>
       <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
 
         <div className="container mx-auto px-3 pt-4 relative">
-          
+
           {/* =========================================
-              SCREEN 3: EMPTY STATE (No Vacancies)
+              EMPTY STATE (No Vacancies)
               ========================================= */}
-          {jobs.length === 0 && !selectedJob && (
+          {showEmptyState && !selectedJob && !viewingJob && (
             <div className="max-w-4xl mx-auto mt-8 mb-20 flex flex-col items-center justify-center text-center">
-              <img 
-                src={LightcareerImage} 
-                alt="No jobs available" 
-                className="mb-8 object-contain dark:hidden"              
+              <img
+                src={LightcareerImage}
+                alt="No jobs available"
+                className="mb-8 object-contain dark:hidden"
               />
-              <img 
-                src={DarkcareerImage} 
-                alt="No jobs available" 
-                className="mb-8 object-contain dark:block hidden" 
+              <img
+                src={DarkcareerImage}
+                alt="No jobs available"
+                className="mb-8 object-contain dark:block hidden"
               />
               <h1 className="lg:text-[56px] md:text-[48px] sm:text-[40px] text-[32px] font-bold text-foreground mb-8 tracking-tight">
                 No Open Positions Right Now.
@@ -240,156 +208,9 @@ export default function CareersPage() {
           )}
 
           {/* =========================================
-              SCREEN 2: APPLY FORM
+              JOB LISTINGS (Grid)
               ========================================= */}
-          {selectedJob && (
-            <div className="max-w-3xl mx-auto md:px-4 md:py-16 mb-3">
-              <div className="bg-primary/10 shadow-sm rounded-[24px] p-3 lg:p-8 md:p-12">
-                <div className="text-center mb-10">
-                  <h1 className="lg:text-[32px] md:text-[28px] sm:text-[24px] text-[20px] text-foreground mb-2 font-semibold">
-                    Applications for {selectedJob.title}
-                  </h1>
-                  <p className="text-muted-foreground lg:text-[18px] md:text-[16px] sm:text-[14px] text-[12px]">
-                    Complete your details and submit your Cv
-                  </p>
-                </div>
-
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-foreground lg:text-[18px] md:text-[16px] sm:text-[14px] text-[12px]">
-                            Full Name *
-                          </FormLabel>
-                          <FormControl>
-                            <Input disabled={isSubmitting} placeholder="Your Full Name" className="h-12 bg-background focus-visible:ring-primary" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-foreground lg:text-[18px] md:text-[16px] sm:text-[14px] text-[12px]">
-                            Email Address *
-                          </FormLabel>
-                          <FormControl>
-                            <Input disabled={isSubmitting} type="email" placeholder="your@email.com" className="h-12 bg-background focus-visible:ring-primary" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="space-y-3">
-                      <FormLabel className="text-foreground lg:text-[18px] md:text-[16px] sm:text-[14px] text-[12px]">
-                        CV/ Resume Upload *
-                      </FormLabel>
-
-                      {!uploadedFile ? (
-                        // UPLOAD BOX
-                        <div 
-                          className="border-2 border-dashed border-border rounded-xl p-10 text-center bg-background cursor-pointer hover:border-primary transition-colors"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <h3 className="text-xl font-bold text-foreground mb-2">Drag & Drop your CV<br/>or Click to Upload</h3>
-                          <p className="text-sm text-muted-foreground mb-4">Supported Files: PDF, DOCX, JPG, PNG (Max 10MB)</p>
-                          <UploadCloud className="w-8 h-8 text-muted-foreground mx-auto" />
-                          <input 
-                            type="file" 
-                            className="hidden" 
-                            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" 
-                            ref={fileInputRef}
-                            disabled={isSubmitting}
-                            onChange={handleFileChange}
-                          />
-                        </div>
-                      ) : (
-                        // PREVIEW BOX (Name + Image/PDF Preview)
-                        <div className="border border-border rounded-xl p-4 bg-background">
-                          {/* Header with Name, Size and Remove Button */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-3 overflow-hidden">
-                              <div className="w-10 h-10 shrink-0 bg-primary/10 rounded-lg flex items-center justify-center">
-                                <FileText className="w-5 h-5 text-primary" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-foreground font-semibold text-sm truncate">
-                                  {uploadedFile.name}
-                                </p>
-                                <p className="text-muted-foreground text-xs">
-                                  {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
-                              </div>
-                            </div>
-                            <button 
-                              type="button" 
-                              onClick={removeFile}
-                              className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors shrink-0"
-                              title="Remove file"
-                            >
-                              <X className="w-5 h-5" />
-                            </button>
-                          </div>
-
-                          {/* Visual Preview */}
-                          <div className="w-full h-[200px] bg-muted/30 rounded-lg overflow-hidden border border-border/50 flex items-center justify-center relative">
-                            {uploadedFile.type.includes('pdf') ? (
-                              <iframe 
-                                src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
-                                className="w-full h-full object-cover pointer-events-none" 
-                                title="CV Preview" 
-                              />
-                            ) : uploadedFile.type.includes('image') ? (
-                              <img 
-                                src={previewUrl!} 
-                                alt="CV Preview" 
-                                className="w-full h-full object-contain" 
-                              />
-                            ) : (
-                              <div className="flex flex-col items-center text-muted-foreground">
-                                <FileText className="w-10 h-10 mb-2 opacity-30" />
-                                <span className="text-xs">Visual preview not available for DOCX</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-6">
-                      <button 
-                        type="button" 
-                        onClick={() => { setSelectedJob(null); form.reset(); }}
-                        className="text-primary font-semibold hover:underline"
-                      >
-                        Clear
-                      </button>
-                      <Button disabled={isSubmitting} type="submit" className="h-12 md:px-8 font-semibold rounded-lg flex items-center gap-2">
-                        {isSubmitting ? (
-                          <>Submitting... <Loader2 className="w-4 h-4 animate-spin" /></>
-                        ) : (
-                          <>Submit Application <CheckSquare className="w-4 h-4" /></>
-                        )}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </div>
-            </div>
-          )}
-
-          {/* =========================================
-              SCREEN 1: JOB LISTINGS (Grid)
-              ========================================= */}
-          {jobs.length > 0 && !selectedJob && (
+          {activeJobs.length > 0 && !selectedJob && (
             <>
               {/* Hero & Jobs Section */}
               <div className="max-w-7xl mx-auto pt-4">
@@ -402,12 +223,18 @@ export default function CareersPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-                  {jobs.map((job) => (
-                    <JobCard 
-                      key={job.id} 
-                      {...job} 
-                      icon={job.icon}
-                      onApply={() => setSelectedJob(job)} 
+                  {activeJobs.map((job) => (
+                    <JobCard
+                      key={job.id}
+                      id={job.id}
+                      title={job.careerTitle}
+                      subtitle="AyurPath Wellness Center"
+                      type={job.employmentType}
+                      location={job.location}
+                      salaryRange={job.salaryRange ?? ""}
+                      department={job.description?.substring(0, 30) + "..."}
+                      icon={Briefcase}
+                      onSeeMore={() => setViewingJob(job)}
                     />
                   ))}
                 </div>
@@ -421,18 +248,18 @@ export default function CareersPage() {
       {/* =========================================
           OUR VALUES SECTION
           ========================================= */}
-      {jobs.length > 0 && !selectedJob && (
+      {activeJobs.length > 0 && !selectedJob && (
         <section className="bg-[#E1ECE3] mt-14 pt-14 pb-14 dark:bg-card">
           <div className="container mx-auto px-4">
-            
+
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-0">Our Values</h2>
               <p className="text-[#111815] dark:text-muted-foreground">The principles that guide everything we do</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
               {valuesData.map((value, index) => (
-                <ValueCard 
+                <ValueCard
                   key={index}
                   icon={value.icon}
                   title={value.title}
@@ -444,6 +271,228 @@ export default function CareersPage() {
           </div>
         </section>
       )}
+
+      <Modal
+        isOpen={!!viewingJob}
+        onClose={() => setViewingJob(null)}
+        title={viewingJob?.careerTitle || "Career Details"}
+        description={`${viewingJob?.location} • ${viewingJob?.employmentType} ${viewingJob?.salaryRange ? `• ${viewingJob.salaryRange}` : ''}`}
+        icon={<Briefcase className="w-5 h-5 text-[#30A66F]" />}
+        className="max-w-3xl"
+        footer={
+          <div className="flex w-full justify-between items-center">
+            <Button variant="outline" onClick={() => setViewingJob(null)} className="rounded-full px-6">
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                setSelectedJob(viewingJob);
+                setViewingJob(null);
+              }}
+              className="bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white rounded-full px-8 shadow-sm"
+            >
+              Apply Now <ArrowUpRight className="ml-2 w-4 h-4" />
+            </Button>
+          </div>
+        }
+      >
+        {viewingJob && (
+          <div className="flex flex-col gap-6 text-foreground text-[15px] sm:text-base px-2 pb-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+
+            {/* Description */}
+            {viewingJob.description && (
+              <div>
+                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Job Description</h4>
+                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                  {viewingJob.description}
+                </p>
+              </div>
+            )}
+
+            {/* Key Responsibilities */}
+            {viewingJob.keyResponsibilities && (
+              <div>
+                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Key Responsibilities</h4>
+                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                  {viewingJob.keyResponsibilities}
+                </p>
+              </div>
+            )}
+
+            {/* Qualifications */}
+            {viewingJob.requiredQualifications && (
+              <div>
+                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Required Qualifications</h4>
+                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                  {viewingJob.requiredQualifications}
+                </p>
+              </div>
+            )}
+
+            {/* Benefits */}
+            {viewingJob.benefits && (
+              <div>
+                <h4 className="font-bold text-[17px] mb-2 text-[#2a9d5c]">Benefits</h4>
+                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed ms-3 md:ms-5">
+                  {viewingJob.benefits}
+                </p>
+              </div>
+            )}
+
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!selectedJob}
+        onClose={() => {
+          setSelectedJob(null);
+          form.reset();
+          removeFile();
+        }}
+        title={`Apply for ${selectedJob?.careerTitle}`}
+        description="Complete your details and submit your CV"
+        icon={<UploadCloud className="w-5 h-5 text-[#30A66F]" />}
+        className="max-w-2xl"
+        footer={
+          <div className="flex w-full justify-between items-center">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedJob(null);
+                form.reset();
+                removeFile();
+              }}
+              className="text-primary font-semibold hover:bg-primary/10 border-transparent bg-transparent"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={form.handleSubmit(onSubmit)}
+              disabled={isSubmitting}
+              className="h-11 md:px-8 font-semibold rounded-lg flex items-center gap-2 bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white"
+            >
+              {isSubmitting ? (
+                <>Submitting... <Loader2 className="w-4 h-4 animate-spin" /></>
+              ) : (
+                <>Submit Application <CheckSquare className="w-4 h-4" /></>
+              )}
+            </Button>
+          </div>
+        }
+      >
+        <div className="px-1 pb-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          <Form {...form}>
+            <form id="apply-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-foreground lg:text-[18px] md:text-[16px] sm:text-[14px] text-[12px]">
+                      Full Name *
+                    </FormLabel>
+                    <FormControl>
+                      <Input disabled={isSubmitting} placeholder="Your Full Name" className="h-12 bg-background focus-visible:ring-primary shadow-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-foreground lg:text-[18px] md:text-[16px] sm:text-[14px] text-[12px]">
+                      Email Address *
+                    </FormLabel>
+                    <FormControl>
+                      <Input disabled={isSubmitting} type="email" placeholder="your@email.com" className="h-12 bg-background focus-visible:ring-primary shadow-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="space-y-3">
+                <FormLabel className="text-foreground lg:text-[18px] md:text-[16px] sm:text-[14px] text-[12px]">
+                  CV/ Resume Upload *
+                </FormLabel>
+
+                {!uploadedFile ? (
+                  // UPLOAD BOX
+                  <div
+                    className="border-2 border-dashed border-[#30A66F]/50 rounded-xl p-8 text-center bg-background cursor-pointer hover:border-[#30A66F] transition-colors shadow-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <h3 className="text-lg md:text-xl font-bold text-foreground mb-2">Drag & Drop your CV<br />or Click to Upload</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Supported Files: PDF, DOCX, JPG, PNG (Max 10MB)</p>
+                    <UploadCloud className="w-8 h-8 text-muted-foreground mx-auto" />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                      ref={fileInputRef}
+                      disabled={isSubmitting}
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                ) : (
+                  // PREVIEW BOX (Name + Image/PDF Preview)
+                  <div className="border border-[#30A66F]/30 rounded-xl p-4 bg-background shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-10 h-10 shrink-0 bg-primary/10 rounded-lg flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-foreground font-semibold text-sm truncate">
+                            {uploadedFile.name}
+                          </p>
+                          <p className="text-muted-foreground text-xs">
+                            {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeFile}
+                        className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors shrink-0"
+                        title="Remove file"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="w-full h-[200px] bg-muted/30 rounded-lg overflow-hidden border border-border/50 flex items-center justify-center relative">
+                      {uploadedFile.type.includes('pdf') ? (
+                        <iframe
+                          src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                          className="w-full h-full object-cover pointer-events-none"
+                          title="CV Preview"
+                        />
+                      ) : uploadedFile.type.includes('image') ? (
+                        <img
+                          src={previewUrl!}
+                          alt="CV Preview"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center text-muted-foreground">
+                          <FileText className="w-10 h-10 mb-2 opacity-30" />
+                          <span className="text-xs">Visual preview not available for DOCX</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </form>
+          </Form>
+        </div>
+      </Modal>
 
     </PublicLayout>
   );

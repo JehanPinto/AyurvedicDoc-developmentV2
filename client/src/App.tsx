@@ -50,6 +50,7 @@ import HelpDetailsPage from "./pages/help-details";
 import HelpCenterPage from "./pages/help-center";
 
 import CareerPage from "./pages/careers";
+import AdminCareersPage from "./pages/admin/careers";
 import PrivacyPolicyPage from "@/pages/privacy";
 
 function ProtectedRoute({ 
@@ -181,6 +182,7 @@ function Router() {
               <Route path="/admin/appointments" component={AdminAppointmentsPage} />
               <Route path="/admin/specializations" component={AdminSpecializationsPage} />
               <Route path="/admin/payments" component={AdminPaymentsPage} />
+              <Route path="/admin/careers" component={AdminCareersPage} />
               <Route path="/admin/blogs" component={AdminBlogsPage} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
               <Route component={NotFound} />
