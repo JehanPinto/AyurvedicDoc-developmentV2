@@ -46,6 +46,7 @@ import HelpDetailsPage from "./pages/help-details";
 import HelpCenterPage from "./pages/help-center";
 
 import CareerPage from "./pages/careers";
+import PrivacyPolicyPage from "@/pages/privacy";
 
 function ProtectedRoute({ 
   children, 
@@ -100,6 +101,7 @@ function Router() {
       <Route path="/details" component={HelpDetailsPage} />
       <Route path="/help" component={HelpCenterPage} />
       <Route path="/careers" component={CareerPage} />
+      <Route path="/privacy" component={PrivacyPolicyPage} />
 
       <Route path="/book/:doctorId">
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
