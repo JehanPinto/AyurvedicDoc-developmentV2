@@ -1,60 +1,33 @@
 import { eq, and, gte, lte, desc, sql, or, ilike, inArray } from "drizzle-orm";
-import { db } from "./db";
+import { db, pool } from "./db";
 import {
-  users,
-  specializations,
-  hospitals,
-  doctorProfiles,
-  doctorSchedules,
-  appointmentSlots,
-  appointments,
-  payments,
-  prescriptions,
-  reviews,
-  notifications,
-  platformSettings,
-  jobApplications,
-  careers,
-  UserRole,
-  DoctorStatus,
-  AppointmentStatus,
-  PaymentStatus,
-  InsertJobApplication,
-  JobApplication,
-  type User,
-  type InsertUser,
-  type Specialization,
-  type InsertSpecialization,
-  type Hospital,
-  type InsertHospital,
-  type DoctorProfile,
-  type InsertDoctorProfile,
-  type DoctorSchedule,
-  type InsertDoctorSchedule,
-  type AppointmentSlot,
-  type InsertAppointmentSlot,
-  type Appointment,
-  type InsertAppointment,
-  type Payment,
-  type InsertPayment,
-  type Prescription,
-  type InsertPrescription,
-  type Review,
-  type InsertReview,
-  type Notification,
-  type InsertNotification,
-  type PlatformSettings,
-  type InsertPlatformSettings,
-  type DoctorWithDetails,
-  type AppointmentWithDetails,
-  type ReviewWithPatient,
-  type ReviewWithDoctor,
-  type PatientDashboardStats,
-  type DoctorDashboardStats,
-  type AdminDashboardStats,
-  type Career,
-  type InsertCareer,
+  // Tables
+  users, specializations, hospitals, doctorProfiles, doctorSchedules,
+  appointmentSlots, appointments, payments, prescriptions, reviews, notifications,
+  platformSettings, blogs, jobApplications, blogSubmissions, careers,
+  // Types
+  type User, type InsertUser,
+  type Blog, type InsertBlog,
+  type BlogSubmission, type InsertBlogSubmission,
+  type Specialization, type InsertSpecialization,
+  type Hospital, type InsertHospital,
+  type DoctorProfile, type InsertDoctorProfile,
+  type DoctorSchedule, type InsertDoctorSchedule,
+  type AppointmentSlot, type InsertAppointmentSlot,
+  type Appointment, type InsertAppointment,
+  type Payment, type InsertPayment,
+  type Prescription, type InsertPrescription,
+  type Review, type InsertReview,
+  type Notification, type InsertNotification,
+  type PlatformSettings, type InsertPlatformSettings,
+  type Career, type InsertCareer,
+  type JobApplication, type InsertJobApplication,
+  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
+  type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
+  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
 } from "@shared/schema";
+
+
 import type { IStorage } from "./storage";
 
 function toISOString(date: Date | null): string {
@@ -231,6 +204,21 @@ export class DbStorage implements IStorage {
       .delete(specializations)
       .where(eq(specializations.id, id))
       .returning();
+    return result.length > 0;
+  }
+
+  async getAllBlogs(): Promise<Blog[]> {
+    const result = await db.select().from(blogs).orderBy(desc(blogs.createdAt));
+    return result as Blog[];
+  }
+
+  async createBlog(data: InsertBlog): Promise<Blog> {
+    const result = await db.insert(blogs).values(data).returning();
+    return result[0] as Blog;
+  }
+
+  async deleteBlog(id: string): Promise<boolean> {
+    const result = await db.delete(blogs).where(eq(blogs.id, id)).returning();
     return result.length > 0;
   }
 
@@ -618,47 +606,95 @@ export class DbStorage implements IStorage {
     };
   }
 
-  async getPatientAppointments(
-    patientId: string,
-  ): Promise<AppointmentWithDetails[]> {
-    const result = await db
-      .select()
-      .from(appointments)
-      .where(eq(appointments.patientId, patientId))
-      .orderBy(desc(appointments.appointmentDate));
+  // Batch-fetch all related data in ~10 parallel queries instead of N×8 sequential ones
+  private async buildAppointmentsWithDetails(rows: any[]): Promise<AppointmentWithDetails[]> {
+    if (rows.length === 0) return [];
 
-    const detailed: AppointmentWithDetails[] = [];
-    for (const apt of result) {
-      const details = await this.getAppointmentWithDetails(apt.id);
-      if (details) detailed.push(details);
+    const apts = rows.map(r => ({
+      ...r,
+      createdAt: toISOString(r.createdAt),
+      updatedAt: toISOString(r.updatedAt),
+    })) as Appointment[];
+
+    const patientIds  = [...new Set(apts.map(a => a.patientId))];
+    const doctorIds   = [...new Set(apts.map(a => a.doctorId))];
+    const slotIds     = [...new Set(apts.map(a => a.slotId))];
+    const hospitalIds = [...new Set(apts.filter(a => a.hospitalId).map(a => a.hospitalId!))];
+    const aptIds      = apts.map(a => a.id);
+
+    const [
+      patientRows, profileRows, slotRows, hospitalRows,
+      paymentRows, prescriptionRows, reviewRows, allSpecs, allHosp,
+    ] = await Promise.all([
+      db.select().from(users).where(inArray(users.id, patientIds)),
+      db.select().from(doctorProfiles).where(inArray(doctorProfiles.id, doctorIds)),
+      db.select().from(appointmentSlots).where(inArray(appointmentSlots.id, slotIds)),
+      hospitalIds.length ? db.select().from(hospitals).where(inArray(hospitals.id, hospitalIds)) : [],
+      db.select().from(payments).where(inArray(payments.appointmentId, aptIds)),
+      db.select().from(prescriptions).where(inArray(prescriptions.appointmentId, aptIds)),
+      db.select().from(reviews).where(inArray(reviews.appointmentId, aptIds)),
+      this.getAllSpecializations(),
+      this.getAllHospitals(),
+    ]);
+
+    const doctorUserIds  = [...new Set((profileRows as any[]).map(p => p.userId))];
+    const doctorUserRows = doctorUserIds.length
+      ? await db.select().from(users).where(inArray(users.id, doctorUserIds))
+      : [];
+
+    const patientMap    = new Map((patientRows    as any[]).map(r => [r.id, mapUser(r)]));
+    const doctorUserMap = new Map((doctorUserRows as any[]).map(r => [r.id, mapUser(r)]));
+    const slotMap       = new Map((slotRows       as any[]).map(r => [r.id, r as AppointmentSlot]));
+    const paymentMap    = new Map((paymentRows    as any[]).map(r => [r.appointmentId, { ...r, createdAt: toISOString(r.createdAt), updatedAt: toISOString(r.updatedAt) } as Payment]));
+    const prescMap      = new Map((prescriptionRows as any[]).map(r => [r.appointmentId, { ...r, createdAt: toISOString(r.createdAt) }]));
+    const reviewMap     = new Map((reviewRows     as any[]).map(r => [r.appointmentId, { ...r, createdAt: toISOString(r.createdAt), updatedAt: toISOString(r.updatedAt) }]));
+    const hospitalMap   = new Map(allHosp.map(h => [h.id, h]));
+
+    const doctorMap = new Map<string, DoctorWithDetails>();
+    for (const profileRow of profileRows as any[]) {
+      const profile = mapDoctorProfile(profileRow);
+      const user    = doctorUserMap.get(profile.userId);
+      if (!user) continue;
+      const specs   = allSpecs.filter(s => profile.specializationIds.includes(s.id));
+      const hosps   = allHosp.filter(h => profile.hospitalIds.includes(h.id));
+      doctorMap.set(profile.id, { ...profile, user, specializations: specs, hospitals: hosps });
     }
-    return detailed;
+
+    const result: AppointmentWithDetails[] = [];
+    for (const apt of apts) {
+      const patient = patientMap.get(apt.patientId);
+      const doctor  = doctorMap.get(apt.doctorId);
+      const slot    = slotMap.get(apt.slotId);
+      if (!patient || !doctor || !slot) continue;
+      result.push({
+        ...apt,
+        patient,
+        doctor,
+        slot,
+        hospital:     apt.hospitalId ? hospitalMap.get(apt.hospitalId) : undefined,
+        payment:      paymentMap.get(apt.id) as any,
+        prescription: prescMap.get(apt.id)   as any,
+        review:       reviewMap.get(apt.id)  as any,
+      });
+    }
+    return result;
   }
 
-  async getDoctorAppointments(
-    doctorId: string,
-    date?: string,
-  ): Promise<AppointmentWithDetails[]> {
-    let query = db
-      .select()
-      .from(appointments)
-      .where(eq(appointments.doctorId, doctorId));
-    if (date) {
-      query = query.where(
-        and(
-          eq(appointments.doctorId, doctorId),
-          eq(appointments.appointmentDate, date),
-        ),
-      ) as any;
-    }
-    const result = await query.orderBy(appointments.appointmentTime);
+  async getPatientAppointments(patientId: string): Promise<AppointmentWithDetails[]> {
+    const rows = await db.select().from(appointments)
+      .where(eq(appointments.patientId, patientId))
+      .orderBy(desc(appointments.appointmentDate));
+    return this.buildAppointmentsWithDetails(rows);
+  }
 
-    const detailed: AppointmentWithDetails[] = [];
-    for (const apt of result) {
-      const details = await this.getAppointmentWithDetails(apt.id);
-      if (details) detailed.push(details);
-    }
-    return detailed;
+  async getDoctorAppointments(doctorId: string, date?: string): Promise<AppointmentWithDetails[]> {
+    const condition = date
+      ? and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, date))
+      : eq(appointments.doctorId, doctorId);
+    const rows = await db.select().from(appointments)
+      .where(condition)
+      .orderBy(appointments.appointmentTime);
+    return this.buildAppointmentsWithDetails(rows);
   }
 
   async createAppointment(
@@ -1021,14 +1057,15 @@ export class DbStorage implements IStorage {
       .where(eq(notifications.userId, userId));
   }
 
-  async getPatientDashboardStats(
-    patientId: string,
-  ): Promise<PatientDashboardStats> {
-    const today = new Date().toISOString().split("T")[0];
+  async deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void> {
+    await db.delete(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.relatedId, relatedId)));
+  }
 
-    const allAppointments = await db
-      .select()
-      .from(appointments)
+  async getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const allAppointments = await db.select().from(appointments)
       .where(eq(appointments.patientId, patientId));
 
     const upcomingCount = allAppointments.filter(
@@ -1168,20 +1205,9 @@ export class DbStorage implements IStorage {
   }
 
   async getAllAppointments(): Promise<AppointmentWithDetails[]> {
-    const result = await db
-      .select()
-      .from(appointments)
-      .orderBy(
-        desc(appointments.appointmentDate),
-        desc(appointments.appointmentTime),
-      );
-
-    const detailed: AppointmentWithDetails[] = [];
-    for (const apt of result) {
-      const details = await this.getAppointmentWithDetails(apt.id);
-      if (details) detailed.push(details);
-    }
-    return detailed;
+    const rows = await db.select().from(appointments)
+      .orderBy(desc(appointments.appointmentDate), desc(appointments.appointmentTime));
+    return this.buildAppointmentsWithDetails(rows);
   }
 
   async getAllPayments(): Promise<
@@ -1514,17 +1540,62 @@ export class DbStorage implements IStorage {
     };
   }
 
-  async createJobApplication(
-    application: InsertJobApplication,
-  ): Promise<JobApplication> {
-    const result = await db
-      .insert(jobApplications)
-      .values(application)
+
+  async createBlogSubmission(data: InsertBlogSubmission): Promise<BlogSubmission> {
+    const result = await db.insert(blogSubmissions).values(data).returning();
+    return result[0] as BlogSubmission;
+  }
+
+  async getAllBlogSubmissions(): Promise<BlogSubmission[]> {
+    const result = await db.select().from(blogSubmissions).orderBy(desc(blogSubmissions.createdAt));
+    return result as BlogSubmission[];
+  }
+
+  async getPendingBlogSubmissions(): Promise<BlogSubmission[]> {
+    const result = await db.select().from(blogSubmissions)
+      .where(eq(blogSubmissions.status, "pending"))
+      .orderBy(desc(blogSubmissions.createdAt));
+    return result as BlogSubmission[];
+  }
+
+  async getBlogSubmission(id: string): Promise<BlogSubmission | undefined> {
+    const result = await db.select().from(blogSubmissions).where(eq(blogSubmissions.id, id)).limit(1);
+    return result[0] as BlogSubmission | undefined;
+  }
+
+  async approveBlogSubmission(id: string): Promise<BlogSubmission | undefined> {
+    const submission = await this.getBlogSubmission(id);
+    if (!submission) return undefined;
+    const shortDesc = submission.content.length > 200
+      ? submission.content.slice(0, 200) + "..."
+      : submission.content;
+    const blogResult = await pool.query(
+      `INSERT INTO blogs (title, description, category) VALUES ($1, $2, $3) RETURNING id`,
+      [submission.title, shortDesc, submission.category]
+    );
+    const blogId = blogResult.rows[0].id;
+    await pool.query(
+      `UPDATE blog_submissions SET status = 'approved', blog_id = $1, updated_at = NOW() WHERE id = $2`,
+      [blogId, id]
+    );
+    return this.getBlogSubmission(id);
+  }
+
+  async rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined> {
+    const result = await db.update(blogSubmissions)
+      .set({ status: "rejected", rejectionReason, updatedAt: new Date() })
+      .where(eq(blogSubmissions.id, id))
       .returning();
+    return result[0] as BlogSubmission | undefined;
+
+  
+  async createJobApplication(application: InsertJobApplication): Promise<JobApplication> {
+    const result = await db.insert(jobApplications).values(application).returning();
     return {
       ...result[0],
       createdAt: toISOString(result[0].createdAt),
     } as JobApplication;
+
   }
 
   // Admin: Get all job applications

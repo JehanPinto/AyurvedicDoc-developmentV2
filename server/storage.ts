@@ -1,40 +1,21 @@
 import { randomUUID } from "crypto";
 import {
-  type User,
-  type InsertUser,
-  type Specialization,
-  type InsertSpecialization,
-  type Hospital,
-  type InsertHospital,
-  type DoctorProfile,
-  type InsertDoctorProfile,
-  type DoctorSchedule,
-  type InsertDoctorSchedule,
-  type AppointmentSlot,
-  type InsertAppointmentSlot,
-  type Appointment,
-  type InsertAppointment,
-  type Payment,
-  type InsertPayment,
-  type Prescription,
-  type InsertPrescription,
-  type Review,
-  type InsertReview,
-  type Notification,
-  type InsertNotification,
-  type PlatformSettings,
-  type InsertPlatformSettings,
-  type DoctorWithDetails,
-  type AppointmentWithDetails,
-  type ReviewWithPatient,
-  type ReviewWithDoctor,
-  type PatientDashboardStats,
-  type DoctorDashboardStats,
-  type AdminDashboardStats,
-  UserRole,
-  DoctorStatus,
-  AppointmentStatus,
-  PaymentStatus,
+  type User, type InsertUser,
+  type Specialization, type InsertSpecialization,
+  type Hospital, type InsertHospital,
+  type DoctorProfile, type InsertDoctorProfile,
+  type DoctorSchedule, type InsertDoctorSchedule,
+  type AppointmentSlot, type InsertAppointmentSlot,
+  type Appointment, type InsertAppointment,
+  type Payment, type InsertPayment,
+  type Prescription, type InsertPrescription,
+  type Review, type InsertReview,
+  type Notification, type InsertNotification,
+  type PlatformSettings, type InsertPlatformSettings,
+  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
+  type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
+  type BlogSubmission, type InsertBlogSubmission,
+  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
   JobApplication,
   InsertJobApplication,
   InsertCareer,
@@ -175,6 +156,7 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<Notification | undefined>;
   markAllNotificationsRead(userId: string): Promise<void>;
+  deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void>;
 
   getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats>;
   getDoctorDashboardStats(doctorId: string): Promise<DoctorDashboardStats>;
@@ -246,6 +228,15 @@ export interface IStorage {
     id: string,
     status: string,
   ): Promise<JobApplication | undefined>;
+  updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings>;
+
+  createBlogSubmission(data: InsertBlogSubmission): Promise<BlogSubmission>;
+  getAllBlogSubmissions(): Promise<BlogSubmission[]>;
+  getPendingBlogSubmissions(): Promise<BlogSubmission[]>;
+  getBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
+  approveBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
+  rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined>;
+  createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
 }
 
 export class MemStorage implements IStorage {
@@ -1314,20 +1305,20 @@ export class MemStorage implements IStorage {
     }
   }
 
-  async getPatientDashboardStats(
-    patientId: string,
-  ): Promise<PatientDashboardStats> {
-    const appointments = Array.from(this.appointments.values()).filter(
-      (a) => a.patientId === patientId,
-    );
-    const today = new Date().toISOString().split("T")[0];
+  async deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void> {
+    const all = await this.getUserNotifications(userId);
+    for (const n of all.filter(n => n.relatedId === relatedId)) {
+      this.notifications.delete(n.id);
+    }
+  }
 
-    const upcoming = appointments.filter(
-      (a) =>
-        a.appointmentDate >= today &&
-        [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(
-          a.status as any,
-        ),
+  async getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats> {
+    const appointments = Array.from(this.appointments.values()).filter(a => a.patientId === patientId);
+    const today = new Date().toISOString().split('T')[0];
+
+    const upcoming = appointments.filter(a => 
+      a.appointmentDate >= today && 
+      [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
     ).length;
 
     const completed = appointments.filter(
@@ -1482,10 +1473,8 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async markAppointmentNoShow(
-    _appointmentId: string,
-  ): Promise<Appointment | undefined> {
-    return undefined;
+  async markAppointmentNoShow(appointmentId: string): Promise<Appointment | undefined> {
+    return this.updateAppointment(appointmentId, { status: AppointmentStatus.NO_SHOW });
   }
 
   private platformSettings: PlatformSettings = {
