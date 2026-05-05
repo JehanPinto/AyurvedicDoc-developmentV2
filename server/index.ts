@@ -1,7 +1,12 @@
-import express, { type Request, Response, NextFunction } from "express";
+import dotenv from "dotenv";
+import path from "path";
+
+dotenv.config({ path: path.join(process.cwd(), ".env") });
+
+import express, { NextFunction, type Request, Response } from "express";
+import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
-import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
@@ -89,8 +94,7 @@ app.use((req, res, next) => {
   httpServer.listen(
     {
       port,
-      host
-   
+      host,
     },
     () => {
       log(`serving on http://${host}:${port}`);
