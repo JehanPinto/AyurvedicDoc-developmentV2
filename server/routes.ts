@@ -446,19 +446,14 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Email already registered" });
         }
 
-        const hashedPassword = await hashPassword(userData.password);
-        const user = await storage.createUser({
-          ...userData,
-          password: hashedPassword,
-        });
-
+        // VALIDATE DOCTOR DATA BEFORE CREATING USER
         const verificationDocs =
           sessionFiles.length > 0
             ? sessionFiles
             : req.body.verificationDocuments || [];
 
         const doctorData = insertDoctorProfileSchema.parse({
-          userId: user.id,
+          userId: "temp-id", // Placeholder, will be replaced with actual user ID
           registrationNumber: req.body.registrationNumber,
           qualifications: req.body.qualifications,
           specializationIds: req.body.specializationIds || [],
@@ -478,7 +473,36 @@ export async function registerRoutes(
           status: DoctorStatus.PENDING,
         });
 
-        await storage.createDoctorProfile(doctorData);
+        // Now create the user (validation passed)
+        const hashedPassword = await hashPassword(userData.password);
+        const user = await storage.createUser({
+          ...userData,
+          password: hashedPassword,
+        });
+
+        try {
+          // Try to create doctor profile with actual user ID
+          await storage.createDoctorProfile({
+            ...doctorData,
+            userId: user.id,
+          });
+        } catch (profileError) {
+          // ROLLBACK: Delete the user if doctor profile creation fails
+          console.error(
+            "Doctor profile creation failed, rolling back user creation:",
+            profileError,
+          );
+          try {
+            await storage.deleteUser(user.id);
+            console.log(
+              `Rolled back user ${user.id} due to doctor profile creation failure`,
+            );
+          } catch (deleteError) {
+            console.error("Failed to rollback user creation:", deleteError);
+          }
+          // Re-throw the original error to be handled by the outer catch block
+          throw profileError;
+        }
 
         const token = generateToken({
           id: user.id,
@@ -490,10 +514,43 @@ export async function registerRoutes(
         const { password: _, ...userWithoutPassword } = user;
         res.status(201).json({ user: userWithoutPassword, token });
       } catch (error) {
+        console.error("Doctor registration error:", error);
         if (error instanceof z.ZodError) {
-          return res.status(400).json({ error: error.errors });
+          return res.status(400).json({
+            error: "Validation failed",
+            details: error.errors,
+          });
         }
-        res.status(500).json({ error: "Doctor registration failed" });
+
+        // Handle database constraint errors
+        if (error instanceof Error) {
+          const errorMessage = error.message;
+
+          if (
+            errorMessage.includes("duplicate key") &&
+            errorMessage.includes("registration_number")
+          ) {
+            return res.status(400).json({
+              error:
+                "This registration number is already in use. Please use a different registration number.",
+            });
+          }
+
+          if (
+            errorMessage.includes("duplicate key") &&
+            errorMessage.includes("email")
+          ) {
+            return res.status(400).json({
+              error: "Email already registered. Please login instead.",
+            });
+          }
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        res
+          .status(500)
+          .json({ error: "Doctor registration failed", details: message });
       }
     },
   );

@@ -1,26 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
-import { Link, useLocation } from "wouter";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Eye,
-  EyeOff,
-  Loader2,
-  Stethoscope,
-  Upload,
-  X,
-  CheckCircle,
-  ArrowLeft,
-  ArrowRight,
-  User,
-  GraduationCap,
-  FileText,
-  Building2,
-} from "lucide-react";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -28,15 +6,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -44,13 +24,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
-import { Language, ConsultationType, Gender, UserRole } from "@shared/schema";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { Specialization } from "@shared/schema";
+import { ConsultationType, Gender, Language, UserRole } from "@shared/schema";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  FileText,
+  GraduationCap,
+  Loader2,
+  Stethoscope,
+  Upload,
+  User,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, useLocation } from "wouter";
+import { z } from "zod";
 
 const buildPersonalInfoSchema = (requirePassword: boolean) =>
   z
@@ -168,7 +167,9 @@ export default function DoctorRegisterPage() {
     useState<ProfessionalInfo | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadToken, setUploadToken] = useState<string | null>(null);
-  const [authRegistrationToken, setAuthRegistrationToken] = useState<string | null >(null);
+  const [authRegistrationToken, setAuthRegistrationToken] = useState<
+    string | null
+  >(null);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [fileDetails, setFileDetails] = useState<FileDetail[]>([]);
   const [isSocialFlow, setIsSocialFlow] = useState(false);
@@ -181,7 +182,6 @@ export default function DoctorRegisterPage() {
     type: string;
     previewUrl?: string;
   } | null>(null);
-  const [fileDetails, setFileDetails] = useState<FileDetail[]>([]);
 
   const { data: specializations = [] } = useQuery<Specialization[]>({
     queryKey: ["/api/specializations"],
@@ -257,7 +257,7 @@ export default function DoctorRegisterPage() {
 
   useEffect(() => {
     return () => {
-      fileDetails.forEach(file => URL.revokeObjectURL(file.previewUrl));
+      fileDetails.forEach((file) => URL.revokeObjectURL(file.previewUrl));
     };
   }, [fileDetails]);
 
@@ -344,7 +344,7 @@ export default function DoctorRegisterPage() {
     }
 
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
-    const validFiles = Array.from(files).filter(file => {
+    const validFiles = Array.from(files).filter((file) => {
       if (file.size > MAX_FILE_SIZE) {
         toast({
           title: "File too large",
@@ -472,7 +472,11 @@ export default function DoctorRegisterPage() {
 
   const handleFinalSubmit = (bankData: BankInfo) => {
     if (!personalInfo || !professionalInfo) {
-      toast({ title: "Error", description: "Missing personal or professional info", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Missing personal or professional info",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -488,8 +492,8 @@ export default function DoctorRegisterPage() {
       onlineConsultationFee: professionalInfo.onlineConsultationFee
         ? parseInt(professionalInfo.onlineConsultationFee)
         : undefined,
-      verificationDocuments: bankStatementFile 
-        ? [...uploadedFiles, bankStatementFile.url] 
+      verificationDocuments: bankStatementFile
+        ? [...uploadedFiles, bankStatementFile.url]
         : uploadedFiles,
       verificationDocumentDetails: uploadedFiles,
       bankName: bankData.bankName,
@@ -500,7 +504,9 @@ export default function DoctorRegisterPage() {
     registerMutation.mutate(registrationData);
   };
 
-  const handleBankStatementUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBankStatementUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -511,11 +517,11 @@ export default function DoctorRegisterPage() {
 
     if (!uploadToken || !personalInfo?.email) {
       setTimeout(() => {
-        setBankStatementFile({ 
-          url: "mock-url-for-dev", 
-          name: file.name, 
+        setBankStatementFile({
+          url: "mock-url-for-dev",
+          name: file.name,
           type: file.type,
-          previewUrl
+          previewUrl,
         });
         setIsUploading(false);
         toast({ title: "Document Added (Dev Mode)" });
@@ -539,11 +545,11 @@ export default function DoctorRegisterPage() {
       if (!response.ok) throw new Error("Upload failed");
 
       const result = await response.json();
-      setBankStatementFile({ 
-        url: result.url, 
+      setBankStatementFile({
+        url: result.url,
         name: file.name,
         type: file.type,
-        previewUrl 
+        previewUrl,
       });
       toast({ title: "Bank statement uploaded!" });
     } catch (error) {
@@ -1124,19 +1130,25 @@ export default function DoctorRegisterPage() {
             {/* Step 3 - Interactive Image/PDF Previews */}
             {currentStep === 3 && (
               <div className="space-y-6">
-                
                 {/* Upload Box matching Careers page style */}
-                <div 
-                  className={`border-2 border-dashed border-border rounded-xl p-10 text-center bg-background cursor-pointer hover:border-primary transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-                  onClick={() => !isUploading && document.getElementById("file-upload")?.click()}
+                <div
+                  className={`border-2 border-dashed border-border rounded-xl p-10 text-center bg-background cursor-pointer hover:border-primary transition-colors ${isUploading ? "opacity-50 pointer-events-none" : ""}`}
+                  onClick={() =>
+                    !isUploading &&
+                    document.getElementById("file-upload")?.click()
+                  }
                 >
                   <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-xl font-bold text-foreground mb-2">Upload Verification Documents</h3>
+                  <h3 className="text-xl font-bold text-foreground mb-2">
+                    Upload Verification Documents
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Upload your medical council registration certificate, degree certificates, and any other relevant documents.<br/>
+                    Upload your medical council registration certificate, degree
+                    certificates, and any other relevant documents.
+                    <br />
                     Supported Formats: PDF, JPG, PNG (Max 5MB each)
                   </p>
-                  
+
                   <input
                     type="file"
                     id="file-upload"
@@ -1147,7 +1159,7 @@ export default function DoctorRegisterPage() {
                     disabled={isUploading}
                     data-testid="input-file-upload"
                   />
-                  
+
                   <Button
                     variant="outline"
                     type="button"
@@ -1174,14 +1186,19 @@ export default function DoctorRegisterPage() {
                 {/* Previews Grid matching Careers page logic */}
                 {fileDetails.length > 0 && (
                   <div className="space-y-4 mt-6">
-                    <h4 className="font-medium text-foreground">Uploaded Documents</h4>
+                    <h4 className="font-medium text-foreground">
+                      Uploaded Documents
+                    </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {fileDetails.map((file, index) => {
-                        const isPdf = file.type.includes('pdf');
-                        const isImage = file.type.includes('image');
+                        const isPdf = file.type.includes("pdf");
+                        const isImage = file.type.includes("image");
 
                         return (
-                          <div key={file.id} className="border border-border rounded-xl p-4 bg-background shadow-sm flex flex-col">
+                          <div
+                            key={file.id}
+                            className="border border-border rounded-xl p-4 bg-background shadow-sm flex flex-col"
+                          >
                             {/* File Info Header */}
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-3 overflow-hidden">
@@ -1189,7 +1206,10 @@ export default function DoctorRegisterPage() {
                                   <FileText className="w-5 h-5 text-primary" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-foreground font-semibold text-sm truncate" title={file.name}>
+                                  <p
+                                    className="text-foreground font-semibold text-sm truncate"
+                                    title={file.name}
+                                  >
                                     {file.name}
                                   </p>
                                   <p className="text-muted-foreground text-xs">
@@ -1229,7 +1249,9 @@ export default function DoctorRegisterPage() {
                               ) : (
                                 <div className="flex flex-col items-center text-muted-foreground">
                                   <FileText className="w-10 h-10 mb-2 opacity-30" />
-                                  <span className="text-xs">No visual preview</span>
+                                  <span className="text-xs">
+                                    No visual preview
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -1266,74 +1288,79 @@ export default function DoctorRegisterPage() {
                   </p>
 
                   <FormField
-                      control={bankForm.control}
-                      name="bankName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Bank Name *</FormLabel>
-                          <Select 
-                            onValueChange={field.onChange} 
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select your bank" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[300px]">
-                              {SRI_LANKAN_BANKS.map((bank) => (
-                                <SelectItem key={bank.name} value={bank.name}>
-                                  <div className="flex items-center gap-3">
-                                    {bank.name !== "Other" ? (
-                                      <div className="w-6 h-6 flex items-center justify-center rounded bg-muted overflow-hidden shrink-0 border">
-                                        <img
-                                          src={`https://logo.clearbit.com/${bank.domain}`}
-                                          alt=""
-                                          className="w-full h-full object-contain"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                          }}
-                                        />
-                                        <Building2 className="w-4 h-4 hidden text-muted-foreground" />
-                                      </div>
-                                    ) : (
-                                      <div className="w-6 h-6 flex items-center justify-center rounded bg-primary/10 shrink-0 border border-primary/20">
-                                        <Building2 className="w-4 h-4 text-primary" />
-                                      </div>
-                                    )}
-                                    <span className="text-sm">{bank.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Select "Other" to specify bank name */}
-                    {bankForm.watch("bankName") === "Other" && (
-                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                        <FormField
-                          control={bankForm.control}
-                          name="bankName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs font-bold text-primary">Please Specify Bank Name *</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  placeholder="Enter your bank name" 
-                                  onChange={(e) => field.onChange(e.target.value)}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+                    control={bankForm.control}
+                    name="bankName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Bank Name *</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select your bank" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="max-h-[300px]">
+                            {SRI_LANKAN_BANKS.map((bank) => (
+                              <SelectItem key={bank.name} value={bank.name}>
+                                <div className="flex items-center gap-3">
+                                  {bank.name !== "Other" ? (
+                                    <div className="w-6 h-6 flex items-center justify-center rounded bg-muted overflow-hidden shrink-0 border">
+                                      <img
+                                        src={`https://logo.clearbit.com/${bank.domain}`}
+                                        alt=""
+                                        className="w-full h-full object-contain"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display =
+                                            "none";
+                                          e.currentTarget.nextElementSibling?.classList.remove(
+                                            "hidden",
+                                          );
+                                        }}
+                                      />
+                                      <Building2 className="w-4 h-4 hidden text-muted-foreground" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-6 h-6 flex items-center justify-center rounded bg-primary/10 shrink-0 border border-primary/20">
+                                      <Building2 className="w-4 h-4 text-primary" />
+                                    </div>
+                                  )}
+                                  <span className="text-sm">{bank.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
                     )}
+                  />
+
+                  {/* Select "Other" to specify bank name */}
+                  {bankForm.watch("bankName") === "Other" && (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                      <FormField
+                        control={bankForm.control}
+                        name="bankName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-bold text-primary">
+                              Please Specify Bank Name *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter your bank name"
+                                onChange={(e) => field.onChange(e.target.value)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
@@ -1376,12 +1403,16 @@ export default function DoctorRegisterPage() {
 
                   <div className="space-y-3 pt-2">
                     <FormLabel>Bank statement/ Proof of bank account</FormLabel>
-                    
+
                     {!bankStatementFile ? (
                       // Upload Box (Dashed Border)
                       <div
                         className="border-2 border-dashed border-primary/40 bg-primary/5 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-primary/10 transition-colors"
-                        onClick={() => document.getElementById("bank-statement-upload")?.click()}
+                        onClick={() =>
+                          document
+                            .getElementById("bank-statement-upload")
+                            ?.click()
+                        }
                       >
                         <input
                           type="file"
@@ -1394,12 +1425,15 @@ export default function DoctorRegisterPage() {
                         {isUploading ? (
                           <>
                             <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
-                            <p className="text-sm font-medium text-foreground">Uploading...</p>
+                            <p className="text-sm font-medium text-foreground">
+                              Uploading...
+                            </p>
                           </>
                         ) : (
                           <>
                             <p className="text-sm font-semibold text-foreground mb-1">
-                              Drag & Drop your Bank statement/ Proof of bank account <br /> or Click to Upload
+                              Drag & Drop your Bank statement/ Proof of bank
+                              account <br /> or Click to Upload
                             </p>
                             <p className="text-xs text-muted-foreground mb-4">
                               Supported Files: PDF, DOCX (Max 10MB)
@@ -1411,48 +1445,51 @@ export default function DoctorRegisterPage() {
                     ) : (
                       // Uploaded File Preview
                       <div className="space-y-2 mt-4 animate-in fade-in zoom-in duration-300">
-                          <h4 className="text-sm font-bold text-foreground">Uploaded Document</h4>
-                          <div className="relative rounded-xl border border-primary/20 bg-card text-card-foreground shadow-sm overflow-hidden group">
-                            
-                            {/* Preview Area */}
-                            {bankStatementFile.previewUrl ? (
-                              <div className="w-full h-48 bg-muted relative flex items-center justify-center p-2">
-                                <img 
-                                  src={bankStatementFile.previewUrl} 
-                                  alt="Document Preview" 
-                                  className="w-full h-full object-contain rounded-md drop-shadow-sm"
-                                />
-                              </div>
-                            ) : (
-                               <div className="w-full h-32 bg-primary/5 flex flex-col items-center justify-center text-muted-foreground">
-                                  <FileText className="h-10 w-10 mb-2 text-primary/60" />
-                                  <span className="text-sm font-medium">Preview not available for this file type</span>
-                               </div>
-                            )}
-
-                            {/* Details & Action Area */}
-                            <div className="flex items-center justify-between p-3 bg-primary/5 border-t border-primary/10">
-                              <div className="flex flex-col min-w-0 pr-2">
-                                <span className="text-sm font-semibold text-foreground truncate w-full">
-                                  {bankStatementFile.name}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {bankStatementFile.type || "Document"}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-9 w-9 text-destructive hover:bg-destructive hover:text-white shrink-0 rounded-full transition-colors shadow-sm bg-white dark:bg-zinc-900"
-                                onClick={removeBankStatement}
-                                type="button"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                        <h4 className="text-sm font-bold text-foreground">
+                          Uploaded Document
+                        </h4>
+                        <div className="relative rounded-xl border border-primary/20 bg-card text-card-foreground shadow-sm overflow-hidden group">
+                          {/* Preview Area */}
+                          {bankStatementFile.previewUrl ? (
+                            <div className="w-full h-48 bg-muted relative flex items-center justify-center p-2">
+                              <img
+                                src={bankStatementFile.previewUrl}
+                                alt="Document Preview"
+                                className="w-full h-full object-contain rounded-md drop-shadow-sm"
+                              />
                             </div>
+                          ) : (
+                            <div className="w-full h-32 bg-primary/5 flex flex-col items-center justify-center text-muted-foreground">
+                              <FileText className="h-10 w-10 mb-2 text-primary/60" />
+                              <span className="text-sm font-medium">
+                                Preview not available for this file type
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Details & Action Area */}
+                          <div className="flex items-center justify-between p-3 bg-primary/5 border-t border-primary/10">
+                            <div className="flex flex-col min-w-0 pr-2">
+                              <span className="text-sm font-semibold text-foreground truncate w-full">
+                                {bankStatementFile.name}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {bankStatementFile.type || "Document"}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 text-destructive hover:bg-destructive hover:text-white shrink-0 rounded-full transition-colors shadow-sm bg-white dark:bg-zinc-900"
+                              onClick={removeBankStatement}
+                              type="button"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                      )}
+                      </div>
+                    )}
                   </div>
 
                   <FormField
