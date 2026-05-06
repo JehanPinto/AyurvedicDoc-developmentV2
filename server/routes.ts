@@ -1,11 +1,9 @@
-
-import type { Express, Request, Response, NextFunction } from "express";
-import { sendApplicationEmail } from "./util/email";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { createHash, randomUUID } from "crypto";
+import type { Express, NextFunction, Request, Response } from "express";
+import { type Server } from "http";
 import { pool } from "./db";
-import { randomUUID } from "crypto";
-import { createHash } from "crypto";
+import { storage } from "./storage";
+import { sendApplicationEmail } from "./util/email";
 
 import {
   AppointmentStatus,
@@ -28,18 +26,15 @@ import {
   UserRole,
 } from "@shared/schema";
 
+import { insertCareerSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
-import { createHash, randomUUID } from "crypto";
-import type { Express, NextFunction, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
-import { type Server } from "http";
 import type { File as MulterFile } from "multer";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import path from "path";
 import { z } from "zod";
 import { upload } from "../config/cloudinary";
-import { storage } from "./storage";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): {
@@ -217,16 +212,6 @@ function consumeSession(token: string): string[] | null {
   registrationSessions.delete(token);
   return files;
 }
-import {
-  insertUserSchema, loginSchema, insertDoctorProfileSchema,
-  insertAppointmentSchema, insertPaymentSchema, insertPrescriptionSchema,
-  insertReviewSchema, insertNotificationSchema, insertHospitalSchema,
-  insertSpecializationSchema, insertDoctorScheduleSchema, insertAppointmentSlotSchema,
-  bookingSchema, doctorSearchSchema, insertCareerSchema,
-  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus, PaymentMethod, AuthProvider, Language, ConsultationType,
-  doctorProfiles,
-} from "@shared/schema";
-import { z } from "zod";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -366,7 +351,9 @@ function authMiddleware(
 function roleMiddleware(...roles: string[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden: You don't have permission to do this" });
+      return res
+        .status(403)
+        .json({ error: "Forbidden: You don't have permission to do this" });
     }
     next();
   };
@@ -411,58 +398,6 @@ export async function registerRoutes(
           ...data,
           password: hashedPassword,
         });
-      }
-      
-      const existingUser = await storage.getUserByEmail(userData.email);
-      if (existingUser) {
-        return res.status(400).json({ error: "Email already registered" });
-      }
-
-      if (req.body.registrationNumber) {
-        const existingDoctor = await storage.getDoctorByRegistrationNumber(req.body.registrationNumber);
-        
-        if (existingDoctor) {
-          return res.status(400).json({ error: "Please check SLAMC number again." });
-        }
-      }
-      
-      const hashedPassword = await hashPassword(userData.password);
-      const user = await storage.createUser({ ...userData, password: hashedPassword });
-      
-      const verificationDocs = sessionFiles.length > 0 
-        ? sessionFiles 
-        : (req.body.verificationDocuments || []);
-      
-      const doctorData = insertDoctorProfileSchema.parse({
-        userId: user.id,
-        registrationNumber: req.body.registrationNumber,
-        qualifications: req.body.qualifications,
-        specializationIds: req.body.specializationIds || [],
-        languagesSpoken: req.body.languagesSpoken || ["english"],
-        consultationTypes: req.body.consultationTypes || ["in_person"],
-        consultationFee: parseInt(req.body.consultationFee) || 0,
-        onlineConsultationFee: req.body.onlineConsultationFee ? parseInt(req.body.onlineConsultationFee) : undefined,
-        homeVisitFee: req.body.homeVisitFee ? parseInt(req.body.homeVisitFee) : undefined,
-        verificationDocuments: verificationDocs,
-        bankName: req.body.bankName || null,
-        bankAccountNumber: req.body.bankAccountNumber || null,
-        bankBranch: req.body.bankBranch || null,
-        status: DoctorStatus.PENDING,
-      });
-      
-      await storage.createDoctorProfile(doctorData);
-      
-      const token = generateToken({ id: user.id, email: user.email, role: user.role, fullName: user.fullName });
-      
-      const { password: _, ...userWithoutPassword } = user;
-      res.status(201).json({ user: userWithoutPassword, token });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      res.status(500).json({ error: "Doctor registration failed" });
-    }
-  });
 
         const token = generateToken({
           id: user.id,
@@ -473,13 +408,11 @@ export async function registerRoutes(
 
         const { password: _, ...userWithoutPassword } = user;
         res.status(201).json({ user: userWithoutPassword, token });
-      } catch (error: any) {
+      } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
         }
-        res
-          .status(500)
-          .json({ error: "Registration failed", details: error?.message });
+        res.status(500).json({ error: "Registration failed" });
       }
     },
   );
@@ -585,38 +518,79 @@ export async function registerRoutes(
             details: error.errors,
           });
         }
-
-  app.post("/api/auth/login", loginLimiter, async (req: Request, res: Response) => {
-    try {
-      const { email, password } = loginSchema.parse(req.body);
-      
-      const user = await storage.getUserByEmail(email);
-
-      if (!user || !(await verifyPassword(password, user.password))) {
-        return res.status(401).json({ error: "Invalid email or password" });
+        res.status(500).json({ error: "Doctor registration failed" });
       }
+    },
+  );
 
-      if (user.role === UserRole.DOCTOR) {
-        const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
-        
-        if (doctorProfile) {
-          
-          if (doctorProfile.status === DoctorStatus.SUSPENDED) {
-            return res.status(403).json({ error: "Your doctor account has been suspended by the administrator." });
-          }
+  app.post(
+    "/api/auth/login",
+    loginLimiter,
+    async (req: Request, res: Response) => {
+      try {
+        const { email, password } = loginSchema.parse(req.body);
 
-          if (doctorProfile.status === DoctorStatus.REJECTED) {
-             return res.status(403).json({ error: "Your doctor account application was rejected." });
+        const user = await storage.getUserByEmail(email);
+
+        if (!user || !(await verifyPassword(password, user.password))) {
+          return res.status(401).json({ error: "Invalid email or password" });
+        }
+
+        if (user.role === UserRole.DOCTOR) {
+          const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
+
+          if (doctorProfile) {
+            if (doctorProfile.status === DoctorStatus.SUSPENDED) {
+              return res
+                .status(403)
+                .json({
+                  error:
+                    "Your doctor account has been suspended by the administrator.",
+                });
+            }
+
+            if (doctorProfile.status === DoctorStatus.REJECTED) {
+              return res
+                .status(403)
+                .json({
+                  error: "Your doctor account application was rejected.",
+                });
+            }
           }
         }
-      }
 
-      if (user.isActive === false) {
-         return res.status(403).json({ error: "Your account has been deactivated." });
-      }
+        if (user.isActive === false) {
+          return res
+            .status(403)
+            .json({ error: "Your account has been deactivated." });
+        }
 
-      if (!user.registrationComplete && user.provider !== AuthProvider.LOCAL) {
-        return res.status(400).json({ error: "Please finish signing up with your social account before logging in." });
+        if (
+          !user.registrationComplete &&
+          user.provider !== AuthProvider.LOCAL
+        ) {
+          return res
+            .status(400)
+            .json({
+              error:
+                "Please finish signing up with your social account before logging in.",
+            });
+        }
+
+        const token = generateToken({
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          fullName: user.fullName,
+        });
+
+        const { password: _, ...userWithoutPassword } = user;
+        res.json({ user: userWithoutPassword, token });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: error.errors });
+        }
+        res.status(500).json({ error: "Login failed" });
       }
     },
   );
@@ -1181,17 +1155,21 @@ export async function registerRoutes(
     },
   );
 
-
   // Blog featured image upload — requires login only
-  app.post("/api/blog-image-upload", authMiddleware, upload.single("file"), async (req: Request, res: Response) => {
-    try {
-      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-      res.json({ url: (req.file as any).path });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to upload image" });
-    }
-  });
-
+  app.post(
+    "/api/blog-image-upload",
+    authMiddleware,
+    upload.single("file"),
+    async (req: Request, res: Response) => {
+      try {
+        if (!req.file)
+          return res.status(400).json({ error: "No file uploaded" });
+        res.json({ url: (req.file as any).path });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to upload image" });
+      }
+    },
+  );
 
   // Allow admins to fetch verification documents by redirecting to Cloudinary
   // Or access them directly via the Cloudinary URL stored in the database
@@ -1274,80 +1252,119 @@ export async function registerRoutes(
          FROM blogs b
          LEFT JOIN blog_submissions s ON s.blog_id = b.id AND s.status = 'approved'
          WHERE b.id = $1`,
-        [req.params.id]
+        [req.params.id],
       );
-      if (!result.rows[0]) return res.status(404).json({ error: "Blog not found" });
+      if (!result.rows[0])
+        return res.status(404).json({ error: "Blog not found" });
       res.json(result.rows[0]);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch blog" });
     }
   });
 
-  app.delete("/api/blogs/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      await storage.deleteBlog(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to delete blog" });
-    }
-  });
+  app.delete(
+    "/api/blogs/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        await storage.deleteBlog(req.params.id);
+        res.json({ success: true });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to delete blog" });
+      }
+    },
+  );
 
   // ================== BLOG SUBMISSION ROUTES ==================
-  app.post("/api/blog-submissions", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const user = req.user!;
-      const submission = await storage.createBlogSubmission({
-        ...req.body,
-        submittedById: user.id,
-        submittedByName: user.fullName,
-        submittedByEmail: user.email,
-      });
-      res.status(201).json(submission);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to submit blog" });
-    }
-  });
+  app.post(
+    "/api/blog-submissions",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const user = req.user!;
+        const submission = await storage.createBlogSubmission({
+          ...req.body,
+          submittedById: user.id,
+          submittedByName: user.fullName,
+          submittedByEmail: user.email,
+        });
+        res.status(201).json(submission);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to submit blog" });
+      }
+    },
+  );
 
-  app.get("/api/blog-submissions", authMiddleware, roleMiddleware(UserRole.ADMIN), async (_req: Request, res: Response) => {
-    try {
-      const submissions = await storage.getAllBlogSubmissions();
-      res.json(submissions);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch blog submissions" });
-    }
-  });
+  app.get(
+    "/api/blog-submissions",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (_req: Request, res: Response) => {
+      try {
+        const submissions = await storage.getAllBlogSubmissions();
+        res.json(submissions);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch blog submissions" });
+      }
+    },
+  );
 
-  app.get("/api/blog-submissions/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const submission = await storage.getBlogSubmission(req.params.id);
-      if (!submission) return res.status(404).json({ error: "Submission not found" });
-      res.json(submission);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch submission" });
-    }
-  });
+  app.get(
+    "/api/blog-submissions/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const submission = await storage.getBlogSubmission(req.params.id);
+        if (!submission)
+          return res.status(404).json({ error: "Submission not found" });
+        res.json(submission);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch submission" });
+      }
+    },
+  );
 
-  app.post("/api/blog-submissions/:id/approve", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const submission = await storage.approveBlogSubmission(req.params.id);
-      if (!submission) return res.status(404).json({ error: "Submission not found" });
-      res.json(submission);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to approve submission" });
-    }
-  });
+  app.post(
+    "/api/blog-submissions/:id/approve",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const submission = await storage.approveBlogSubmission(req.params.id);
+        if (!submission)
+          return res.status(404).json({ error: "Submission not found" });
+        res.json(submission);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to approve submission" });
+      }
+    },
+  );
 
-  app.post("/api/blog-submissions/:id/reject", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const { rejectionReason } = req.body;
-      if (!rejectionReason) return res.status(400).json({ error: "Rejection reason is required" });
-      const submission = await storage.rejectBlogSubmission(req.params.id, rejectionReason);
-      if (!submission) return res.status(404).json({ error: "Submission not found" });
-      res.json(submission);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to reject submission" });
-    }
-  });
+  app.post(
+    "/api/blog-submissions/:id/reject",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const { rejectionReason } = req.body;
+        if (!rejectionReason)
+          return res
+            .status(400)
+            .json({ error: "Rejection reason is required" });
+        const submission = await storage.rejectBlogSubmission(
+          req.params.id,
+          rejectionReason,
+        );
+        if (!submission)
+          return res.status(404).json({ error: "Submission not found" });
+        res.json(submission);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to reject submission" });
+      }
+    },
+  );
 
   app.get("/api/specializations", async (_req: Request, res: Response) => {
     try {
@@ -3667,15 +3684,20 @@ export async function registerRoutes(
   );
 
   // Admin: Get all applications
-  app.get("/api/admin/applications", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      // Create this in storage: getAllJobApplications()
-      const applications = await storage.getAllJobApplications(); 
-      res.json(applications);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch applications" });
-    }
-  });
+  app.get(
+    "/api/admin/applications",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        // Create this in storage: getAllJobApplications()
+        const applications = await storage.getAllJobApplications();
+        res.json(applications);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch applications" });
+      }
+    },
+  );
 
   // Admin: Update application status (Accept / Reject)
   // app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
@@ -3684,7 +3706,7 @@ export async function registerRoutes(
   //     if (!['ACCEPTED', 'REJECTED'].includes(status)) {
   //       return res.status(400).json({ error: "Invalid status" });
   //     }
-      
+
   //     // Create this in storage: updateJobApplicationStatus(id, status)
   //     const updatedApplication = await storage.updateJobApplicationStatus(req.params.id, status);
   //     res.json(updatedApplication);
@@ -3700,7 +3722,7 @@ export async function registerRoutes(
     try {
       // Database එකෙන් Careers ඔක්කොම ගන්නවා
       const allCareers = await storage.getAllCareers();
-      
+
       res.json(allCareers);
     } catch (error) {
       console.error("Fetch public careers error:", error);
@@ -3713,101 +3735,133 @@ export async function registerRoutes(
   // ==========================================
 
   // 1. Get all careers
-  app.get("/api/admin/careers", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const allCareers = await storage.getAllCareers();
-      const activeCareers = allCareers.filter(career => career.isActive === true);
-      res.json(activeCareers);
-    } catch (error) {
-      console.error("Fetch careers error:", error);
-      res.status(500).json({ error: "Failed to fetch careers" });
-    }
-  });
+  app.get(
+    "/api/admin/careers",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const allCareers = await storage.getAllCareers();
+        const activeCareers = allCareers.filter(
+          (career) => career.isActive === true,
+        );
+        res.json(activeCareers);
+      } catch (error) {
+        console.error("Fetch careers error:", error);
+        res.status(500).json({ error: "Failed to fetch careers" });
+      }
+    },
+  );
 
   // 2. Create a new career
-  app.post("/api/admin/careers", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const data = insertCareerSchema.parse(req.body);
-      const newCareer = await storage.createCareer(data);
-      
-      console.log("Career Saved:", newCareer.careerTitle);
-      res.status(201).json(newCareer);
-    } catch (error) {
-      console.error("Create career error:", error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+  app.post(
+    "/api/admin/careers",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const data = insertCareerSchema.parse(req.body);
+        const newCareer = await storage.createCareer(data);
+
+        console.log("Career Saved:", newCareer.careerTitle);
+        res.status(201).json(newCareer);
+      } catch (error) {
+        console.error("Create career error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create new career" });
       }
-      res.status(500).json({ error: "Failed to create new career" });
-    }
-  });
+    },
+  );
 
   // 3. Update an existing career
-  app.put("/api/admin/careers/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const careerId = req.params.id;
-      const data = insertCareerSchema.partial().parse(req.body);
-      const updatedCareer = await storage.updateCareer(careerId, data);
-      
-      if (!updatedCareer) {
-        return res.status(404).json({ error: "Career not found" });
+  app.put(
+    "/api/admin/careers/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const careerId = req.params.id;
+        const data = insertCareerSchema.partial().parse(req.body);
+        const updatedCareer = await storage.updateCareer(careerId, data);
+
+        if (!updatedCareer) {
+          return res.status(404).json({ error: "Career not found" });
+        }
+
+        res.json(updatedCareer);
+      } catch (error) {
+        console.error("Update career error:", error);
+        res.status(500).json({ error: "Failed to update career" });
       }
-      
-      res.json(updatedCareer);
-    } catch (error) {
-      console.error("Update career error:", error);
-      res.status(500).json({ error: "Failed to update career" });
-    }
-  });
+    },
+  );
 
   // 4. Soft Delete (Deactivate) a career
-  app.patch("/api/admin/careers/:id/deactivate", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
-      const careerId = req.params.id;
-      
-      const updatedCareer = await storage.updateCareer(careerId, { isActive: false });
-      
-      if (!updatedCareer) {
-        return res.status(404).json({ error: "Career not found" });
-      }
-      
-      res.json({ message: "Career deactivated successfully" });
-    } catch (error) {
-      console.error("Deactivate career error:", error);
-      res.status(500).json({ error: "Failed to deactivate career" });
-    }
-  });
+  app.patch(
+    "/api/admin/careers/:id/deactivate",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const careerId = req.params.id;
 
-  app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-    try {
+        const updatedCareer = await storage.updateCareer(careerId, {
+          isActive: false,
+        });
+
+        if (!updatedCareer) {
+          return res.status(404).json({ error: "Career not found" });
+        }
+
+        res.json({ message: "Career deactivated successfully" });
+      } catch (error) {
+        console.error("Deactivate career error:", error);
+        res.status(500).json({ error: "Failed to deactivate career" });
+      }
+    },
+  );
+
+  app.patch(
+    "/api/admin/applications/:id/status",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
         const { status, message } = req.body;
         const applicationId = req.params.id;
 
-        if (!status || !['ACCEPTED', 'REJECTED'].includes(status)) {
-            return res.status(400).json({ error: "Invalid status" });
+        if (!status || !["ACCEPTED", "REJECTED"].includes(status)) {
+          return res.status(400).json({ error: "Invalid status" });
         }
 
         // 1. Database Status Update
-        const updatedApplication = await storage.updateApplicationStatus(applicationId, status);
+        const updatedApplication = await storage.updateApplicationStatus(
+          applicationId,
+          status,
+        );
 
         if (!updatedApplication) {
-             return res.status(404).json({ error: "Application not found" });
+          return res.status(404).json({ error: "Application not found" });
         }
 
         // 2. Email send
         await sendApplicationEmail(
-             updatedApplication.email, 
-             updatedApplication.fullName, 
-             updatedApplication.jobTitle, 
-             status as "ACCEPTED" | "REJECTED", 
-             message || "No additional comments provided."
+          updatedApplication.email,
+          updatedApplication.fullName,
+          updatedApplication.jobTitle,
+          status as "ACCEPTED" | "REJECTED",
+          message || "No additional comments provided.",
         );
 
         res.json(updatedApplication);
-    } catch (error) {
+      } catch (error) {
         console.error("Failed to update application status:", error);
         res.status(500).json({ error: "Failed to update application status" });
-    }
-  });
+      }
+    },
+  );
 
   return httpServer;
 }
