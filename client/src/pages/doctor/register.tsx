@@ -1,24 +1,3 @@
-import { useState, useEffect, useMemo } from "react";
-import { Link, useLocation } from "wouter";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Eye,
-  EyeOff,
-  Loader2,
-  Stethoscope,
-  Upload,
-  X,
-  CheckCircle,
-  ArrowLeft,
-  ArrowRight,
-  User,
-  GraduationCap,
-  FileText,
-  Building2,
-  PlusCircle,
-} from "lucide-react";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -62,6 +41,7 @@ import {
   FileText,
   GraduationCap,
   Loader2,
+  PlusCircle,
   Stethoscope,
   Upload,
   User,
@@ -204,7 +184,9 @@ export default function DoctorRegisterPage() {
     previewUrl?: string;
   } | null>(null);
 
-  const [customSpecs, setCustomSpecs] = useState<{id: string, name: string}[]>([]);
+  const [customSpecs, setCustomSpecs] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [isOtherChecked, setIsOtherChecked] = useState(false);
   const [otherInputValue, setOtherInputValue] = useState("");
 
@@ -220,16 +202,24 @@ export default function DoctorRegisterPage() {
   const handleAddCustomSpec = (e?: React.MouseEvent | React.KeyboardEvent) => {
     if (e) e.preventDefault();
     if (!otherInputValue.trim()) return;
-    
+
     const newSpecId = `custom-${otherInputValue.trim()}`;
-    
-    if (!customSpecs.find(s => s.id === newSpecId)) {
-      setCustomSpecs(prev => [...prev, { id: newSpecId, name: otherInputValue.trim() }]);
-      
-      const currentValues = professionalForm.getValues("specializationIds") || [];
-      professionalForm.setValue("specializationIds", [...currentValues, newSpecId], { shouldValidate: true });
+
+    if (!customSpecs.find((s) => s.id === newSpecId)) {
+      setCustomSpecs((prev) => [
+        ...prev,
+        { id: newSpecId, name: otherInputValue.trim() },
+      ]);
+
+      const currentValues =
+        professionalForm.getValues("specializationIds") || [];
+      professionalForm.setValue(
+        "specializationIds",
+        [...currentValues, newSpecId],
+        { shouldValidate: true },
+      );
     }
-    
+
     setOtherInputValue("");
   };
 
@@ -1015,7 +1005,9 @@ export default function DoctorRegisterPage() {
                               <Checkbox
                                 id="other-spec"
                                 checked={isOtherChecked}
-                                onCheckedChange={(checked) => setIsOtherChecked(!!checked)}
+                                onCheckedChange={(checked) =>
+                                  setIsOtherChecked(!!checked)
+                                }
                               />
                               <label
                                 htmlFor="other-spec"
@@ -1031,16 +1023,18 @@ export default function DoctorRegisterPage() {
                               <Input
                                 placeholder="Type new specialization..."
                                 value={otherInputValue}
-                                onChange={(e) => setOtherInputValue(e.target.value)}
+                                onChange={(e) =>
+                                  setOtherInputValue(e.target.value)
+                                }
                                 className="flex-1 bg-background h-9"
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
+                                  if (e.key === "Enter") {
                                     handleAddCustomSpec(e);
                                   }
                                 }}
                               />
-                              <Button 
-                                type="button" 
+                              <Button
+                                type="button"
                                 onClick={handleAddCustomSpec}
                                 size="sm"
                                 className="h-9 px-4 shrink-0 bg-primary hover:bg-primary/80 text-primary-foreground"

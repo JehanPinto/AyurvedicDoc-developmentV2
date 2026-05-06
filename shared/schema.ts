@@ -341,21 +341,10 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const blogs = pgTable("blogs", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description").notNull(),
-  category: varchar("category", { length: 50 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const insertBlogSchema = createInsertSchema(blogs).omit({ id: true, createdAt: true, updatedAt: true });
-export type Blog = typeof blogs.$inferSelect;
-export type InsertBlog = z.infer<typeof insertBlogSchema>;
-
 export const blogSubmissions = pgTable("blog_submissions", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content").notNull(),
   category: varchar("category", { length: 50 }).notNull(),
@@ -369,7 +358,15 @@ export const blogSubmissions = pgTable("blog_submissions", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertBlogSubmissionSchema = createInsertSchema(blogSubmissions).omit({ id: true, createdAt: true, updatedAt: true, status: true, rejectionReason: true });
+export const insertBlogSubmissionSchema = createInsertSchema(
+  blogSubmissions,
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  status: true,
+  rejectionReason: true,
+});
 export type BlogSubmission = typeof blogSubmissions.$inferSelect;
 export type InsertBlogSubmission = z.infer<typeof insertBlogSubmissionSchema>;
 
@@ -1053,7 +1050,9 @@ export interface JobApplication extends InsertJobApplication {
 }
 
 export const careers = pgTable("careers", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   careerTitle: varchar("career_title", { length: 255 }).notNull(),
   location: varchar("location", { length: 255 }).notNull(),
   employmentType: varchar("employment_type", { length: 100 }).notNull(),
@@ -1063,6 +1062,8 @@ export const careers = pgTable("careers", {
   requiredQualifications: text("required_qualifications"),
   benefits: text("benefits"),
   isActive: boolean("is_active").default(true).notNull(),
+});
+
 export const blogs = pgTable("blogs", {
   id: varchar("id", { length: 50 })
     .primaryKey()
@@ -1077,10 +1078,10 @@ export const blogs = pgTable("blogs", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertCareerSchema = createInsertSchema(careers).omit({ 
-  id: true, 
-  createdAt: true, 
-  updatedAt: true 
+export const insertCareerSchema = createInsertSchema(careers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export type Career = typeof careers.$inferSelect;
