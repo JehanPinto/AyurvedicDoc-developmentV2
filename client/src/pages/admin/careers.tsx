@@ -115,23 +115,38 @@ export default function AdminCareersPage() {
     const updateStatusMutation = useMutation({
         mutationFn: async ({ id, status, message }: { id: string; status: "ACCEPTED" | "REJECTED", message: string }) => {
             const res = await apiRequest("PATCH", `/api/admin/applications/${id}/status`, { status, message });
+            if (res instanceof Response) {
+                return await res.json();
+            }
             return res;
         },
         onSuccess: (data, variables) => {
-            toast({
-                title: variables.status === "ACCEPTED" ? "Application Accepted" : "Application Rejected",
-                description: `Applicant has been notified via email.`,
-            });
+            if (data && data.emailSuccess === false) {
+                toast({
+                    title: "Status Updated, but Email Failed! ⚠️",
+                    description: `Error: ${data.emailError || "Unknown SMTP error occurred."}`,
+                    variant: "destructive",
+                });
+            } else {
+                toast({
+                    title: variables.status === "ACCEPTED" ? "Application Accepted" : "Application Rejected",
+                    description: `Applicant has been successfully notified via email.`,
+                });
+            }
+
             queryClient.invalidateQueries({ queryKey: ["/api/admin/applications"] });
             
-            // Close all modals related to applications
             setActionModal({ isOpen: false, type: null, appId: null });
             setIsAppModalOpen(false);
             setActionMessage("");
             setTimeout(() => setSelectedApp(null), 300);
         },
-        onError: () => {
-            toast({ title: "Update Failed", description: "Could not change the application status or send email.", variant: "destructive" });
+        onError: (error: any) => {
+            toast({ 
+                title: "Failed to Update Application", 
+                description: error.message || "An unexpected error occurred while communicating with the server.", 
+                variant: "destructive" 
+            });
         }
     });
 
