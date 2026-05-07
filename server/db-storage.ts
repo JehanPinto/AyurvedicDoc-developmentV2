@@ -108,6 +108,7 @@ function mapDoctorProfile(row: any): DoctorProfile {
     languagesSpoken: row.languagesSpoken || ["english"],
     consultationTypes: row.consultationTypes || ["in_person"],
     hospitalIds: row.hospitalIds || [],
+    clinic_locations: row.clinic_locations || [],
     consultationFee: row.consultationFee || 0,
     onlineConsultationFee: row.onlineConsultationFee || undefined,
     homeVisitFee: row.homeVisitFee || undefined,
@@ -438,6 +439,7 @@ export class DbStorage implements IStorage {
         languagesSpoken: profile.languagesSpoken,
         consultationTypes: profile.consultationTypes,
         hospitalIds: profile.hospitalIds,
+        clinic_locations: profile.clinic_locations,
         consultationFee: profile.consultationFee,
         onlineConsultationFee: profile.onlineConsultationFee,
         homeVisitFee: profile.homeVisitFee,
@@ -558,6 +560,7 @@ export class DbStorage implements IStorage {
           eq(appointmentSlots.doctorId, doctorId),
           gte(appointmentSlots.date, startDate),
           lte(appointmentSlots.date, endDate),
+          eq(appointmentSlots.isActive, true),
         ),
       );
     return result as AppointmentSlot[];
@@ -590,9 +593,10 @@ export class DbStorage implements IStorage {
     return this.updateAppointmentSlot(slotId, { isBlocked: false });
   }
 
-  async deleteSlot(slotId: string): Promise<boolean> {
+  async deactivateSlot(slotId: string): Promise<boolean> {
     const result = await db
-      .delete(appointmentSlots)
+      .update(appointmentSlots)
+      .set({ isActive: false })
       .where(eq(appointmentSlots.id, slotId))
       .returning();
     return result.length > 0;
@@ -812,6 +816,12 @@ export class DbStorage implements IStorage {
       .insert(appointments)
       .values(appointment)
       .returning();
+
+    await db
+      .update(appointmentSlots)
+      .set({ isBooked: true })
+      .where(eq(appointmentSlots.id, appointment.slotId));
+
     return {
       ...result[0],
       createdAt: toISOString(result[0].createdAt),
@@ -841,11 +851,20 @@ export class DbStorage implements IStorage {
     reason: string,
     cancelledBy: string,
   ): Promise<Appointment | undefined> {
-    return this.updateAppointment(id, {
+    const updated = await this.updateAppointment(id, {
       status: AppointmentStatus.CANCELLED,
       cancelReason: reason,
       cancelledBy: cancelledBy as any,
     });
+
+    if (updated) {
+      await db
+        .update(appointmentSlots)
+        .set({ isBooked: false })
+        .where(eq(appointmentSlots.id, updated.slotId));
+    }
+
+    return updated;
   }
 
   async getPayment(id: string): Promise<Payment | undefined> {

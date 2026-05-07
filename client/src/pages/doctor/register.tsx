@@ -100,6 +100,15 @@ const professionalInfoSchema = z.object({
     .min(1, "Select at least one consultation type"),
   consultationFee: z.string().min(1, "Consultation fee is required"),
   onlineConsultationFee: z.string().optional(),
+  clinic_locations: z.array(z.string()).default([]),
+}).superRefine((data, ctx) => {
+  if (data.consultationTypes.includes(ConsultationType.IN_PERSON) && (!data.clinic_locations || data.clinic_locations.length === 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Please enter your meeting location for In-Person consultations",
+      path: ["clinic_locations"],
+    });
+  }
 });
 
 const bankInfoSchema = z.object({
@@ -189,6 +198,7 @@ export default function DoctorRegisterPage() {
   >([]);
   const [isOtherChecked, setIsOtherChecked] = useState(false);
   const [otherInputValue, setOtherInputValue] = useState("");
+  const [locationInput, setLocationInput] = useState("");
 
   const { data: specializations = [] } = useQuery<Specialization[]>({
     queryKey: ["/api/specializations"],
@@ -247,6 +257,7 @@ export default function DoctorRegisterPage() {
       consultationTypes: [ConsultationType.IN_PERSON],
       consultationFee: "",
       onlineConsultationFee: "",
+      clinic_locations: [],
     },
   });
 
@@ -530,6 +541,7 @@ export default function DoctorRegisterPage() {
       bankName: bankData.bankName,
       bankAccountNumber: bankData.bankAccountNumber,
       bankBranch: bankData.bankBranch,
+      clinic_locations: professionalInfo.clinic_locations,
     };
 
     registerMutation.mutate(registrationData);
@@ -965,7 +977,6 @@ export default function DoctorRegisterPage() {
                     control={professionalForm.control}
                     name="specializationIds"
                     render={({ field }) => {
-                      // API එකෙන් එන ඒවායි, අපි අලුතින් ගහන ඒවායි එකට එකතු කරනවා
                       const allSpecs = [...specializations, ...customSpecs];
 
                       return (
@@ -1146,6 +1157,66 @@ export default function DoctorRegisterPage() {
                       </FormItem>
                     )}
                   />
+
+                  {/* Multiple Locations Add */}
+                  {professionalForm.watch("consultationTypes").includes(ConsultationType.IN_PERSON) && (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                      <FormField
+                        control={professionalForm.control}
+                        name="clinic_locations"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-bold text-primary">In-Person Meeting Locations *</FormLabel>
+                            
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Enter clinic, hospital, or city..."
+                                value={locationInput}
+                                onChange={(e) => setLocationInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    if (locationInput.trim() && !field.value?.includes(locationInput.trim())) {
+                                      field.onChange([...(field.value || []), locationInput.trim()]);
+                                      setLocationInput("");
+                                    }
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  if (locationInput.trim() && !field.value?.includes(locationInput.trim())) {
+                                    field.onChange([...(field.value || []), locationInput.trim()]);
+                                    setLocationInput("");
+                                  }
+                                }}
+                              >
+                                Add
+                              </Button>
+                            </div>
+
+                            {Array.isArray(field.value) && field.value.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {field.value.map((loc: string, index: number) => (
+                                  <div key={index} className="flex items-center bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
+                                    {loc}
+                                    <X
+                                      className="h-3.5 w-3.5 ml-2 cursor-pointer hover:text-destructive transition-colors"
+                                      onClick={() => {
+                                        field.onChange(field.value.filter((_, i) => i !== index));
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField

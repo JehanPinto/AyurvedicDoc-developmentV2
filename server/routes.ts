@@ -464,6 +464,7 @@ export async function registerRoutes(
           specializationIds: req.body.specializationIds || [],
           languagesSpoken: req.body.languagesSpoken || ["english"],
           consultationTypes: req.body.consultationTypes || ["in_person"],
+          clinic_locations: req.body.clinic_locations || [],
           consultationFee: parseInt(req.body.consultationFee) || 0,
           onlineConsultationFee: req.body.onlineConsultationFee
             ? parseInt(req.body.onlineConsultationFee)
@@ -1702,11 +1703,29 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Doctor profile not found" });
         }
 
-        // Add this missing code:
         const data = insertAppointmentSlotSchema.parse({
           ...req.body,
           doctorId: profile.id,
         });
+
+        // Check for overlapping slots on the same date before creating a new one
+        const existingSlots = await storage.getAvailableSlots(profile.id, data.date);
+        
+        // Helper function for time comparison in backend
+        const isOverlap = (s1: string, e1: string, s2: string, e2: string) => {
+          return s1 < e2 && s2 < e1;
+        };
+
+        const hasOverlap = existingSlots.some((slot) => 
+          !slot.isBlocked && 
+          slot.isActive !== false &&
+          isOverlap(data.startTime, data.endTime, slot.startTime, slot.endTime)
+        );
+
+        if (hasOverlap) {
+          return res.status(400).json({ error: "A slot already exists during this time period on the selected date." });
+        }
+
         const slot = await storage.createAppointmentSlot(data);
         res.status(201).json(slot);
       } catch (error) {
@@ -1919,13 +1938,12 @@ export async function registerRoutes(
     },
   );
 
-  app.delete(
-    "/api/slots/:id",
+  app.patch(
+    "/api/slots/:id/deactivate",
     authMiddleware,
     roleMiddleware(UserRole.DOCTOR),
     async (req: AuthenticatedRequest, res: Response) => {
       try {
-        // Verify the slot belongs to this doctor
         const profile = await storage.getDoctorProfileByUserId(req.user!.id);
         if (!profile) {
           return res.status(404).json({ error: "Doctor profile not found" });
@@ -1937,23 +1955,21 @@ export async function registerRoutes(
         }
 
         if (slot.doctorId !== profile.id) {
-          return res
-            .status(403)
-            .json({ error: "Not authorized to delete this slot" });
+          return res.status(403).json({ error: "Not authorized" });
         }
 
         if (slot.isBooked) {
-          return res.status(400).json({ error: "Cannot delete a booked slot" });
+          return res.status(400).json({ error: "Cannot deactivate a booked slot" });
         }
 
-        const success = await storage.deleteSlot(req.params.id);
+        const success = await storage.deactivateSlot(req.params.id);
         if (success) {
-          res.json({ success: true, message: "Slot deleted successfully" });
+          res.json({ success: true, message: "Slot deactivated successfully" });
         } else {
-          res.status(500).json({ error: "Failed to delete slot" });
+          res.status(500).json({ error: "Failed to deactivate slot" });
         }
       } catch (error) {
-        res.status(500).json({ error: "Failed to delete slot" });
+        res.status(500).json({ error: "Failed to deactivate slot" });
       }
     },
   );
