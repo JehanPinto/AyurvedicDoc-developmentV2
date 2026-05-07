@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -62,7 +63,7 @@ import { ConsultationType, Language } from "@shared/schema";
 // Profile form schema (basic user info)
 const profileSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
-  phone: z.string().optional(),
+  phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)").optional(),
   gender: z.string().optional(),
   dateOfBirth: z.string().optional(),
   address: z.string().optional(),
@@ -102,6 +103,7 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 export default function DoctorSettings() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("profile");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1099,7 +1101,7 @@ export default function DoctorSettings() {
                     Verified
                   </Badge>
                 ) : (
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => navigate("/doctor/verify-phone")}>
                     Verify Phone
                   </Button>
                 )}

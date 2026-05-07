@@ -49,7 +49,7 @@ import type { User as UserType } from "@shared/schema";
 
 const profileSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
-  phone: z.string().optional(),
+  phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)").optional(),
   gender: z.string().optional(),
   dateOfBirth: z.string().optional(),
   address: z.string().optional(),

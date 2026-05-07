@@ -57,7 +57,7 @@ const buildPersonalInfoSchema = (requirePassword: boolean) =>
     .object({
       fullName: z.string().min(2, "Full name is required"),
       email: z.string().email("Invalid email address"),
-      phone: z.string().min(10, "Valid phone number required"),
+      phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)"),
       password: requirePassword
         ? z
             .string()
