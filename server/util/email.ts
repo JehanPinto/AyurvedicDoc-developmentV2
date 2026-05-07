@@ -23,18 +23,19 @@ export async function sendApplicationEmail(
 ) {
   if (!toEmail || toEmail.trim() === "") {
     console.error("🔴 Error: Applicant has no email address.");
-    return { 
-      success: false, 
-      error: "This applicant has not provided an email address. (No Email Found)" 
+    return {
+      success: false,
+      error:
+        "This applicant has not provided an email address. (No Email Found)",
     };
   }
 
   if (!toEmail.includes("@")) {
-     console.error("🔴 Error: Invalid email format.");
-     return { 
-         success: false, 
-         error: "Invalid Email Format" 
-     };
+    console.error("🔴 Error: Invalid email format.");
+    return {
+      success: false,
+      error: "Invalid Email Format",
+    };
   }
 
   const isAccepted = status === "ACCEPTED";
@@ -85,9 +86,10 @@ export async function sendApplicationEmail(
     return { success: true };
   } catch (error: any) {
     console.error("🔴 SMTP Error:", error.message);
-    return { 
-      success: false, 
-      error: "There is an error with the email server (SMTP). Please check the App Key." 
+    return {
+      success: false,
+      error:
+        "There is an error with the email server (SMTP). Please check the App Key.",
     };
   }
 }

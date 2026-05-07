@@ -1,7 +1,16 @@
-import { z } from "zod";
-import { pgTable, text, varchar, boolean, integer, real, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
 
 // ================== ENUMS ==================
 export const UserRole = {
@@ -74,7 +83,9 @@ export const AuthProvider = {
 // ================== DRIZZLE TABLES ==================
 
 export const users = pgTable("users", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   email: varchar("email", { length: 255 }).notNull().unique(),
   password: varchar("password", { length: 255 }).notNull(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
@@ -83,7 +94,9 @@ export const users = pgTable("users", {
   nic: varchar("nic", { length: 20 }),
   gender: varchar("gender", { length: 10 }),
   dateOfBirth: varchar("date_of_birth", { length: 10 }),
-  preferredLanguages: text("preferred_languages").array().default(sql`ARRAY['english']::text[]`),
+  preferredLanguages: text("preferred_languages")
+    .array()
+    .default(sql`ARRAY['english']::text[]`),
   profileImage: text("profile_image"),
   address: text("address"),
   city: varchar("city", { length: 100 }),
@@ -99,14 +112,18 @@ export const users = pgTable("users", {
 });
 
 export const specializations = pgTable("specializations", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 100 }).notNull().unique(),
   description: text("description"),
   icon: varchar("icon", { length: 50 }),
 });
 
 export const hospitals = pgTable("hospitals", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
   address: text("address").notNull(),
   city: varchar("city", { length: 100 }).notNull(),
@@ -119,21 +136,37 @@ export const hospitals = pgTable("hospitals", {
 });
 
 export const doctorProfiles = pgTable("doctor_profiles", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 50 }).notNull().references(() => users.id),
-  registrationNumber: varchar("registration_number", { length: 50 }).notNull().unique(),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 50 })
+    .notNull()
+    .references(() => users.id),
+  registrationNumber: varchar("registration_number", { length: 50 })
+    .notNull()
+    .unique(),
   qualifications: text("qualifications").notNull(),
   biography: text("biography"),
-  specializationIds: text("specialization_ids").array().default(sql`ARRAY[]::text[]`),
-  languagesSpoken: text("languages_spoken").array().default(sql`ARRAY['english']::text[]`),
-  consultationTypes: text("consultation_types").array().default(sql`ARRAY['in_person']::text[]`),
-  hospitalIds: text("hospital_ids").array().default(sql`ARRAY[]::text[]`),
+  specializationIds: text("specialization_ids")
+    .array()
+    .default(sql`ARRAY[]::text[]`),
+  languagesSpoken: text("languages_spoken")
+    .array()
+    .default(sql`ARRAY['english']::text[]`),
+  consultationTypes: text("consultation_types")
+    .array()
+    .default(sql`ARRAY['in_person']::text[]`),
+  hospitalIds: text("hospital_ids")
+    .array()
+    .default(sql`ARRAY[]::text[]`),
   consultationFee: integer("consultation_fee").notNull().default(0),
   onlineConsultationFee: integer("online_consultation_fee"),
   homeVisitFee: integer("home_visit_fee"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
   rejectionReason: text("rejection_reason"),
-  verificationDocuments: text("verification_documents").array().default(sql`ARRAY[]::text[]`),
+  verificationDocuments: text("verification_documents")
+    .array()
+    .default(sql`ARRAY[]::text[]`),
   bankName: varchar("bank_name", { length: 100 }),
   bankAccountNumber: varchar("bank_account_number", { length: 50 }),
   bankBranch: varchar("bank_branch", { length: 100 }),
@@ -151,8 +184,12 @@ export const doctorProfiles = pgTable("doctor_profiles", {
 });
 
 export const doctorSchedules = pgTable("doctor_schedules", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  doctorId: varchar("doctor_id", { length: 50 })
+    .notNull()
+    .references(() => doctorProfiles.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
   dayOfWeek: varchar("day_of_week", { length: 10 }).notNull(),
   startTime: varchar("start_time", { length: 5 }).notNull(),
@@ -162,8 +199,12 @@ export const doctorSchedules = pgTable("doctor_schedules", {
 });
 
 export const appointmentSlots = pgTable("appointment_slots", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  doctorId: varchar("doctor_id", { length: 50 })
+    .notNull()
+    .references(() => doctorProfiles.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
   date: varchar("date", { length: 10 }).notNull(),
   startTime: varchar("start_time", { length: 5 }).notNull(),
@@ -174,10 +215,18 @@ export const appointmentSlots = pgTable("appointment_slots", {
 });
 
 export const appointments = pgTable("appointments", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
-  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
-  slotId: varchar("slot_id", { length: 50 }).notNull().references(() => appointmentSlots.id),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  patientId: varchar("patient_id", { length: 50 })
+    .notNull()
+    .references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 })
+    .notNull()
+    .references(() => doctorProfiles.id),
+  slotId: varchar("slot_id", { length: 50 })
+    .notNull()
+    .references(() => appointmentSlots.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
   appointmentDate: varchar("appointment_date", { length: 10 }).notNull(),
   appointmentTime: varchar("appointment_time", { length: 5 }).notNull(),
@@ -200,10 +249,18 @@ export const appointments = pgTable("appointments", {
 });
 
 export const payments = pgTable("payments", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  appointmentId: varchar("appointment_id", { length: 50 }).notNull().references(() => appointments.id),
-  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
-  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  appointmentId: varchar("appointment_id", { length: 50 })
+    .notNull()
+    .references(() => appointments.id),
+  patientId: varchar("patient_id", { length: 50 })
+    .notNull()
+    .references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 })
+    .notNull()
+    .references(() => doctorProfiles.id),
   consultationFee: integer("consultation_fee").notNull(),
   bookingCharges: integer("booking_charges").default(0),
   tax: integer("tax").default(0),
@@ -221,13 +278,25 @@ export const payments = pgTable("payments", {
 });
 
 export const prescriptions = pgTable("prescriptions", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  appointmentId: varchar("appointment_id", { length: 50 }).notNull().references(() => appointments.id),
-  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
-  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  appointmentId: varchar("appointment_id", { length: 50 })
+    .notNull()
+    .references(() => appointments.id),
+  patientId: varchar("patient_id", { length: 50 })
+    .notNull()
+    .references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 })
+    .notNull()
+    .references(() => doctorProfiles.id),
   diagnosis: text("diagnosis").notNull(),
-  medications: jsonb("medications").notNull().default(sql`'[]'::jsonb`),
-  treatments: text("treatments").array().default(sql`ARRAY[]::text[]`),
+  medications: jsonb("medications")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  treatments: text("treatments")
+    .array()
+    .default(sql`ARRAY[]::text[]`),
   dietaryAdvice: text("dietary_advice"),
   lifestyleAdvice: text("lifestyle_advice"),
   followUpDate: varchar("follow_up_date", { length: 10 }),
@@ -236,10 +305,18 @@ export const prescriptions = pgTable("prescriptions", {
 });
 
 export const reviews = pgTable("reviews", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  appointmentId: varchar("appointment_id", { length: 50 }).notNull().references(() => appointments.id),
-  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
-  doctorId: varchar("doctor_id", { length: 50 }).notNull().references(() => doctorProfiles.id),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  appointmentId: varchar("appointment_id", { length: 50 })
+    .notNull()
+    .references(() => appointments.id),
+  patientId: varchar("patient_id", { length: 50 })
+    .notNull()
+    .references(() => users.id),
+  doctorId: varchar("doctor_id", { length: 50 })
+    .notNull()
+    .references(() => doctorProfiles.id),
   rating: integer("rating").notNull(),
   comment: text("comment"),
   doctorResponse: text("doctor_response"),
@@ -250,8 +327,12 @@ export const reviews = pgTable("reviews", {
 });
 
 export const notifications = pgTable("notifications", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 50 }).notNull().references(() => users.id),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 50 })
+    .notNull()
+    .references(() => users.id),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
   type: varchar("type", { length: 20 }).notNull(),
@@ -260,23 +341,64 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const blogSubmissions = pgTable("blog_submissions", {
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  featuredImage: text("featured_image"),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  submittedById: varchar("submitted_by_id", { length: 50 }).notNull(),
+  submittedByName: varchar("submitted_by_name", { length: 255 }).notNull(),
+  submittedByEmail: varchar("submitted_by_email", { length: 255 }).notNull(),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertBlogSubmissionSchema = createInsertSchema(
+  blogSubmissions,
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  status: true,
+  rejectionReason: true,
+});
+export type BlogSubmission = typeof blogSubmissions.$inferSelect;
+export type InsertBlogSubmission = z.infer<typeof insertBlogSubmissionSchema>;
+
 export const platformSettings = pgTable("platform_settings", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`'default'`),
-  platformCommissionRate: integer("platform_commission_rate").notNull().default(10),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`'default'`),
+  platformCommissionRate: integer("platform_commission_rate")
+    .notNull()
+    .default(10),
   bookingCharges: integer("booking_charges").notNull().default(100),
   taxRate: integer("tax_rate").notNull().default(5),
-  maxAdvanceBookingDays: integer("max_advance_booking_days").notNull().default(30),
-  minBookingNoticeHours: integer("min_booking_notice_hours").notNull().default(2),
+  maxAdvanceBookingDays: integer("max_advance_booking_days")
+    .notNull()
+    .default(30),
+  minBookingNoticeHours: integer("min_booking_notice_hours")
+    .notNull()
+    .default(2),
   defaultSlotDuration: integer("default_slot_duration").notNull().default(30),
   defaultBufferTime: integer("default_buffer_time").notNull().default(10),
   emailNotifications: boolean("email_notifications").default(true),
   smsNotifications: boolean("sms_notifications").default(true),
   pushNotifications: boolean("push_notifications").default(false),
   autoConfirmAppointments: boolean("auto_confirm_appointments").default(false),
-  requireDoctorVerification: boolean("require_doctor_verification").default(true),
+  requireDoctorVerification: boolean("require_doctor_verification").default(
+    true,
+  ),
   allowOnlinePayments: boolean("allow_online_payments").default(true),
   allowClinicPayments: boolean("allow_clinic_payments").default(false),
-  defaultLanguage: varchar("default_language", { length: 20 }).default("english"),
+  defaultLanguage: varchar("default_language", { length: 20 }).default(
+    "english",
+  ),
   maintenanceMode: boolean("maintenance_mode").default(false),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -289,7 +411,9 @@ export const insertUserSchemaDb = createInsertSchema(users).omit({
   updatedAt: true,
 });
 
-export const insertSpecializationSchemaDb = createInsertSchema(specializations).omit({
+export const insertSpecializationSchemaDb = createInsertSchema(
+  specializations,
+).omit({
   id: true,
 });
 
@@ -297,7 +421,9 @@ export const insertHospitalSchemaDb = createInsertSchema(hospitals).omit({
   id: true,
 });
 
-export const insertDoctorProfileSchemaDb = createInsertSchema(doctorProfiles).omit({
+export const insertDoctorProfileSchemaDb = createInsertSchema(
+  doctorProfiles,
+).omit({
   id: true,
   averageRating: true,
   totalReviews: true,
@@ -307,11 +433,15 @@ export const insertDoctorProfileSchemaDb = createInsertSchema(doctorProfiles).om
   updatedAt: true,
 });
 
-export const insertDoctorScheduleSchemaDb = createInsertSchema(doctorSchedules).omit({
+export const insertDoctorScheduleSchemaDb = createInsertSchema(
+  doctorSchedules,
+).omit({
   id: true,
 });
 
-export const insertAppointmentSlotSchemaDb = createInsertSchema(appointmentSlots).omit({
+export const insertAppointmentSlotSchemaDb = createInsertSchema(
+  appointmentSlots,
+).omit({
   id: true,
 });
 
@@ -327,7 +457,9 @@ export const insertPaymentSchemaDb = createInsertSchema(payments).omit({
   updatedAt: true,
 });
 
-export const insertPrescriptionSchemaDb = createInsertSchema(prescriptions).omit({
+export const insertPrescriptionSchemaDb = createInsertSchema(
+  prescriptions,
+).omit({
   id: true,
   createdAt: true,
 });
@@ -338,12 +470,16 @@ export const insertReviewSchemaDb = createInsertSchema(reviews).omit({
   updatedAt: true,
 });
 
-export const insertNotificationSchemaDb = createInsertSchema(notifications).omit({
+export const insertNotificationSchemaDb = createInsertSchema(
+  notifications,
+).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertPlatformSettingsSchemaDb = createInsertSchema(platformSettings).omit({
+export const insertPlatformSettingsSchemaDb = createInsertSchema(
+  platformSettings,
+).omit({
   updatedAt: true,
 });
 
@@ -358,7 +494,9 @@ export const insertUserSchema = z.object({
   nic: z.string().optional(),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
   dateOfBirth: z.string().optional(),
-  preferredLanguages: z.array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL])).default([Language.ENGLISH]),
+  preferredLanguages: z
+    .array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL]))
+    .default([Language.ENGLISH]),
   profileImage: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -366,7 +504,9 @@ export const insertUserSchema = z.object({
   isPhoneVerified: z.boolean().default(false),
   isActive: z.boolean().default(true),
   googleId: z.string().optional(),
-  provider: z.enum([AuthProvider.LOCAL, AuthProvider.GOOGLE, AuthProvider.APPLE]).default(AuthProvider.LOCAL),
+  provider: z
+    .enum([AuthProvider.LOCAL, AuthProvider.GOOGLE, AuthProvider.APPLE])
+    .default(AuthProvider.LOCAL),
   providerId: z.string().optional(),
   registrationComplete: z.boolean().default(true),
 });
@@ -414,14 +554,33 @@ export const insertDoctorProfileSchema = z.object({
   registrationNumber: z.string().min(5, "Registration number required"),
   qualifications: z.string().min(10, "Qualifications required"),
   biography: z.string().optional(),
-  specializationIds: z.array(z.string()).min(1, "At least one specialization required"),
-  languagesSpoken: z.array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL])).min(1, "At least one language required"),
-  consultationTypes: z.array(z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT])).min(1),
+  specializationIds: z
+    .array(z.string())
+    .min(1, "At least one specialization required"),
+  languagesSpoken: z
+    .array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL]))
+    .min(1, "At least one language required"),
+  consultationTypes: z
+    .array(
+      z.enum([
+        ConsultationType.IN_PERSON,
+        ConsultationType.ONLINE,
+        ConsultationType.HOME_VISIT,
+      ]),
+    )
+    .min(1),
   hospitalIds: z.array(z.string()).default([]),
   consultationFee: z.number().min(0, "Fee must be positive"),
   onlineConsultationFee: z.number().min(0).optional(),
   homeVisitFee: z.number().min(0).optional(),
-  status: z.enum([DoctorStatus.PENDING, DoctorStatus.VERIFIED, DoctorStatus.REJECTED, DoctorStatus.SUSPENDED]).default(DoctorStatus.PENDING),
+  status: z
+    .enum([
+      DoctorStatus.PENDING,
+      DoctorStatus.VERIFIED,
+      DoctorStatus.REJECTED,
+      DoctorStatus.SUSPENDED,
+    ])
+    .default(DoctorStatus.PENDING),
   verificationDocuments: z.array(z.string()).default([]),
   bankName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
@@ -454,10 +613,22 @@ export interface DoctorWithDetails extends DoctorProfile {
 export const insertDoctorScheduleSchema = z.object({
   doctorId: z.string(),
   hospitalId: z.string().optional(),
-  dayOfWeek: z.enum([DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY]),
+  dayOfWeek: z.enum([
+    DayOfWeek.SUNDAY,
+    DayOfWeek.MONDAY,
+    DayOfWeek.TUESDAY,
+    DayOfWeek.WEDNESDAY,
+    DayOfWeek.THURSDAY,
+    DayOfWeek.FRIDAY,
+    DayOfWeek.SATURDAY,
+  ]),
   startTime: z.string(),
   endTime: z.string(),
-  consultationType: z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT]),
+  consultationType: z.enum([
+    ConsultationType.IN_PERSON,
+    ConsultationType.ONLINE,
+    ConsultationType.HOME_VISIT,
+  ]),
   isActive: z.boolean().default(true),
 });
 
@@ -473,7 +644,11 @@ export const insertAppointmentSlotSchema = z.object({
   date: z.string(),
   startTime: z.string(),
   endTime: z.string(),
-  consultationType: z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT]),
+  consultationType: z.enum([
+    ConsultationType.IN_PERSON,
+    ConsultationType.ONLINE,
+    ConsultationType.HOME_VISIT,
+  ]),
   isBooked: z.boolean().default(false),
   isBlocked: z.boolean().default(false),
 });
@@ -491,20 +666,36 @@ export const insertAppointmentSchema = z.object({
   hospitalId: z.string().optional(),
   appointmentDate: z.string(),
   appointmentTime: z.string(),
-  consultationType: z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT]),
-  status: z.enum([AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]).default(AppointmentStatus.PENDING),
+  consultationType: z.enum([
+    ConsultationType.IN_PERSON,
+    ConsultationType.ONLINE,
+    ConsultationType.HOME_VISIT,
+  ]),
+  status: z
+    .enum([
+      AppointmentStatus.PENDING,
+      AppointmentStatus.CONFIRMED,
+      AppointmentStatus.COMPLETED,
+      AppointmentStatus.CANCELLED,
+      AppointmentStatus.NO_SHOW,
+    ])
+    .default(AppointmentStatus.PENDING),
   symptoms: z.string().min(10, "Please describe your symptoms"),
   queueNumber: z.number().optional(),
   isCalled: z.boolean().default(false),
   isForDependent: z.boolean().default(false),
   dependentName: z.string().optional(),
   dependentAge: z.number().optional(),
-  dependentGender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
+  dependentGender: z
+    .enum([Gender.MALE, Gender.FEMALE, Gender.OTHER])
+    .optional(),
   dependentContact: z.string().optional(),
   consultationNotes: z.string().optional(),
   videoSessionId: z.string().optional(),
   cancelReason: z.string().optional(),
-  cancelledBy: z.enum([UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN]).optional(),
+  cancelledBy: z
+    .enum([UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN])
+    .optional(),
 });
 
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
@@ -535,7 +726,14 @@ export const insertPaymentSchema = z.object({
   platformCommission: z.number().min(0).default(0),
   doctorEarnings: z.number().min(0),
   totalAmount: z.number().min(0),
-  status: z.enum([PaymentStatus.PENDING, PaymentStatus.COMPLETED, PaymentStatus.REFUNDED, PaymentStatus.FAILED]).default(PaymentStatus.PENDING),
+  status: z
+    .enum([
+      PaymentStatus.PENDING,
+      PaymentStatus.COMPLETED,
+      PaymentStatus.REFUNDED,
+      PaymentStatus.FAILED,
+    ])
+    .default(PaymentStatus.PENDING),
   method: z.enum([PaymentMethod.ONLINE, PaymentMethod.AT_CLINIC]),
   transactionId: z.string().optional(),
   refundAmount: z.number().optional(),
@@ -556,13 +754,15 @@ export const insertPrescriptionSchema = z.object({
   patientId: z.string(),
   doctorId: z.string(),
   diagnosis: z.string(),
-  medications: z.array(z.object({
-    name: z.string(),
-    dosage: z.string(),
-    frequency: z.string(),
-    duration: z.string(),
-    instructions: z.string().optional(),
-  })),
+  medications: z.array(
+    z.object({
+      name: z.string(),
+      dosage: z.string(),
+      frequency: z.string(),
+      duration: z.string(),
+      instructions: z.string().optional(),
+    }),
+  ),
   treatments: z.array(z.string()).default([]),
   dietaryAdvice: z.string().optional(),
   lifestyleAdvice: z.string().optional(),
@@ -608,7 +808,13 @@ export const insertNotificationSchema = z.object({
   userId: z.string(),
   title: z.string(),
   message: z.string(),
-  type: z.enum(["appointment", "payment", "reminder", "system", "verification"]),
+  type: z.enum([
+    "appointment",
+    "payment",
+    "reminder",
+    "system",
+    "verification",
+  ]),
   isRead: z.boolean().default(false),
   relatedId: z.string().optional(),
 });
@@ -640,7 +846,9 @@ export const insertPlatformSettingsSchema = z.object({
   maintenanceMode: z.boolean().default(false),
 });
 
-export type InsertPlatformSettings = z.infer<typeof insertPlatformSettingsSchema>;
+export type InsertPlatformSettings = z.infer<
+  typeof insertPlatformSettingsSchema
+>;
 
 export interface PlatformSettings extends InsertPlatformSettings {
   updatedAt: string;
@@ -650,37 +858,50 @@ export interface PlatformSettings extends InsertPlatformSettings {
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
-
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const registerPatientSchema = insertUserSchema.extend({
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-}).refine((data) => data.role === UserRole.PATIENT, {
-  message: "Invalid role for patient registration",
-  path: ["role"],
-});
+export const registerPatientSchema = insertUserSchema
+  .extend({
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  })
+  .refine((data) => data.role === UserRole.PATIENT, {
+    message: "Invalid role for patient registration",
+    path: ["role"],
+  });
 
 export type RegisterPatientInput = z.infer<typeof registerPatientSchema>;
 
-export const registerDoctorSchema = insertUserSchema.extend({
-  confirmPassword: z.string(),
-  registrationNumber: z.string().min(5, "Registration number required"),
-  qualifications: z.string().min(10, "Qualifications required"),
-  specializationIds: z.array(z.string()).min(1),
-  consultationTypes: z.array(z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT])).min(1),
-  consultationFee: z.number().min(0),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-}).refine((data) => data.role === UserRole.DOCTOR, {
-  message: "Invalid role for doctor registration",
-  path: ["role"],
-});
+export const registerDoctorSchema = insertUserSchema
+  .extend({
+    confirmPassword: z.string(),
+    registrationNumber: z.string().min(5, "Registration number required"),
+    qualifications: z.string().min(10, "Qualifications required"),
+    specializationIds: z.array(z.string()).min(1),
+    consultationTypes: z
+      .array(
+        z.enum([
+          ConsultationType.IN_PERSON,
+          ConsultationType.ONLINE,
+          ConsultationType.HOME_VISIT,
+        ]),
+      )
+      .min(1),
+    consultationFee: z.number().min(0),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  })
+  .refine((data) => data.role === UserRole.DOCTOR, {
+    message: "Invalid role for doctor registration",
+    path: ["role"],
+  });
 
 export type RegisterDoctorInput = z.infer<typeof registerDoctorSchema>;
 
@@ -690,18 +911,25 @@ export const forgotPasswordSchema = z.object({
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 
-export const resetPasswordSchema = z.object({
-  token: z.string(),
-  password: z.string().min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+export const resetPasswordSchema = z
+  .object({
+    token: z.string(),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .regex(
+        /[^A-Za-z0-9]/,
+        "Password must contain at least one special character",
+      ),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
@@ -710,8 +938,16 @@ export const doctorSearchSchema = z.object({
   query: z.string().optional(),
   specializationIds: z.array(z.string()).optional(),
   city: z.string().optional(),
-  languages: z.array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL])).optional(),
-  consultationType: z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT]).optional(),
+  languages: z
+    .array(z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL]))
+    .optional(),
+  consultationType: z
+    .enum([
+      ConsultationType.IN_PERSON,
+      ConsultationType.ONLINE,
+      ConsultationType.HOME_VISIT,
+    ])
+    .optional(),
   minRating: z.number().min(0).max(5).optional(),
   maxFee: z.number().optional(),
   minFee: z.number().optional(),
@@ -728,12 +964,18 @@ export const bookingSchema = z.object({
   slotId: z.string(),
   hospitalId: z.string().optional(),
   symptoms: z.string().min(10, "Please describe your symptoms"),
-  consultationType: z.enum([ConsultationType.IN_PERSON, ConsultationType.ONLINE, ConsultationType.HOME_VISIT]),
+  consultationType: z.enum([
+    ConsultationType.IN_PERSON,
+    ConsultationType.ONLINE,
+    ConsultationType.HOME_VISIT,
+  ]),
   paymentMethod: z.enum([PaymentMethod.ONLINE, PaymentMethod.AT_CLINIC]),
   isForDependent: z.boolean().default(false),
   dependentName: z.string().optional(),
   dependentAge: z.number().optional(),
-  dependentGender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
+  dependentGender: z
+    .enum([Gender.MALE, Gender.FEMALE, Gender.OTHER])
+    .optional(),
   dependentContact: z.string().optional(),
 });
 
@@ -771,7 +1013,9 @@ export interface AdminDashboardStats {
 
 // ================== CAREERS / JOB APPLICATIONS ==================
 export const jobApplications = pgTable("job_applications", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   jobId: varchar("job_id", { length: 50 }).notNull(),
   jobTitle: varchar("job_title", { length: 255 }).notNull(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
@@ -781,7 +1025,9 @@ export const jobApplications = pgTable("job_applications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertJobApplicationSchemaDb = createInsertSchema(jobApplications).omit({
+export const insertJobApplicationSchemaDb = createInsertSchema(
+  jobApplications,
+).omit({
   id: true,
   status: true,
   createdAt: true,
@@ -804,7 +1050,9 @@ export interface JobApplication extends InsertJobApplication {
 }
 
 export const careers = pgTable("careers", {
-  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   careerTitle: varchar("career_title", { length: 255 }).notNull(),
   location: varchar("location", { length: 255 }).notNull(),
   employmentType: varchar("employment_type", { length: 100 }).notNull(),
@@ -814,15 +1062,34 @@ export const careers = pgTable("careers", {
   requiredQualifications: text("required_qualifications"),
   benefits: text("benefits"),
   isActive: boolean("is_active").default(true).notNull(),
+});
+
+export const blogs = pgTable("blogs", {
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content"),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  image: text("image"),
+  authorId: varchar("author_id", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertCareerSchema = createInsertSchema(careers).omit({ 
-  id: true, 
-  createdAt: true, 
-  updatedAt: true 
+export const insertCareerSchema = createInsertSchema(careers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export type Career = typeof careers.$inferSelect;
 export type InsertCareer = z.infer<typeof insertCareerSchema>;
+export const insertBlogSchema = createInsertSchema(blogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Blog = typeof blogs.$inferSelect;
+export type InsertBlog = z.infer<typeof insertBlogSchema>;
