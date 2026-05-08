@@ -3,7 +3,7 @@ import type { Express, NextFunction, Request, Response } from "express";
 import { type Server } from "http";
 import { pool } from "./db";
 import { storage } from "./storage";
-import { sendApplicationEmail } from "./util/email";
+import { sendApplicationEmail, sendPasswordResetOtpEmail } from "./util/email";
 
 import {
   AppointmentStatus,
@@ -3512,15 +3512,12 @@ export async function registerRoutes(
     },
   );
 
-  // Profile image upload endpoint for authenticated users
+  // Profile image upload endpoint (Updated to strictly catch Cloudinary URL)
   app.post(
     "/api/users/profile-image",
     authMiddleware,
     upload.single("image"),
-    async (
-      req: AuthenticatedRequest & { file?: MulterFile },
-      res: Response,
-    ) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         if (!req.file) {
           return res.status(400).json({ error: "No image uploaded" });
@@ -3533,41 +3530,41 @@ export async function registerRoutes(
           "image/gif",
           "image/webp",
         ];
+        
         if (!allowedTypes.includes(req.file.mimetype)) {
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (e) {}
           return res.status(400).json({
-            error:
-              "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
+            error: "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
           });
         }
 
-        const imageUrl = `/uploads/${req.file.filename}`;
+        const fileObj = req.file as any;
+        const imageUrl = fileObj.secure_url || fileObj.url || req.file.path;
 
-        // Update user's profile image
+        console.log("CLOUDINARY UPLOAD SUCCESS! URL:", imageUrl);
+
+        if (!imageUrl) {
+          console.error("❌ ERROR: Could not extract URL from Cloudinary response.", fileObj);
+          return res.status(500).json({ error: "Failed to extract image URL." });
+        }
+
         const user = await storage.updateUser(req.user!.id, {
           profileImage: imageUrl,
         });
+
         if (!user) {
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (e) {}
-          return res.status(404).json({ error: "User not found" });
+          return res.status(404).json({ error: "User not found in DB" });
         }
 
+        console.log("DB UPDATED SUCCESSFULLY FOR USER:", user.email);
+
         const { password: _, ...userWithoutPassword } = user;
+        
         res.json({
           url: imageUrl,
           user: userWithoutPassword,
         });
       } catch (error) {
-        console.error("Profile image upload error:", error);
-        if (req.file) {
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (e) {}
-        }
+        console.error("❌ PROFILE IMAGE UPLOAD ERROR:", error);
         res.status(500).json({ error: "Failed to upload profile image" });
       }
     },
@@ -3861,6 +3858,50 @@ export async function registerRoutes(
         res.status(500).json({ error: "Failed to update application status" });
       }
     },
+  );
+
+  // 1. Send OTP to Email
+  app.post("/api/users/send-password-otp", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+      const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+      await storage.setPasswordResetOtp(req.user!.id, otp, expiry);
+
+      const emailResult = await sendPasswordResetOtpEmail(req.user!.email, otp);
+
+      if (!emailResult.success) {
+        throw new Error("Failed to send email via Nodemailer");
+      }
+
+      res.json({ message: "OTP sent successfully" });
+    } catch (error) {
+      console.error("❌ OTP Send Error:", error);
+      res.status(500).json({ error: "Failed to send OTP email" });
+    }
+  });
+
+  // 2. Verify OTP and Reset Password
+  app.post(
+    "/api/users/reset-password-with-otp", 
+    authMiddleware, 
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { otp, newPassword } = req.body;
+
+        const isValid = await storage.verifyPasswordResetOtp(req.user!.id, otp);
+        if (!isValid) {
+          return res.status(400).json({ error: "Invalid or expired OTP." });
+        }
+
+        const hashedPassword = await hashPassword(newPassword);
+        await storage.updateUser(req.user!.id, { password: hashedPassword });
+
+        res.json({ message: "Password updated successfully" });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to reset password" });
+      }
+    }
   );
 
   return httpServer;

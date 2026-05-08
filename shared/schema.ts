@@ -107,6 +107,8 @@ export const users = pgTable("users", {
   provider: varchar("provider", { length: 20 }).notNull().default("local"),
   providerId: varchar("provider_id", { length: 120 }),
   registrationComplete: boolean("registration_complete").default(true),
+  resetPasswordOtp: varchar("reset_password_otp", { length: 10 }),
+  resetPasswordOtpExpiry: timestamp("reset_password_otp_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
