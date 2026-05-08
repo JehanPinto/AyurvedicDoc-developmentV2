@@ -238,6 +238,7 @@ export interface IStorage {
   rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined>;
   createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
   getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined>;
+  getPatientPayments(patientId: string): Promise<Payment[]>;
 }
 
 export class MemStorage implements IStorage {
