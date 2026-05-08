@@ -1,46 +1,71 @@
-import { useEffect, useState, useCallback } from "react";
-import { useParams, Link } from "wouter";
+import { useState } from "react";
+import { useParams, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
-  MapPin,
-  Award,
-  Languages,
-  Phone,
-  Calendar,
   ChevronLeft,
+  ChevronRight,
   Video,
   Building2,
-  ArrowUp,
+  MapPin,
+  BookOpen,
+  Check,
 } from "lucide-react";
 import { format, addDays, isSameDay, startOfToday } from "date-fns";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { StarRating } from "@/components/ui/star-rating";
-import { ConsultationTypeBadges } from "@/components/ui/status-badge";
-import { LoadingPage, LoadingSpinner } from "@/components/ui/loading-spinner";
+import { LoadingPage } from "@/components/ui/loading-spinner";
 import type { DoctorWithDetails, AppointmentSlot } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
+// ─── Step icons ───────────────────────────────────────────────────────────────
+const STEP_ICONS = [
+  <svg key="s" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4l7 18 3-7 7-3L4 4z"/></svg>,
+  <svg key="p" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
+  <svg key="pay" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>,
+  <svg key="c" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>,
+];
+const STEPS = ["Select", "Patient Information", "Payment", "Confirmed"];
+
+function ProgressBar({ current }: { current: number }) {
+  return (
+    <div className="flex items-start w-full">
+      {STEPS.map((label, i) => (
+        <div key={label} className="flex items-center flex-1 last:flex-none">
+          <div className="flex flex-col items-center gap-1">
+            <div
+              className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors ${
+                i === current
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : i < current
+                  ? "bg-background border-primary text-primary"
+                  : "bg-background border-border text-muted-foreground"
+              }`}
+            >
+              {STEP_ICONS[i]}
+            </div>
+            <span className={`text-xs font-medium whitespace-nowrap ${i <= current ? "text-primary" : "text-muted-foreground"}`}>
+              {label}
+            </span>
+          </div>
+          {i < STEPS.length - 1 && (
+            <div className={`flex-1 h-px mt-[-18px] mx-1 ${i < current ? "bg-primary" : "bg-border"}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+const VISIBLE_COUNT = 9;
+
 export default function DoctorProfilePage() {
   const { id } = useParams();
-  const [userRating, setUserRating] = useState(0);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => setShowScrollTop(window.scrollY > 300);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+  const [, navigate] = useLocation();
   const [selectedDate, setSelectedDate] = useState(startOfToday());
-  const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
-  const [selectedConsultationType, setSelectedConsultationType] = useState<"all" | AppointmentSlot["consultationType"]>("all");
+  const [selectedConsultationType, setSelectedConsultationType] = useState<"all" | "in_person" | "online">("all");
+  const [dateOffset, setDateOffset] = useState(0);
 
   const selectedDateString = format(selectedDate, "yyyy-MM-dd");
 
@@ -49,7 +74,7 @@ export default function DoctorProfilePage() {
     enabled: Boolean(id),
   });
 
-  const { data: slots = [], isLoading: slotsLoading, isError: slotsError } = useQuery<AppointmentSlot[]>({
+  const { data: slots = [], isLoading: slotsLoading } = useQuery<AppointmentSlot[]>({
     queryKey: ["/api/doctors", id, "slots", selectedDateString],
     queryFn: () => apiRequest("GET", `/api/doctors/${id}/slots?date=${selectedDateString}`),
     enabled: Boolean(id),
@@ -57,41 +82,41 @@ export default function DoctorProfilePage() {
   });
 
   const maxAdvanceDays = Math.max(Math.min(doctor?.maxAdvanceBookingDays ?? 14, 30), 1);
-  const dates = Array.from({ length: maxAdvanceDays }, (_, i) => addDays(startOfToday(), i));
+  const allDates = Array.from({ length: maxAdvanceDays }, (_, i) => addDays(startOfToday(), i));
+  const visibleDates = allDates.slice(dateOffset, dateOffset + VISIBLE_COUNT);
 
-  const filteredSlots = slots.filter(slot => 
-    selectedConsultationType === "all" || slot.consultationType === selectedConsultationType
+  // Fetch slots for all visible dates so we can show availability dots
+  const { data: allSlotsByDate = {} } = useQuery<Record<string, AppointmentSlot[]>>({
+    queryKey: ["/api/doctors", id, "all-slots", dateOffset],
+    queryFn: async () => {
+      const results: Record<string, AppointmentSlot[]> = {};
+      await Promise.all(
+        visibleDates.map(async (d) => {
+          const ds = format(d, "yyyy-MM-dd");
+          try {
+            results[ds] = await apiRequest("GET", `/api/doctors/${id}/slots?date=${ds}`);
+          } catch {
+            results[ds] = [];
+          }
+        })
+      );
+      return results;
+    },
+    enabled: Boolean(id) && Boolean(doctor),
+    staleTime: 120_000,
+  });
+
+  const filteredSlots = slots.filter(
+    (s) => selectedConsultationType === "all" || s.consultationType === selectedConsultationType
   );
 
-  const slotTypesForDate = Array.from(new Set(slots.map((slot) => slot.consultationType)));
-  const availableConsultationTypes = Array.from(
-    new Set([
-      ...(doctor?.consultationTypes || []),
-      ...slotTypesForDate,
-    ]),
-  ).filter((t): t is "in_person" | "online" => t === "in_person" || t === "online");
+  const formatFee = (fee: number) =>
+    new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", minimumFractionDigits: 0 }).format(fee);
 
-  useEffect(() => {
-    setSelectedSlot(null);
-  }, [selectedDate, selectedConsultationType]);
+  const getInitials = (name: string) =>
+    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-  useEffect(() => {
-    if (selectedSlot && !filteredSlots.some(slot => slot.id === selectedSlot.id)) {
-      setSelectedSlot(null);
-    }
-  }, [filteredSlots, selectedSlot]);
-
-  const formatFee = (fee: number) => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      minimumFractionDigits: 0,
-    }).format(fee);
-  };
-
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-  };
+  const getSlotsForDate = (date: Date) => allSlotsByDate[format(date, "yyyy-MM-dd")] ?? [];
 
   if (doctorLoading) {
     return (
@@ -106,328 +131,327 @@ export default function DoctorProfilePage() {
       <PublicLayout showHeader={false}>
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold mb-4">Doctor not found</h1>
-          <Link href="/patient/doctors">
-            <Button>Back to Doctors</Button>
-          </Link>
+          <Link href="/patient/doctors"><button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg">Back to Doctors</button></Link>
         </div>
       </PublicLayout>
     );
   }
 
+  const consultationTypes = doctor.consultationTypes ?? [];
+
   return (
     <PublicLayout showHeader={false}>
-      <div className="bg-gradient-to-b from-primary/5 to-background">
-        <div className="container mx-auto px-4 py-4">
-          <Link href="/patient/doctors">
-            <Button variant="ghost" size="sm" className="gap-1">
-              <ChevronLeft className="h-4 w-4" />
-              Back to Doctors
-            </Button>
-          </Link>
-        </div>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-5xl mx-auto px-4 py-6">
 
-        <div className="container mx-auto px-4 pb-8">
-          <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-6">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex flex-col sm:flex-row gap-6">
-                    <Avatar className="h-32 w-32 rounded-xl border-4 border-primary/10 shrink-0">
-                      <AvatarImage src={doctor.user.profileImage} alt={doctor.user.fullName} />
-                      <AvatarFallback className="rounded-xl bg-primary/10 text-primary text-3xl font-bold">
-                        {getInitials(doctor.user.fullName)}
-                      </AvatarFallback>
-                    </Avatar>
+          {/* ── Top bar ── */}
+          <div className="flex items-center justify-between mb-8">
+            <Link href="/patient/doctors">
+              <button className="flex items-center gap-1.5 text-sm font-medium border border-border bg-background text-foreground rounded-lg px-3 py-1.5 hover:bg-muted transition-colors">
+                <ChevronLeft className="h-4 w-4" />
+                Back to Doctors
+              </button>
+            </Link>
+            {/* Real logo — light/dark aware */}
+            <img src="/logo-light.png" alt="AyurPath" className="h-8 w-auto dark:hidden" />
+            <img src="/logo-dark.png" alt="AyurPath" className="h-8 w-auto hidden dark:block" />
+          </div>
 
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                          <h1 className="text-2xl md:text-3xl font-heading font-bold">
-                            {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
-                          </h1>
-                          <p className="text-lg text-primary font-medium mt-1">
-                            {doctor.specializations.map(s => s.name).join(", ")}
-                          </p>
-                        </div>
-                        {doctor.status === "verified" && (
-                          <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                            <Award className="h-3.5 w-3.5" />
-                            Verified Doctor
-                          </Badge>
-                        )}
-                      </div>
+          {/* ── Doctor info + About Doctor — no boxes, free layout ── */}
+          <div className="flex flex-col md:flex-row gap-10 mb-8">
 
-                      <div className="mt-4 flex items-center gap-4">
-                        <StarRating
-                          rating={userRating || doctor.averageRating}
-                          showValue
-                          size="md"
-                          interactive
-                          onRatingChange={(val) => setUserRating(val)}
-                        />
-                        {userRating > 0 && (
-                          <span className="text-xs text-muted-foreground">Your rating: {userRating}.0</span>
-                        )}
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-1 gap-4">
-                        <div className="text-center p-3 bg-muted rounded-lg">
-                          <p className="text-2xl font-bold text-primary">{doctor.totalAppointments}+</p>
-                          <p className="text-xs text-muted-foreground">Patients</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-6 border-t">
-                    <div className="flex flex-wrap items-center gap-4">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Languages className="h-4 w-4" />
-                        <span>{doctor.languagesSpoken.map(l => l.charAt(0).toUpperCase() + l.slice(1)).join(", ")}</span>
-                      </div>
-                      <ConsultationTypeBadges types={doctor.consultationTypes} size="md" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Tabs defaultValue="about" className="w-full">
-                <TabsList className="w-full justify-start">
-                  <TabsTrigger value="about">About</TabsTrigger>
-                  <TabsTrigger value="locations">Locations</TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="about" className="mt-4">
-                  <Card>
-                    <CardContent className="p-6 space-y-6">
-                      <div>
-                        <h3 className="font-semibold mb-2">Biography</h3>
-                        <p className="text-muted-foreground leading-relaxed">
-                          {doctor.biography}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold mb-2">Qualifications</h3>
-                        <p className="text-muted-foreground">{doctor.qualifications}</p>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold mb-2">Registration</h3>
-                        <p className="text-muted-foreground">{doctor.registrationNumber}</p>
-                      </div>
-                      {doctor.user.gender && (
-                        <div>
-                          <h3 className="font-semibold mb-2">Gender</h3>
-                          <p className="text-muted-foreground capitalize">{doctor.user.gender}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="locations" className="mt-4">
-                  <div className="space-y-4">
-                    {doctor.hospitals.map((hospital) => (
-                      <Card key={hospital.id}>
-                        <CardContent className="p-6">
-                          <div className="flex items-start gap-4">
-                            <div className="p-3 rounded-lg bg-primary/10">
-                              <Building2 className="h-6 w-6 text-primary" />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold">{hospital.name}</h3>
-                              <div className="mt-2 space-y-2 text-sm text-muted-foreground">
-                                <div className="flex items-start gap-2">
-                                  <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
-                                  <span>{hospital.address}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-4 w-4 shrink-0" />
-                                  <span>{hospital.contactNumber}</span>
-                                </div>
-                                {hospital.directions && (
-                                  <p className="text-xs italic">{hospital.directions}</p>
-                                )}
-                              </div>
-                              <div className="mt-3 flex items-center gap-2">
-                                <Badge variant="outline">
-                                  {formatFee(doctor.consultationFee)} / visit
-                                </Badge>
-                                {hospital.parkingAvailable && (
-                                  <Badge variant="secondary">Parking Available</Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="reviews" className="mt-4">
-                  <Card>
-                    <CardContent className="p-6">
-                      <h3 className="font-semibold mb-3">Your Review</h3>
-                      {userRating > 0 ? (
-                        <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
-                          <p className="font-medium text-sm">
-                            You rated {userRating === 5 ? "Excellent" : userRating === 4 ? "Very Good" : userRating === 3 ? "Good" : userRating === 2 ? "Fair" : "Poor"} — {userRating} out of 5
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            You can update your rating using the stars at the top of the page
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="p-4 rounded-xl bg-muted/50 border border-dashed">
-                          <p className="text-sm text-muted-foreground">
-                            You haven't rated this doctor yet — use the stars at the top of the page to rate
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            <div className="lg:col-span-1">
-              <Card className="sticky top-20">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Book Appointment
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Select Date</label>
-                    <ScrollArea className="w-full whitespace-nowrap">
-                      <div className="flex gap-2 pb-2">
-                        {dates.map((date) => (
-                          <Button
-                            key={date.toISOString()}
-                            variant={isSameDay(date, selectedDate) ? "default" : "outline"}
-                            className="flex flex-col h-auto py-2 px-3 min-w-[60px]"
-                            onClick={() => setSelectedDate(date)}
-                          >
-                            <span className="text-xs">{format(date, "EEE")}</span>
-                            <span className="text-lg font-bold">{format(date, "d")}</span>
-                            <span className="text-xs">{format(date, "MMM")}</span>
-                          </Button>
-                        ))}
-                      </div>
-                      <ScrollBar orientation="horizontal" />
-                    </ScrollArea>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Consultation Type</label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={selectedConsultationType === "all" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedConsultationType("all")}
-                      >
-                        All
-                      </Button>
-                      {availableConsultationTypes.includes("in_person") && (
-                        <Button
-                          variant={selectedConsultationType === "in_person" ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedConsultationType("in_person")}
-                          className="gap-1"
-                        >
-                          <Building2 className="h-3.5 w-3.5" />
-                          In Person
-                        </Button>
-                      )}
-                      {availableConsultationTypes.includes("online") && (
-                        <Button
-                          variant={selectedConsultationType === "online" ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedConsultationType("online")}
-                          className="gap-1"
-                        >
-                          <Video className="h-3.5 w-3.5" />
-                          Online
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">
-                      Available Slots for {format(selectedDate, "EEEE, MMM d")}
-                    </label>
-                    {slotsLoading ? (
-                      <div className="flex justify-center py-4">
-                        <LoadingSpinner />
-                      </div>
-                    ) : slotsError ? (
-                      <p className="text-sm text-destructive text-center py-4">
-                        Unable to load slots. Please try another date.
-                      </p>
-                    ) : filteredSlots.length > 0 ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {filteredSlots.map((slot) => (
-                          <Button
-                            key={slot.id}
-                            variant={selectedSlot?.id === slot.id ? "default" : "outline"}
-                            size="sm"
-                            disabled={slot.isBooked || slot.isBlocked}
-                            onClick={() => setSelectedSlot(slot)}
-                            className="text-xs"
-                          >
-                            {slot.startTime}
-                            {slot.consultationType === "online" && (
-                              <Video className="h-3 w-3 ml-1" />
-                            )}
-                          </Button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No available slots for this date
-                      </p>
+            {/* Left: doctor info */}
+            <div className="flex-1">
+              <div className="flex items-start gap-4 mb-4">
+                <Avatar className="h-16 w-16 rounded-xl shrink-0">
+                  <AvatarImage src={doctor.user.profileImage} alt={doctor.user.fullName} />
+                  <AvatarFallback className="rounded-xl bg-primary/10 text-primary text-xl font-bold">
+                    {getInitials(doctor.user.fullName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                    <h1 className="text-xl font-bold text-foreground">
+                      {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
+                    </h1>
+                    {doctor.status === "verified" && (
+                      <span className="flex items-center gap-1 text-xs text-primary font-medium">
+                        <Check className="h-3.5 w-3.5" />
+                        Verified Doctor
+                      </span>
                     )}
                   </div>
-
-                  <div className="pt-4 border-t space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Consultation Fee</span>
-                      <span className="font-semibold">
-                        {selectedSlot?.consultationType === "online" && doctor.onlineConsultationFee
-                          ? formatFee(doctor.onlineConsultationFee)
-                          : formatFee(doctor.consultationFee)}
-                      </span>
-                    </div>
-                    <Link href={selectedSlot ? `/book/${doctor.id}?slot=${selectedSlot.id}` : "#"}>
-                      <Button 
-                        className="w-full" 
-                        size="lg"
-                        disabled={!selectedSlot}
-                        data-testid="button-book-now"
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {doctor.specializations.map((s) => s.name).join(", ")}
+                  </p>
+                  {/* Stars */}
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <svg key={star} width="15" height="15" viewBox="0 0 24 24"
+                        fill={star <= Math.round(doctor.averageRating) ? "currentColor" : "none"}
+                        stroke="currentColor" strokeWidth="2"
+                        className={star <= Math.round(doctor.averageRating) ? "text-amber-400" : "text-amber-300"}
                       >
-                        {selectedSlot ? "Continue to Book" : "Select a Time Slot"}
-                      </Button>
-                    </Link>
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    ))}
+                    <span className="text-sm font-semibold text-foreground ml-1">
+                      {doctor.averageRating > 0 ? doctor.averageRating.toFixed(1) : "0.0"}
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+
+              {/* Consultation type toggle — pill style */}
+              <div className="inline-flex items-center gap-0.5 bg-primary/10 border border-primary/20 rounded-full p-1">
+                <button
+                  onClick={() => setSelectedConsultationType("all")}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    selectedConsultationType === "all"
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  <Video className="h-3.5 w-3.5" />
+                  All
+                </button>
+                {consultationTypes.includes("in_person") && (
+                  <button
+                    onClick={() => setSelectedConsultationType("in_person")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                      selectedConsultationType === "in_person"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    In Person
+                  </button>
+                )}
+                {consultationTypes.includes("online") && (
+                  <button
+                    onClick={() => setSelectedConsultationType("online")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                      selectedConsultationType === "online"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Video className="h-3.5 w-3.5" />
+                    Online
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Right: About Doctor — no box */}
+            <div className="md:w-72">
+              <h2 className="font-bold text-foreground mb-3">About Doctor</h2>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {doctor.qualifications && (
+                  <p>
+                    <span className="font-medium text-foreground">Qualifications:</span>{" "}
+                    {doctor.qualifications}
+                  </p>
+                )}
+                {doctor.registrationNumber && (
+                  <p>
+                    <span className="font-medium text-foreground">Registration:</span>{" "}
+                    {doctor.registrationNumber}
+                  </p>
+                )}
+                {doctor.user.gender && (
+                  <p>
+                    <span className="font-medium text-foreground">Gender:</span>{" "}
+                    <span className="capitalize">{doctor.user.gender}</span>
+                  </p>
+                )}
+                {doctor.biography && (
+                  <p className="leading-relaxed pt-2 border-t border-border">
+                    {doctor.biography.length > 140 ? doctor.biography.slice(0, 140) + "…" : doctor.biography}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* ── Progress bar ── */}
+          <div className="bg-card border border-border rounded-2xl px-8 py-5 mb-5">
+            <ProgressBar current={0} />
+          </div>
+
+          {/* ── Date picker ── */}
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 mb-6">
+            <h2 className="font-bold text-foreground mb-4">Select Date</h2>
+            <div className="flex items-center gap-2">
+              {/* Left arrow */}
+              <button
+                onClick={() => {
+                  const newOffset = Math.max(0, dateOffset - 1);
+                  setDateOffset(newOffset);
+                }}
+                disabled={dateOffset === 0}
+                className="w-9 h-9 rounded-full border border-border bg-background flex items-center justify-center disabled:opacity-30 hover:bg-muted transition-colors shrink-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              {/* Date tiles */}
+              <div className="flex gap-2 flex-1 overflow-hidden">
+                {visibleDates.map((date) => {
+                  const isSelected = isSameDay(date, selectedDate);
+                  const daySlots = getSlotsForDate(date);
+                  const hasInPerson = daySlots.some((s) => s.consultationType === "in_person" && !s.isBooked && !s.isBlocked);
+                  const hasOnline = daySlots.some((s) => s.consultationType === "online" && !s.isBooked && !s.isBlocked);
+
+                  return (
+                    <button
+                      key={date.toISOString()}
+                      onClick={() => setSelectedDate(date)}
+                      className={`flex flex-col items-center py-2 px-1 rounded-xl border transition-all flex-1 min-w-0 ${
+                        isSelected
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "bg-background border-primary/30 text-foreground hover:border-primary"
+                      }`}
+                    >
+                      <span className="text-xs font-medium uppercase">{format(date, "EEE")}</span>
+                      <span className="text-xl font-bold leading-tight">{format(date, "d")}</span>
+                      <span className="text-xs">{format(date, "MMM")}</span>
+                      {/* Availability dots */}
+                      <div className="flex gap-1 mt-1 h-2 items-center">
+                        {hasInPerson && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 inline-block" />}
+                        {hasOnline && <span className="w-1.5 h-1.5 rounded-full bg-blue-700 inline-block" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Right arrow */}
+              <button
+                onClick={() => {
+                  const newOffset = Math.min(allDates.length - VISIBLE_COUNT, dateOffset + 1);
+                  setDateOffset(newOffset);
+                  // If the selected date is no longer visible, move it forward too
+                }}
+                disabled={dateOffset + VISIBLE_COUNT >= allDates.length}
+                className="w-9 h-9 rounded-full border border-border bg-background flex items-center justify-center disabled:opacity-30 hover:bg-muted transition-colors shrink-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* ── Available Times ── */}
+          <div className="mb-10">
+            <h2 className="font-bold text-foreground mb-3">Available Times</h2>
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              {/* Date header row */}
+              <div className="px-5 py-3 bg-primary/5 border-b border-border">
+                <span className="font-semibold text-foreground">{format(selectedDate, "EEE, MMM dd")}</span>
+              </div>
+
+              {slotsLoading ? (
+                <div className="px-5 py-8 text-center text-muted-foreground text-sm">Loading slots…</div>
+              ) : filteredSlots.length === 0 ? (
+                <div className="px-5 py-8 text-center text-muted-foreground text-sm">
+                  No available slots for this date
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {filteredSlots.map((slot) => {
+                    const isInPerson = slot.consultationType === "in_person";
+                    const fee = isInPerson
+                      ? doctor.consultationFee
+                      : (doctor.onlineConsultationFee ?? doctor.consultationFee);
+
+                    const isUnavailable = slot.isBooked || slot.isBlocked;
+
+                    return (
+                      <div key={slot.id} className={`flex items-center gap-2 px-5 py-4 ${isUnavailable ? "opacity-70" : ""}`}>
+                        {/* LEFT — icon + time + badge + sub-info */}
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                            isUnavailable
+                              ? "bg-muted text-muted-foreground"
+                              : isInPerson
+                                ? "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                          }`}>
+                            {isInPerson ? <Building2 className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-foreground text-sm">
+                                {slot.startTime} - {slot.endTime}
+                              </span>
+                              <Badge className={`text-xs px-2 py-0 h-5 font-medium border-0 ${
+                                isUnavailable
+                                  ? "bg-muted text-muted-foreground"
+                                  : isInPerson
+                                    ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
+                                    : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                              }`}>
+                                {isInPerson ? "In Person" : "Online"}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {isUnavailable ? (
+                                <span className="text-muted-foreground">Booked</span>
+                              ) : isInPerson ? (
+                                <span className="flex items-center gap-1">
+                                  location:
+                                  <button className="flex items-center gap-1 bg-primary text-primary-foreground text-xs font-medium px-2 py-0.5 rounded-md ml-1">
+                                    <MapPin className="h-3 w-3" />
+                                    View on Map
+                                  </button>
+                                </span>
+                              ) : (
+                                "View meeting link: Not available"
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* MIDDLE — fee, truly centered */}
+                        <div className="flex-1 flex justify-center">
+                          <div className={`text-sm px-4 py-1.5 rounded-lg font-medium whitespace-nowrap border ${
+                            isUnavailable
+                              ? "text-muted-foreground bg-muted border-border"
+                              : "text-primary bg-primary/10 border-primary/20"
+                          }`}>
+                            Consultation Fee: {formatFee(fee)}
+                          </div>
+                        </div>
+
+                        {/* RIGHT — CTA or Booked state */}
+                        <div className="flex-1 flex justify-end">
+                          {isUnavailable ? (
+                            <div className="flex items-center gap-2 bg-muted text-muted-foreground text-sm font-semibold px-4 py-2 rounded-xl whitespace-nowrap cursor-not-allowed">
+                              Continue to Book
+                              <BookOpen className="h-4 w-4" />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/book/${doctor.id}?slot=${slot.id}`)}
+                              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
+                            >
+                              Continue to Book
+                              <BookOpen className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
-      <button
-        onClick={scrollToTop}
-        aria-label="Scroll to top"
-        className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl hover:brightness-110 ${
-          showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
-        }`}
-      >
-        <ArrowUp className="h-5 w-5" />
-      </button>
     </PublicLayout>
   );
 }

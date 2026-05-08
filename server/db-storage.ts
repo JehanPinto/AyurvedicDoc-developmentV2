@@ -545,6 +545,23 @@ export class DbStorage implements IStorage {
     return result as AppointmentSlot[];
   }
 
+  async getDoctorDaySlots(
+    doctorId: string,
+    date: string,
+  ): Promise<AppointmentSlot[]> {
+    const result = await db
+      .select()
+      .from(appointmentSlots)
+      .where(
+        and(
+          eq(appointmentSlots.doctorId, doctorId),
+          eq(appointmentSlots.date, date),
+        ),
+      )
+      .orderBy(appointmentSlots.startTime);
+    return result as AppointmentSlot[];
+  }
+
   async getDoctorSlots(
     doctorId: string,
     startDate: string,

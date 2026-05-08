@@ -1532,7 +1532,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Date is required" });
       }
 
-      const slots = await storage.getAvailableSlots(
+      const slots = await storage.getDoctorDaySlots(
         req.params.id,
         date as string,
       );
@@ -1808,6 +1808,7 @@ export async function registerRoutes(
         };
 
         const appointment = await storage.createAppointment(appointmentData);
+        await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: true });
 
         let consultationFee = doctor.consultationFee;
         if (
@@ -2592,6 +2593,7 @@ export async function registerRoutes(
         };
 
         const appointment = await storage.createAppointment(appointmentData);
+        await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: true });
 
         let consultationFee = doctor.consultationFee;
         if (
