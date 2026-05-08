@@ -76,6 +76,8 @@ export interface IStorage {
     status: string,
     rejectionReason?: string,
   ): Promise<DoctorProfile | undefined>;
+  addDoctorHospital(doctorProfileId: string, name: string, address: string): Promise<{ hospital: Hospital; hospitalIds: string[] } | null>;
+  removeDoctorHospital(doctorProfileId: string, hospitalId: string): Promise<boolean>;
 
   getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]>;
   createDoctorSchedule(schedule: InsertDoctorSchedule): Promise<DoctorSchedule>;
@@ -877,6 +879,30 @@ export class MemStorage implements IStorage {
       updates.rejectionReason = rejectionReason;
     }
     return this.updateDoctorProfile(id, updates);
+  }
+
+  async addDoctorHospital(doctorProfileId: string, name: string, address: string): Promise<{ hospital: Hospital; hospitalIds: string[] } | null> {
+    const profile = this.doctorProfiles.get(doctorProfileId);
+    if (!profile) return null;
+    const currentIds: string[] = (profile as any).hospitalIds || [];
+    if (currentIds.length >= 5) return null;
+    const hospId = randomUUID();
+    const hospital: Hospital = { id: hospId, name, address, city: "", contactNumber: "N/A", parkingAvailable: false };
+    this.hospitals.set(hospId, hospital);
+    const newIds = [...currentIds, hospId];
+    const updated = { ...profile, hospitalIds: newIds, updatedAt: new Date().toISOString() };
+    this.doctorProfiles.set(doctorProfileId, updated as any);
+    return { hospital, hospitalIds: newIds };
+  }
+
+  async removeDoctorHospital(doctorProfileId: string, hospitalId: string): Promise<boolean> {
+    const profile = this.doctorProfiles.get(doctorProfileId);
+    if (!profile) return false;
+    const currentIds: string[] = (profile as any).hospitalIds || [];
+    const newIds = currentIds.filter((id) => id !== hospitalId);
+    const updated = { ...profile, hospitalIds: newIds, updatedAt: new Date().toISOString() };
+    this.doctorProfiles.set(doctorProfileId, updated as any);
+    return true;
   }
 
   async getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {

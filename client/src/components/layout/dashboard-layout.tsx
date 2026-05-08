@@ -63,13 +63,16 @@ const patientNavItems = [
   { icon: Settings, label: "Settings", href: "/patient/settings" },
 ];
 
-const doctorNavItems = [
+const doctorMainNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/doctor" },
   { icon: Calendar, label: "Appointments", href: "/doctor/appointments" },
   { icon: Clock, label: "Schedule", href: "/doctor/schedule" },
+];
+
+const doctorManagementNavItems = [
   { icon: DollarSign, label: "Earnings", href: "/doctor/earnings" },
   { icon: Star, label: "Reviews", href: "/doctor/reviews" },
-  { icon: Settings, label: "Profile", href: "/doctor/profile" },
+  { icon: Settings, label: "Settings", href: "/doctor/settings" },
 ];
 
 const adminMainNavItems = [
@@ -119,9 +122,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, [user?.id]);
 
-  const navItems =
-    user?.role === UserRole.DOCTOR ? doctorNavItems :
-    patientNavItems;
+  const navItems = patientNavItems;
 
   const getInitials = (name: string) => {
     return name
@@ -156,13 +157,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
-        <Sidebar>
+        <Sidebar className="[&>[data-sidebar=sidebar]]:bg-[#c8ddd6] dark:[&>[data-sidebar=sidebar]]:bg-[#2a3d37]">
           <SidebarHeader className="border-b p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold">A</span>
-              </div>
-              <span className="font-heading font-bold">AyurvedicDoctor</span>
+            <div className="flex items-center">
+              <img src="/logo-light.png" className="h-8 dark:hidden" alt="AyurPath" />
+              <img src="/logo-dark.png" className="h-8 hidden dark:block" alt="AyurPath" />
             </div>
           </SidebarHeader>
 
@@ -193,6 +192,46 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       {adminManagementNavItems.map((item) => (
                         <SidebarMenuItem key={item.href}>
                           <SidebarMenuButton asChild isActive={location === item.href}>
+                            <Link href={item.href}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </>
+            ) : user?.role === UserRole.DOCTOR ? (
+              <>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Main</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {doctorMainNavItems.map((item) => (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton asChild isActive={location === item.href}>
+                            <Link href={item.href}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Management</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {doctorManagementNavItems.map((item) => (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={location === item.href || (item.href === "/doctor/settings" && location === "/doctor/profile")}
+                          >
                             <Link href={item.href}>
                               <item.icon className="h-4 w-4" />
                               <span>{item.label}</span>
@@ -286,7 +325,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             )}
           </header>
 
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto overscroll-none p-6">
             {children}
           </main>
         </div>

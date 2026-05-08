@@ -480,6 +480,37 @@ export class DbStorage implements IStorage {
     return this.updateDoctorProfile(id, updates);
   }
 
+  async addDoctorHospital(doctorProfileId: string, name: string, address: string): Promise<{ hospital: Hospital; hospitalIds: string[] } | null> {
+    const profile = await this.getDoctorProfile(doctorProfileId);
+    if (!profile) return null;
+    const currentIds: string[] = profile.hospitalIds || [];
+    if (currentIds.length >= 5) return null;
+
+    const hospResult = await db.insert(hospitals).values({
+      name,
+      address,
+      city: "",
+      contactNumber: "N/A",
+    }).returning();
+    const hospital = hospResult[0] as Hospital;
+
+    await pool.query(
+      `UPDATE doctor_profiles SET hospital_ids = array_append(hospital_ids, $1), updated_at = NOW() WHERE id = $2`,
+      [hospital.id, doctorProfileId]
+    );
+
+    const newIds = [...currentIds, hospital.id];
+    return { hospital, hospitalIds: newIds };
+  }
+
+  async removeDoctorHospital(doctorProfileId: string, hospitalId: string): Promise<boolean> {
+    await pool.query(
+      `UPDATE doctor_profiles SET hospital_ids = array_remove(hospital_ids, $1), updated_at = NOW() WHERE id = $2`,
+      [hospitalId, doctorProfileId]
+    );
+    return true;
+  }
+
   async getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {
     const result = await db
       .select()
