@@ -602,15 +602,9 @@ export default function DoctorRegisterPage() {
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <Link href="/">
-            <div className="inline-flex items-center gap-2 cursor-pointer mb-4">
-              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">
-                  A
-                </span>
-              </div>
-              <span className="font-heading font-bold text-2xl">
-                AyurvedicDoctor
-              </span>
+            <div className="flex items-center justify-center cursor-pointer">
+              <img src="/logo-light.png" alt="AyurPath" className="h-10 w-auto dark:hidden" />
+              <img src="/logo-dark.png" alt="AyurPath" className="h-10 w-auto hidden dark:block" />
             </div>
           </Link>
         </div>
