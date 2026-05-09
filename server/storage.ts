@@ -1,26 +1,47 @@
-import { randomUUID } from "crypto";
 import {
-  type User, type InsertUser,
-  type Specialization, type InsertSpecialization,
-  type Hospital, type InsertHospital,
-  type DoctorProfile, type InsertDoctorProfile,
-  type DoctorSchedule, type InsertDoctorSchedule,
-  type AppointmentSlot, type InsertAppointmentSlot,
-  type Appointment, type InsertAppointment,
-  type Payment, type InsertPayment,
-  type Prescription, type InsertPrescription,
-  type Review, type InsertReview,
-  type Notification, type InsertNotification,
-  type PlatformSettings, type InsertPlatformSettings,
-  type DoctorWithDetails, type AppointmentWithDetails, type ReviewWithPatient, type ReviewWithDoctor,
-  type PatientDashboardStats, type DoctorDashboardStats, type AdminDashboardStats,
-  type BlogSubmission, type InsertBlogSubmission,
-  UserRole, DoctorStatus, AppointmentStatus, PaymentStatus,
-  JobApplication,
-  InsertJobApplication,
-  InsertCareer,
+  type AdminDashboardStats,
+  type Appointment,
+  type AppointmentSlot,
+  AppointmentStatus,
+  type AppointmentWithDetails,
+  type BlogSubmission,
   Career,
+  type DoctorDashboardStats,
+  type DoctorProfile,
+  type DoctorSchedule,
+  DoctorStatus,
+  type DoctorWithDetails,
+  type Hospital,
+  type InsertAppointment,
+  type InsertAppointmentSlot,
+  type InsertBlogSubmission,
+  InsertCareer,
+  type InsertDoctorProfile,
+  type InsertDoctorSchedule,
+  type InsertHospital,
+  InsertJobApplication,
+  type InsertNotification,
+  type InsertPayment,
+  type InsertPlatformSettings,
+  type InsertPrescription,
+  type InsertReview,
+  type InsertSpecialization,
+  type InsertUser,
+  JobApplication,
+  type Notification,
+  type PatientDashboardStats,
+  type Payment,
+  PaymentStatus,
+  type PlatformSettings,
+  type Prescription,
+  type Review,
+  type ReviewWithDoctor,
+  type ReviewWithPatient,
+  type Specialization,
+  type User,
+  UserRole,
 } from "@shared/schema";
+import { randomUUID } from "crypto";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -87,7 +108,6 @@ export interface IStorage {
 
   getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined>;
   getAvailableSlots(doctorId: string, date: string): Promise<AppointmentSlot[]>;
-  getDoctorDaySlots(doctorId: string, date: string): Promise<AppointmentSlot[]>;
   getDoctorSlots(
     doctorId: string,
     startDate: string,
@@ -100,7 +120,7 @@ export interface IStorage {
   ): Promise<AppointmentSlot | undefined>;
   blockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
   unblockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
-  deactivateSlot(slotId: string): Promise<boolean>;
+  deleteSlot(slotId: string): Promise<boolean>;
 
   getAppointment(id: string): Promise<Appointment | undefined>;
   getAppointmentWithDetails(
@@ -157,7 +177,10 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<Notification | undefined>;
   markAllNotificationsRead(userId: string): Promise<void>;
-  deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void>;
+  deleteNotificationsByRelatedId(
+    userId: string,
+    relatedId: string,
+  ): Promise<void>;
 
   getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats>;
   getDoctorDashboardStats(doctorId: string): Promise<DoctorDashboardStats>;
@@ -168,9 +191,7 @@ export interface IStorage {
     (Payment & { appointment?: AppointmentWithDetails })[]
   >;
 
-  getDoctorPatients(
-    doctorId: string,
-  ): Promise<
+  getDoctorPatients(doctorId: string): Promise<
     {
       patient: User;
       lastVisit: string;
@@ -214,10 +235,6 @@ export interface IStorage {
     application: InsertJobApplication,
   ): Promise<JobApplication>;
   getAllJobApplications(): Promise<JobApplication[]>;
-  updateJobApplicationStatus(
-    id: string,
-    status: string,
-  ): Promise<JobApplication | undefined>;
   getAllCareers(): Promise<Career[]>;
   createCareer(career: InsertCareer): Promise<Career>;
   updateCareer(
@@ -229,18 +246,23 @@ export interface IStorage {
     id: string,
     status: string,
   ): Promise<JobApplication | undefined>;
-  updatePlatformSettings(updates: Partial<InsertPlatformSettings>): Promise<PlatformSettings>;
+
+  setPasswordResetOtp(id: string, otp: string, expiry: Date): Promise<void>;
+  verifyPasswordResetOtp(id: string, otp: string): Promise<boolean>;
 
   createBlogSubmission(data: InsertBlogSubmission): Promise<BlogSubmission>;
   getAllBlogSubmissions(): Promise<BlogSubmission[]>;
   getPendingBlogSubmissions(): Promise<BlogSubmission[]>;
   getBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
   approveBlogSubmission(id: string): Promise<BlogSubmission | undefined>;
-  rejectBlogSubmission(id: string, rejectionReason: string): Promise<BlogSubmission | undefined>;
-  createJobApplication(application: InsertJobApplication): Promise<JobApplication>;
-  getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined>;
-  setPasswordResetOtp(id: string, otp: string, expiry: Date): Promise<void>;
-  verifyPasswordResetOtp(id: string, otp: string): Promise<boolean>;
+  rejectBlogSubmission(
+    id: string,
+    rejectionReason: string,
+  ): Promise<BlogSubmission | undefined>;
+  getDoctorByRegistrationNumber(
+    registrationNumber: string,
+  ): Promise<DoctorProfile | undefined>;
+  getPatientPayments(patientId: string): Promise<Payment[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -929,15 +951,6 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getDoctorDaySlots(
-    doctorId: string,
-    date: string,
-  ): Promise<AppointmentSlot[]> {
-    return Array.from(this.appointmentSlots.values()).filter(
-      (s) => s.doctorId === doctorId && s.date === date,
-    );
-  }
-
   async getDoctorSlots(
     doctorId: string,
     startDate: string,
@@ -1318,20 +1331,30 @@ export class MemStorage implements IStorage {
     }
   }
 
-  async deleteNotificationsByRelatedId(userId: string, relatedId: string): Promise<void> {
+  async deleteNotificationsByRelatedId(
+    userId: string,
+    relatedId: string,
+  ): Promise<void> {
     const all = await this.getUserNotifications(userId);
-    for (const n of all.filter(n => n.relatedId === relatedId)) {
+    for (const n of all.filter((n) => n.relatedId === relatedId)) {
       this.notifications.delete(n.id);
     }
   }
 
-  async getPatientDashboardStats(patientId: string): Promise<PatientDashboardStats> {
-    const appointments = Array.from(this.appointments.values()).filter(a => a.patientId === patientId);
-    const today = new Date().toISOString().split('T')[0];
+  async getPatientDashboardStats(
+    patientId: string,
+  ): Promise<PatientDashboardStats> {
+    const appointments = Array.from(this.appointments.values()).filter(
+      (a) => a.patientId === patientId,
+    );
+    const today = new Date().toISOString().split("T")[0];
 
-    const upcoming = appointments.filter(a => 
-      a.appointmentDate >= today && 
-      [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any)
+    const upcoming = appointments.filter(
+      (a) =>
+        a.appointmentDate >= today &&
+        [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(
+          a.status as any,
+        ),
     ).length;
 
     const completed = appointments.filter(
@@ -1486,8 +1509,12 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async markAppointmentNoShow(appointmentId: string): Promise<Appointment | undefined> {
-    return this.updateAppointment(appointmentId, { status: AppointmentStatus.NO_SHOW });
+  async markAppointmentNoShow(
+    appointmentId: string,
+  ): Promise<Appointment | undefined> {
+    return this.updateAppointment(appointmentId, {
+      status: AppointmentStatus.NO_SHOW,
+    });
   }
 
   private platformSettings: PlatformSettings = {
@@ -1526,9 +1553,11 @@ export class MemStorage implements IStorage {
     return this.platformSettings;
   }
 
-  async getDoctorByRegistrationNumber(registrationNumber: string): Promise<DoctorProfile | undefined> {
+  async getDoctorByRegistrationNumber(
+    registrationNumber: string,
+  ): Promise<DoctorProfile | undefined> {
     return Array.from(this.doctorProfiles.values()).find(
-      (profile) => profile.registrationNumber === registrationNumber
+      (profile) => profile.registrationNumber === registrationNumber,
     );
   }
   async getAllCareers(): Promise<Career[]> {
@@ -1568,6 +1597,35 @@ export class MemStorage implements IStorage {
 
   async deleteCareer(id: string): Promise<boolean> {
     return this.careersMap.delete(id);
+  }
+
+  async setPasswordResetOtp(
+    id: string,
+    otp: string,
+    expiry: Date,
+  ): Promise<void> {
+    const user = this.users.get(id);
+    if (user) {
+      user.resetPasswordOtp = otp;
+      user.resetPasswordOtpExpiry = expiry.toISOString();
+    }
+  }
+
+  async verifyPasswordResetOtp(id: string, otp: string): Promise<boolean> {
+    const user = this.users.get(id);
+    if (
+      !user ||
+      user.resetPasswordOtp !== otp ||
+      !user.resetPasswordOtpExpiry
+    ) {
+      return false;
+    }
+    if (new Date() > new Date(user.resetPasswordOtpExpiry)) {
+      return false;
+    }
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordOtpExpiry = undefined;
+    return true;
   }
 }
 

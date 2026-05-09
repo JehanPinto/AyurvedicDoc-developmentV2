@@ -1853,6 +1853,20 @@ export class DbStorage implements IStorage {
     return doctor ? mapDoctorProfile(doctor) : undefined;
   }
 
+  async getPatientPayments(patientId: string): Promise<Payment[]> {
+    const records = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.patientId, patientId))
+      .orderBy(desc(payments.createdAt));
+
+    return records.map((record) => ({
+      ...record,
+      createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : new Date().toISOString(),
+    })) as unknown as Payment[];
+  }
+
   async setPasswordResetOtp(id: string, otp: string, expiry: Date): Promise<void> {
     await db
       .update(users)

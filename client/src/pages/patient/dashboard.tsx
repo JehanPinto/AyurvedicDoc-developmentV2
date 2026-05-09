@@ -1,45 +1,38 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { 
-  Calendar, 
-  Clock, 
-  ArrowRight,
-  Video,
-  Building2,
-  Plus,
-  AlertCircle
+  Calendar, CheckCircle2, CreditCard, FileClock, ArrowRight,
+  Video, Building2, Map, Plus, AlertCircle, Download, FileText, User, 
+  ExternalLink, Printer, Receipt, X
 } from "lucide-react";
 import { format } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingPage } from "@/components/ui/loading-spinner";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth-context";
-import type { PatientDashboardStats, AppointmentWithDetails } from "@shared/schema";
-
-interface DashboardData {
-  stats: PatientDashboardStats;
-  upcomingAppointments: AppointmentWithDetails[];
-  recentAppointments: AppointmentWithDetails[];
-}
+import { Modal } from "@/components/ui/modal";
 
 export default function PatientDashboard() {
   const { user } = useAuth();
+  
+  // 🟢 Receipt Modal State
+  const [selectedTx, setSelectedTx] = useState<any>(null);
 
-  const { data: dashboardData, isLoading, isError } = useQuery<DashboardData>({
+  const { data: dashboardData, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/patient/dashboard"],
     staleTime: 2 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
   });
 
   const formatFee = (fee: number) => {
     return new Intl.NumberFormat('en-LK', {
       style: 'currency',
       currency: 'LKR',
-      minimumFractionDigits: 0,
-    }).format(fee);
+      minimumFractionDigits: 2,
+    }).format(fee).replace("LKR", "LKR ");
   };
 
   const getInitials = (name: string) => {
@@ -47,9 +40,108 @@ export default function PatientDashboard() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  if (isLoading) {
-    return <LoadingPage message="Loading dashboard..." />;
-  }
+  // 🟢 Receipt HTML Generation for New Tab / Print
+  const generateReceiptHTML = (tx: any) => {
+    const dateStr = format(new Date(tx.date), "MMM d, yyyy");
+    const receiptNo = `INV-${new Date(tx.date).getFullYear()}-${tx.id.substring(0, 4).toUpperCase()}`;
+    
+    return `
+      <html>
+        <head>
+          <title>Receipt ${receiptNo}</title>
+          <style>
+            body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #333; margin: 0; padding: 20px; background: #f9fafb; }
+            .receipt-container { max-width: 800px; margin: 0 auto; background: #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+            .header { background: #0f172a; color: white; padding: 30px; display: flex; justify-content: space-between; align-items: center; }
+            .header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #fff; }
+            .meta-row { background: #f0fdf4; padding: 15px 30px; display: flex; justify-content: space-between; border-bottom: 1px solid #d1fae5; }
+            .meta-box span { display: block; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
+            .meta-box strong { font-size: 16px; color: #022c22; font-weight: 700; }
+            .meta-box.right { text-align: right; }
+            .meta-box.right strong { color: #059669; }
+            .address-row { display: flex; justify-content: space-between; padding: 30px; }
+            .address-col { border-left: 3px solid #059669; padding-left: 15px; }
+            .address-col span { display: block; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+            .address-col strong { display: block; font-size: 15px; color: #0f172a; margin-bottom: 4px; }
+            .address-col p { margin: 0; font-size: 14px; color: #475569; line-height: 1.5; }
+            .table-container { padding: 0 30px; }
+            table { width: 100%; border-collapse: collapse; border: 1px solid #a7f3d0; border-radius: 8px; overflow: hidden; }
+            th, td { padding: 12px 15px; text-align: left; }
+            th { background: #ecfdf5; color: #064e3b; font-size: 12px; text-transform: uppercase; border-bottom: 1px solid #a7f3d0; }
+            td { font-size: 14px; border-bottom: 1px solid #e2e8f0; }
+            th:last-child, td:last-child { text-align: right; }
+            .totals { padding: 30px; display: flex; justify-content: flex-end; }
+            .totals-content { width: 300px; }
+            .total-line { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; color: #475569; }
+            .total-line.final { background: #10b981; color: white; padding: 15px; border-radius: 8px; margin-top: 15px; align-items: center; }
+            .total-line.final span { text-transform: uppercase; font-size: 12px; font-weight: 600; }
+            .total-line.final strong { font-size: 24px; font-weight: 700; }
+            .footer-info { padding: 0 30px 30px; font-size: 12px; color: #64748b; }
+            .footer { background: #0f172a; color: white; padding: 20px 30px; text-align: center; font-size: 14px; }
+            .footer p { margin: 5px 0; color: #94a3b8; font-size: 12px; }
+            @media print { body { background: #fff; padding: 0; } .receipt-container { box-shadow: none; } }
+          </style>
+        </head>
+        <body onload="window.print()">
+          <div class="receipt-container">
+            <div class="header">
+              <div><h2 style="margin:0; color:#10b981; display:flex; align-items:center;">AyurPath <span style="font-size:12px; color:#94a3b8; font-weight:normal; margin-left:10px;">Ayurvedic Healthcare Platform</span></h2></div>
+              <h1>Official Receipt</h1>
+            </div>
+            <div class="meta-row">
+              <div class="meta-box"><span>Date of Issue</span><strong>${dateStr}</strong></div>
+              <div class="meta-box right"><span>Receipt No.</span><strong>${receiptNo}</strong></div>
+            </div>
+            <div class="address-row">
+              <div class="address-col">
+                <span>From</span><strong>AyurPath Medical Platform</strong>
+                <p>info@ayurvedicdoctor.lk<br/>+94 11 234 5678 | +94 77 123 4567</p>
+              </div>
+              <div class="address-col">
+                <span>Billed To</span><strong>${user?.fullName}</strong>
+                <p>Patient<br/>AyurPath Registered Patient</p>
+              </div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Description</th><th>Amount</th></tr></thead>
+                <tbody>
+                  <tr><td>Ayurvedic Consultation – Dr. ${tx.doctorName}</td><td>${formatFee(tx.consultationFee || 0)}</td></tr>
+                  <tr><td>Service & Booking Fee</td><td>${formatFee(tx.bookingCharges || 0)}</td></tr>
+                  <tr><td>Government Tax (4%)</td><td>${formatFee(tx.tax || 0)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="totals">
+              <div class="totals-content">
+                <div class="total-line"><span>Subtotal:</span><strong>${formatFee((tx.consultationFee || 0) + (tx.bookingCharges || 0))}</strong></div>
+                <div class="total-line"><span>Tax (4%):</span><strong>${formatFee(tx.tax || 0)}</strong></div>
+                <div class="total-line final"><span>Total Paid</span><strong>${formatFee(tx.totalAmount || 0)}</strong></div>
+              </div>
+            </div>
+            <div class="footer-info">
+              Payment Method: ${tx.method === 'online' ? 'Online Transfer' : 'Cash' } | Transaction Ref: TXN-${tx.id.substring(0,8).toUpperCase()}<br/>
+              <br/>This receipt is computer-generated and is valid without a physical signature.
+            </div>
+            <div class="footer">
+              <strong>Thank you for choosing AyurPath Ayurvedic Healthcare Platform</strong>
+              <p>info@ayurvedicdoctor.lk | +94 11 234 5678 | +94 77 123 4567</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const handleOpenNewTab = (tx: any) => {
+    const newWindow = window.open();
+    if (newWindow) {
+      newWindow.document.write(generateReceiptHTML(tx));
+      newWindow.document.close();
+    }
+  };
+
+  if (isLoading) return <LoadingPage message="Loading dashboard..." />;
 
   if (isError) {
     return (
@@ -61,127 +153,355 @@ export default function PatientDashboard() {
     );
   }
 
-  const stats = dashboardData?.stats || { upcomingAppointments: 0, completedAppointments: 0, totalSpent: 0, prescriptionsCount: 0 };
-  const upcomingAppointments = dashboardData?.upcomingAppointments || [];
+  const { stats, upcomingAppointments = [], myDoctors = [], recentTransactions = [] } = dashboardData || {};
 
   return (
     <div className="space-y-6">
+      
+      {/* 🟢 Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold">
+          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground tracking-tight">
             Welcome back, {user?.fullName?.split(" ")[0]}!
           </h1>
-          <p className="text-muted-foreground">
-            Manage your appointments and health records
+          <p className="text-muted-foreground text-sm sm:text-base mt-1">
+            Easily find doctors, manage your bookings and payment history.
           </p>
         </div>
         <Link href="/patient/doctors">
-          <Button data-testid="button-book-new">
-            <Plus className="h-4 w-4 mr-2" />
-            Book New Appointment
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm px-6 h-11 w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" /> Book New Appointment
           </Button>
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.upcomingAppointments}</p>
-                <p className="text-xs text-muted-foreground">Upcoming</p>
-              </div>
+      {/* 🟢 Stats Cards (Responsive & Dark Mode Supported) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+          <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><Calendar className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="flex items-baseline gap-1 mt-2 z-10">
+              <span className="text-3xl sm:text-4xl font-extrabold text-foreground">{stats?.upcomingAppointments || 0}</span>
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground">bookings</span>
             </div>
+            <p className="text-emerald-700 dark:text-emerald-400 font-medium text-xs sm:text-sm mt-2 sm:mt-3 z-10">{stats?.pendingCount || 0} pending</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                <Clock className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.completedAppointments}</p>
-                <p className="text-xs text-muted-foreground">Completed</p>
-              </div>
+
+        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+          <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><CheckCircle2 className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="flex items-baseline gap-1 mt-2 z-10">
+              <span className="text-3xl sm:text-4xl font-extrabold text-foreground">{stats?.completedAppointments || 0}</span>
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground">sessions</span>
             </div>
+            <p className="text-emerald-700 dark:text-emerald-400 font-medium text-xs sm:text-sm mt-2 sm:mt-3 z-10">{stats?.inPersonCompleted || 0} Clinic & {stats?.onlineCompleted || 0} Online</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+          <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><CreditCard className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="flex items-baseline gap-1 mt-2 z-10">
+              <span className="text-2xl sm:text-3xl font-extrabold text-foreground">LKR {(stats?.totalPaidAmount || 0).toLocaleString()}</span>
+            </div>
+            <p className="text-muted-foreground font-medium text-xs sm:text-sm mt-2 sm:mt-3 z-10">Total Paid (LKR)</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+          <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><FileClock className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="flex items-baseline gap-1 mt-2 z-10">
+              <span className="text-3xl sm:text-4xl font-extrabold text-foreground">{stats?.refundPendingCount || 0}</span>
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground">Pending</span>
+            </div>
+            <p className="text-muted-foreground font-medium text-xs sm:text-sm mt-2 sm:mt-3 z-10">Action may be required</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
-            <CardTitle>Upcoming Appointments</CardTitle>
-            <Link href="/patient/appointments">
-              <Button variant="ghost" size="sm" className="gap-1">
-                View All
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {upcomingAppointments.length > 0 ? (
-              <div className="space-y-4">
-                {upcomingAppointments.slice(0, 3).map((appointment) => (
-                  <div 
-                    key={appointment.id}
-                    className="flex items-center gap-4 p-4 rounded-lg border hover-elevate transition-all"
-                    data-testid={`card-upcoming-appointment-${appointment.id}`}
-                  >
-                    <Avatar className="h-12 w-12 rounded-lg">
-                      <AvatarImage src={appointment.doctor?.user?.profileImage} />
-                      <AvatarFallback className="rounded-lg bg-primary/10 text-primary">
-                        {getInitials(appointment.doctor?.user?.fullName || "")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        Dr. {appointment.doctor?.user?.fullName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {appointment.doctor?.specializations?.[0]?.name || "Specialist"}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <Badge variant="outline" className="text-xs">
-                          {format(new Date(appointment.appointmentDate), "MMM d")} at {appointment.appointmentTime}
-                        </Badge>
-                        {appointment.consultationType === "online" ? (
-                          <Badge variant="secondary" className="text-xs gap-1">
-                            <Video className="h-3 w-3" />
-                            Online
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs gap-1">
-                            <Building2 className="h-3 w-3" />
-                            In Person
-                          </Badge>
-                        )}
+      {/* 🟢 Main Content Area */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        
+        {/* Left Column: Upcoming Appointments */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-card overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 bg-emerald-50/50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/30">
+              <h3 className="font-bold text-base sm:text-lg flex items-center gap-2 text-emerald-950 dark:text-emerald-100">
+                <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-500" /> Upcoming Appointments
+              </h3>
+              <Link href="/patient/appointments">
+                <Button variant="ghost" size="sm" className="text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 font-semibold p-0 px-2 h-auto">
+                  View All <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            
+            <CardContent className="p-4 sm:p-5">
+              {upcomingAppointments.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingAppointments.map((appointment: any) => {
+                    const docName = appointment.doctor?.user?.fullName;
+                    const dateObj = new Date(appointment.appointmentDate);
+                    const formattedDate = format(dateObj, "MMM dd");
+                    const isOnline = appointment.consultationType === "online";
+
+                    return (
+                      <div key={appointment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-border hover:shadow-md transition-shadow bg-background gap-4">
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-12 w-12 border-2 border-emerald-50 dark:border-emerald-900/30 shrink-0">
+                            <AvatarImage src={appointment.doctor?.user?.profileImage} />
+                            <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                              {getInitials(docName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          
+                          <div>
+                            <h4 className="font-bold text-foreground text-sm sm:text-base">Dr. {docName}</h4>
+                            <div className="flex items-center gap-2 mt-1 text-xs sm:text-sm text-muted-foreground flex-wrap">
+                              <span>{appointment.appointmentTime}</span>
+                              <Badge variant="secondary" className={`text-[10px] font-medium uppercase px-2 py-0.5 ${
+                                isOnline ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                              }`}>
+                                {isOnline ? "Online" : "In Person"}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0 mt-2 sm:mt-0">
+                          <span className="font-bold text-xs sm:text-sm text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-md">
+                            {formattedDate}
+                          </span>
+                          <Button variant="outline" size="sm" className="border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 h-8 text-xs font-semibold w-full sm:w-auto">
+                            {isOnline ? <><Video className="w-3.5 h-3.5 mr-1.5" /> Join call</> : <><Map className="w-3.5 h-3.5 mr-1.5" /> View map</>}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="shrink-0">
-                      <StatusBadge status={appointment.status} type="appointment" />
-                    </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-10 opacity-70">
+                  <Calendar className="h-10 w-10 mx-auto text-emerald-200 dark:text-emerald-800 mb-3" />
+                  <p className="font-medium text-emerald-800 dark:text-emerald-400">No upcoming appointments</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Doctors & Transactions */}
+        <div className="space-y-6">
+          
+          {/* My Doctors Card */}
+          <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50/30 dark:bg-emerald-900/5 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-emerald-100 dark:border-emerald-900/30">
+              <h3 className="font-bold flex items-center gap-2 text-emerald-950 dark:text-emerald-100 text-sm sm:text-base">
+                <User className="w-4 h-4 text-emerald-600 dark:text-emerald-500" /> My Doctors
+              </h3>
+            </div>
+            <CardContent className="p-0">
+              <div className="divide-y divide-emerald-50 dark:divide-emerald-900/20">
+                {myDoctors.map((doc: any) => (
+                  <div key={doc.id} className="flex items-center justify-between p-4 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors">
+                    <span className="font-semibold text-xs sm:text-sm truncate mr-2">Dr. {doc.user?.fullName?.split(" ")[0]}</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-orange-500 dark:text-orange-400 truncate">{doc.specializations?.[0]?.name || "General"}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 shrink-0 ml-2">
+                      <FileText className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 ))}
+                {myDoctors.length === 0 && <p className="text-center text-sm p-4 text-muted-foreground">No doctors visited yet.</p>}
               </div>
-            ) : (
-              <div className="text-center py-8">
-                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground mb-4">No upcoming appointments</p>
-                <Link href="/patient/doctors">
-                  <Button variant="outline" size="sm">
-                    Book an Appointment
-                  </Button>
-                </Link>
+            </CardContent>
+          </Card>
+
+          {/* Recent Transactions Card */}
+          <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50/30 dark:bg-emerald-900/5 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-emerald-100 dark:border-emerald-900/30">
+              <h3 className="font-bold flex items-center gap-2 text-emerald-950 dark:text-emerald-100 text-sm sm:text-base">
+                <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-500" /> Recent Transactions
+              </h3>
+            </div>
+            <CardContent className="p-0">
+              <div className="divide-y divide-emerald-50 dark:divide-emerald-900/20">
+                {recentTransactions.map((tx: any) => {
+                  const dateStr = format(new Date(tx.date), "MMM dd, yyyy");
+                  let badgeClass = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+                  if (tx.status === "pending") badgeClass = "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300";
+                  if (tx.status === "refunded") badgeClass = "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300";
+
+                  return (
+                    <div key={tx.id} className="flex items-center justify-between p-3.5 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors text-[11px] sm:text-xs gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-muted-foreground">{dateStr}</span>
+                        <span className="font-medium truncate max-w-[80px] sm:max-w-[100px]">Dr. {tx.doctorName?.split(" ")[0]}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex flex-col items-end">
+                          <span className="font-bold">LKR {tx.totalAmount}</span>
+                          <Badge className={`${badgeClass} shadow-none px-1.5 py-0 text-[9px] sm:text-[10px] font-semibold capitalize`}>
+                            {tx.status}
+                          </Badge>
+                        </div>
+                        {/* 🟢 Click to open Receipt Modal */}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => setSelectedTx(tx)}
+                          className="h-7 w-7 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-md shrink-0"
+                          title="View Receipt"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {recentTransactions.length === 0 && <p className="text-center text-sm p-4 text-muted-foreground">No recent transactions.</p>}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+        </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* 🧾 OFFICIAL RECEIPT MODAL */}
+      {/* ======================================================== */}
+      <Dialog open={!!selectedTx} onOpenChange={(open) => !open && setSelectedTx(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-[#f9fafb] dark:bg-zinc-950 border-0 shadow-2xl rounded-xl">
+          {selectedTx && (
+            <div className="flex flex-col h-full max-h-[85vh]">
+              
+              {/* Modal Header Actions */}
+              <div className="flex items-center justify-between p-3 sm:p-4 bg-white dark:bg-zinc-900 border-b border-border shrink-0 z-10">
+                <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Download className="w-4 h-4 text-emerald-600" /> Transaction Receipt
+                </DialogTitle>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={() => handleOpenNewTab(selectedTx)}>
+                    <ExternalLink className="w-3.5 h-3.5" /> New Tab
+                  </Button>
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 gap-1 text-xs" onClick={() => handleOpenNewTab(selectedTx)}>
+                    <Printer className="w-3.5 h-3.5" /> Print / PDF
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 w-8 rounded-md" onClick={() => setSelectedTx(null)}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Scrollable Receipt Area */}
+              <div className="overflow-y-auto p-4 sm:p-8 bg-[#f9fafb] dark:bg-muted-foreground/5">
+                
+                {/* 📄 The Receipt Paper */}
+                <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 shadow-md border border-border/50 rounded-none sm:rounded-lg overflow-hidden">
+                  
+                  {/* Receipt Header */}
+                  <div className="bg-[#0f172a] text-white p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h2 className="m-0 text-emerald-400 flex items-center text-xl font-bold">
+                        AyurPath
+                        <span className="text-[10px] sm:text-xs text-slate-400 font-normal ml-2 hidden sm:inline-block">Ayurvedic Healthcare Platform</span>
+                      </h2>
+                    </div>
+                    <h1 className="m-0 text-xl sm:text-2xl font-semibold">Official Receipt</h1>
+                  </div>
+
+                  {/* Meta Info Row */}
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 p-4 sm:p-6 flex justify-between border-b border-emerald-100 dark:border-emerald-900/50">
+                    <div>
+                      <span className="block text-[10px] sm:text-xs text-slate-500 uppercase font-semibold mb-1">Date of Issue</span>
+                      <strong className="text-sm sm:text-base text-emerald-950 dark:text-emerald-100">{format(new Date(selectedTx.date), "MMM d, yyyy")}</strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="block text-[10px] sm:text-xs text-slate-500 uppercase font-semibold mb-1">Receipt No.</span>
+                      <strong className="text-sm sm:text-base text-emerald-600 dark:text-emerald-500">INV-{new Date(selectedTx.date).getFullYear()}-{selectedTx.id.substring(0, 4).toUpperCase()}</strong>
+                    </div>
+                  </div>
+
+                  {/* Address Row */}
+                  <div className="flex flex-col sm:flex-row justify-between p-6 sm:p-8 gap-6 sm:gap-4">
+                    <div className="border-l-2 border-emerald-600 pl-3 sm:pl-4">
+                      <span className="block text-[10px] sm:text-xs text-slate-500 uppercase font-semibold mb-2">From</span>
+                      <strong className="block text-sm sm:text-base text-foreground mb-1">AyurPath Medical Platform</strong>
+                      <p className="m-0 text-xs sm:text-sm text-muted-foreground leading-relaxed">info@ayurvedicdoctor.lk<br/>+94 11 234 5678 | +94 77 123 4567</p>
+                    </div>
+                    <div className="border-l-2 border-emerald-600 pl-3 sm:pl-4">
+                      <span className="block text-[10px] sm:text-xs text-slate-500 uppercase font-semibold mb-2">Billed To</span>
+                      <strong className="block text-sm sm:text-base text-foreground mb-1">{user?.fullName}</strong>
+                      <p className="m-0 text-xs sm:text-sm text-muted-foreground leading-relaxed">Patient<br/>AyurPath Registered Patient</p>
+                    </div>
+                  </div>
+
+                  {/* Table Area */}
+                  <div className="px-4 sm:px-8 pb-4">
+                    <div className="border border-emerald-100 dark:border-emerald-900/50 rounded-lg overflow-hidden">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-emerald-50 dark:bg-emerald-950/50 border-b border-emerald-100 dark:border-emerald-900/50">
+                            <th className="p-3 sm:p-4 text-[10px] sm:text-xs text-emerald-900 dark:text-emerald-300 uppercase font-semibold">Description</th>
+                            <th className="p-3 sm:p-4 text-[10px] sm:text-xs text-emerald-900 dark:text-emerald-300 uppercase font-semibold text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-border/50">
+                            <td className="p-3 sm:p-4 text-xs sm:text-sm">Ayurvedic Consultation – Dr. {selectedTx.doctorName}</td>
+                            <td className="p-3 sm:p-4 text-xs sm:text-sm text-right font-medium">{formatFee(selectedTx.consultationFee || 0)}</td>
+                          </tr>
+                          <tr className="border-b border-border/50">
+                            <td className="p-3 sm:p-4 text-xs sm:text-sm">Service & Booking Fee</td>
+                            <td className="p-3 sm:p-4 text-xs sm:text-sm text-right font-medium">{formatFee(selectedTx.bookingCharges || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-3 sm:p-4 text-xs sm:text-sm">Government Tax (4%)</td>
+                            <td className="p-3 sm:p-4 text-xs sm:text-sm text-right font-medium">{formatFee(selectedTx.tax || 0)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Totals Area */}
+                  <div className="p-6 sm:p-8 flex justify-end">
+                    <div className="w-full sm:w-[300px]">
+                      <div className="flex justify-between mb-2.5 text-xs sm:text-sm text-muted-foreground">
+                        <span>Subtotal:</span>
+                        <strong className="text-foreground">{formatFee((selectedTx.consultationFee || 0) + (selectedTx.bookingCharges || 0))}</strong>
+                      </div>
+                      <div className="flex justify-between mb-4 text-xs sm:text-sm text-muted-foreground">
+                        <span>Tax (4%):</span>
+                        <strong className="text-foreground">{formatFee(selectedTx.tax || 0)}</strong>
+                      </div>
+                      <div className="bg-emerald-500 text-white p-3 sm:p-4 rounded-lg flex items-center justify-between mt-2">
+                        <span className="uppercase text-[10px] sm:text-xs font-semibold">Total Paid</span>
+                        <strong className="text-lg sm:text-xl font-bold">{formatFee(selectedTx.totalAmount || 0)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Info */}
+                  <div className="px-6 sm:px-8 pb-6 sm:pb-8 text-[10px] sm:text-xs text-muted-foreground">
+                    Payment Method: {selectedTx.method === 'online' ? 'Online Transfer' : 'Cash'} | Transaction Ref: TXN-{selectedTx.id.substring(0,8).toUpperCase()}<br/><br/>
+                    This receipt is computer-generated and is valid without a physical signature.
+                  </div>
+
+                  {/* Bottom Strip */}
+                  <div className="bg-[#0f172a] text-white p-4 sm:p-6 text-center">
+                    <strong className="block text-xs sm:text-sm mb-1">Thank you for choosing AyurPath Ayurvedic Healthcare Platform</strong>
+                    <p className="m-0 text-[10px] sm:text-xs text-slate-400">info@ayurvedicdoctor.lk | +94 11 234 5678 | +94 77 123 4567</p>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

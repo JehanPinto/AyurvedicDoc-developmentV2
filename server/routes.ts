@@ -2946,33 +2946,65 @@ export async function registerRoutes(
     roleMiddleware(UserRole.PATIENT),
     async (req: AuthenticatedRequest, res: Response) => {
       try {
-        const stats = await storage.getPatientDashboardStats(req.user!.id);
-        const allAppointments = await storage.getPatientAppointments(
-          req.user!.id,
-        );
+        const patientId = req.user!.id;
+        
+        // 1. Get all appointments for the patient
+        const allAppointments = await storage.getPatientAppointments(patientId);
+        
+        // 2. Get all payments for the patient
+        const allPayments = await storage.getPatientPayments(patientId);
 
         const today = new Date().toISOString().split("T")[0];
-        const upcomingAppointments = allAppointments
-          .filter(
-            (a) =>
-              a.appointmentDate >= today &&
-              [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(
-                a.status as any,
-              ),
-          )
-          .slice(0, 5);
 
-        const recentAppointments = allAppointments
-          .filter((a) => a.status === AppointmentStatus.COMPLETED)
-          .slice(0, 5);
+        // --- Calculate Stats ---
+        const upcomingList = allAppointments.filter(a => a.appointmentDate >= today && [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(a.status as any));
+        const pendingCount = upcomingList.filter(a => a.status === AppointmentStatus.PENDING).length;
+        
+        const completedList = allAppointments.filter(a => a.status === AppointmentStatus.COMPLETED);
+        const inPersonCompleted = completedList.filter(a => a.consultationType === "in_person").length;
+        const onlineCompleted = completedList.filter(a => a.consultationType === "online").length;
+
+        const totalPaidAmount = allPayments.filter(p => p.status === PaymentStatus.COMPLETED).reduce((sum, p) => sum + p.totalAmount, 0);
+        const refundPendingCount = allPayments.filter(p => p.status === PaymentStatus.PENDING || p.status === PaymentStatus.FAILED).length; // Adjust based on your logic
+
+        const stats = {
+          upcomingAppointments: upcomingList.length,
+          pendingCount,
+          completedAppointments: completedList.length,
+          inPersonCompleted,
+          onlineCompleted,
+          totalPaidAmount,
+          refundPendingCount
+        };
+
+        // --- My Doctors (Unique doctors the patient has visited/booked) ---
+        const uniqueDoctorIds = [...new Set(allAppointments.map(a => a.doctorId))];
+        const myDoctors = [];
+        for (const docId of uniqueDoctorIds.slice(0, 4)) {
+           const doc = await storage.getDoctorWithDetails(docId);
+           if (doc) myDoctors.push(doc);
+        }
+
+        // --- Recent Transactions ---
+        const recentTransactions = await Promise.all(allPayments.slice(0, 4).map(async (p) => {
+           const appointment = allAppointments.find(a => a.id === p.appointmentId);
+           const doctor = appointment ? await storage.getDoctorWithDetails(appointment.doctorId) : null;
+           return {
+             ...p,
+             doctorName: doctor?.user?.fullName || "Doctor",
+             date: p.createdAt
+           };
+        }));
 
         res.json({
           stats,
-          upcomingAppointments,
-          recentAppointments,
+          upcomingAppointments: upcomingList.slice(0, 5),
+          myDoctors,
+          recentTransactions
         });
       } catch (error) {
-        res.status(500).json({ error: "Failed to get dashboard stats" });
+        console.error("Dashboard Error:", error);
+        res.status(500).json({ error: "Failed to get dashboard data" });
       }
     },
   );
