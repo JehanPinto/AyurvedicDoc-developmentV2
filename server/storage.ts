@@ -87,6 +87,7 @@ export interface IStorage {
 
   getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined>;
   getAvailableSlots(doctorId: string, date: string): Promise<AppointmentSlot[]>;
+  getDoctorDaySlots(doctorId: string, date: string): Promise<AppointmentSlot[]>;
   getDoctorSlots(
     doctorId: string,
     startDate: string,
@@ -923,6 +924,15 @@ export class MemStorage implements IStorage {
         s.date === date &&
         !s.isBooked &&
         !s.isBlocked,
+    );
+  }
+
+  async getDoctorDaySlots(
+    doctorId: string,
+    date: string,
+  ): Promise<AppointmentSlot[]> {
+    return Array.from(this.appointmentSlots.values()).filter(
+      (s) => s.doctorId === doctorId && s.date === date,
     );
   }
 
