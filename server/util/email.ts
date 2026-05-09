@@ -93,3 +93,45 @@ export async function sendApplicationEmail(
     };
   }
 }
+
+export async function sendPasswordResetOtpEmail(toEmail: string, otp: string) {
+  const subject = "Your Password Reset Verification Code - AyurPath";
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden;">
+        <div style="background-color: #059669; padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0;">Password Reset Request</h1>
+        </div>
+        <div style="padding: 30px; background-color: #ffffff; text-align: center;">
+            <p style="font-size: 16px; color: #333;">Hello,</p>
+            <p style="font-size: 16px; color: #333; line-height: 1.5;">
+                We received a request to reset the password for your AyurPath account. 
+                Please use the verification code below to proceed:
+            </p>
+            <div style="margin: 30px 0;">
+                <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #059669; background-color: #ecfdf5; padding: 15px 25px; border-radius: 8px; border: 2px dashed #34d399;">
+                    ${otp}
+                </span>
+            </div>
+            <p style="font-size: 14px; color: #666; margin-top: 20px;">
+                This code will expire in <strong>10 minutes</strong>. If you did not request a password reset, please ignore this email or contact support.
+            </p>
+            <p style="font-size: 14px; color: #333; margin-top: 30px;">Best regards,<br><strong>AyurPath Security Team</strong></p>
+        </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: `"AyurPath Security" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: subject,
+      html: htmlContent,
+    });
+    console.log(`✅ Real OTP Email successfully sent to ${toEmail}`);
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Email delivery failed:", error);
+    return { success: false, error };
+  }
+}

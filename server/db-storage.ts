@@ -1852,6 +1852,39 @@ export class DbStorage implements IStorage {
       .where(eq(doctorProfiles.registrationNumber, registrationNumber));
     return doctor ? mapDoctorProfile(doctor) : undefined;
   }
+
+  async setPasswordResetOtp(id: string, otp: string, expiry: Date): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        resetPasswordOtp: otp,
+        resetPasswordOtpExpiry: expiry,
+      })
+      .where(eq(users.id, id));
+  }
+
+  async verifyPasswordResetOtp(id: string, otp: string): Promise<boolean> {
+    const userList = await db.select().from(users).where(eq(users.id, id));
+    const user = userList[0];
+
+    if (!user || user.resetPasswordOtp !== otp || !user.resetPasswordOtpExpiry) {
+      return false;
+    }
+
+    if (new Date() > user.resetPasswordOtpExpiry) {
+      return false;
+    }
+
+    await db
+      .update(users)
+      .set({
+        resetPasswordOtp: null,
+        resetPasswordOtpExpiry: null,
+      })
+      .where(eq(users.id, id));
+
+    return true;
+  }
 }
 
 export const dbStorage = new DbStorage();
