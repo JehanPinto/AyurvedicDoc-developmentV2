@@ -3612,6 +3612,10 @@ export async function registerRoutes(
           }
         }
 
+        if (updates.phone && !/^07[0-9]{8}$/.test(updates.phone)) {
+          return res.status(400).json({ error: "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)" });
+        }
+
         const user = await storage.updateUser(req.user!.id, updates);
         if (!user) {
           return res.status(404).json({ error: "User not found" });

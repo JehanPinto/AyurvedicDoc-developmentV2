@@ -35,6 +35,7 @@ import DoctorSchedulePage from "@/pages/doctor/schedule";
 import DoctorReviewsPage from "@/pages/doctor/reviews";
 import DoctorEarningsPage from "@/pages/doctor/earnings";
 import DoctorSettingsPage from "@/pages/doctor/settings";
+import DoctorVerifyPhonePage from "@/pages/doctor/verify-phone";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDoctorsPage from "@/pages/admin/doctors";
 import AdminPatientsPage from "@/pages/admin/patients";
@@ -155,6 +156,7 @@ function Router() {
               <Route path="/doctor/earnings" component={DoctorEarningsPage} />
               <Route path="/doctor/reviews" component={DoctorReviewsPage} />
               <Route path="/doctor/profile" component={DoctorSettingsPage} />
+              <Route path="/doctor/verify-phone" component={DoctorVerifyPhonePage} />
               <Route component={NotFound} />
             </Switch>
           </DashboardLayout>

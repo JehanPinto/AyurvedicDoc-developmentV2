@@ -41,7 +41,7 @@ const buildRegisterSchema = (requirePassword: boolean) => z.object({
     : z.string().optional(),
   confirmPassword: requirePassword ? z.string() : z.string().optional(),
   fullName: z.string().min(2, "Full name is required"),
-  phone: z.string().min(10, "Valid phone number required"),
+  phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)"),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
   preferredLanguage: z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL]),
   agreeTerms: z.boolean().refine(val => val === true, "You must agree to the terms"),

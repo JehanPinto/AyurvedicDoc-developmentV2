@@ -491,7 +491,7 @@ export const insertUserSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   fullName: z.string().min(2, "Full name is required"),
-  phone: z.string().min(10, "Valid phone number required"),
+  phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)"),
   role: z.enum([UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN]),
   nic: z.string().optional(),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
