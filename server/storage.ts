@@ -99,7 +99,7 @@ export interface IStorage {
   ): Promise<AppointmentSlot | undefined>;
   blockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
   unblockSlot(slotId: string): Promise<AppointmentSlot | undefined>;
-  deleteSlot(slotId: string): Promise<boolean>;
+  deactivateSlot(slotId: string): Promise<boolean>;
 
   getAppointment(id: string): Promise<Appointment | undefined>;
   getAppointmentWithDetails(
