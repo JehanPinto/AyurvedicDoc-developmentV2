@@ -26,7 +26,7 @@ export function ApplicationCard({
     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center p-4 rounded-[15px] bg-primary/10 gap-4 transition-all">
       {/* Left Section */}
       <div className="flex items-center gap-4 max-sm:flex-col max-sm:items-start">
-        <div className="w-12 h-12 rounded-full border border-primary flex items-center justify-center bg-transparent shrink-0">
+        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
           <User className="w-6 h-6 text-primary" strokeWidth={1.5} />
         </div>
         <div className="flex flex-col">
@@ -67,7 +67,7 @@ export function ApplicationCard({
           </Button>
           <Button
             size="sm"
-            className="bg-primary/80 hover:bg-primary border-0 h-8"
+            className="bg-primary hover:bg-primary/90 border-0 h-8"
             onClick={onAccept}
             disabled={isLoading}
           >

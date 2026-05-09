@@ -115,23 +115,38 @@ export default function AdminCareersPage() {
     const updateStatusMutation = useMutation({
         mutationFn: async ({ id, status, message }: { id: string; status: "ACCEPTED" | "REJECTED", message: string }) => {
             const res = await apiRequest("PATCH", `/api/admin/applications/${id}/status`, { status, message });
+            if (res instanceof Response) {
+                return await res.json();
+            }
             return res;
         },
         onSuccess: (data, variables) => {
-            toast({
-                title: variables.status === "ACCEPTED" ? "Application Accepted" : "Application Rejected",
-                description: `Applicant has been notified via email.`,
-            });
+            if (data && data.emailSuccess === false) {
+                toast({
+                    title: "Status Updated, but Email Failed! ⚠️",
+                    description: `Error: ${data.emailError || "Unknown SMTP error occurred."}`,
+                    variant: "destructive",
+                });
+            } else {
+                toast({
+                    title: variables.status === "ACCEPTED" ? "Application Accepted" : "Application Rejected",
+                    description: `Applicant has been successfully notified via email.`,
+                });
+            }
+
             queryClient.invalidateQueries({ queryKey: ["/api/admin/applications"] });
             
-            // Close all modals related to applications
             setActionModal({ isOpen: false, type: null, appId: null });
             setIsAppModalOpen(false);
             setActionMessage("");
             setTimeout(() => setSelectedApp(null), 300);
         },
-        onError: () => {
-            toast({ title: "Update Failed", description: "Could not change the application status or send email.", variant: "destructive" });
+        onError: (error: any) => {
+            toast({ 
+                title: "Failed to Update Application", 
+                description: error.message || "An unexpected error occurred while communicating with the server.", 
+                variant: "destructive" 
+            });
         }
     });
 
@@ -256,12 +271,6 @@ export default function AdminCareersPage() {
         setIsAppModalOpen(true);
     };
 
-    // const handleAppStatusUpdate = (id: string, status: "ACCEPTED" | "REJECTED") => {
-    //     updateStatusMutation.mutate({ id, status });
-    //     setIsAppModalOpen(false);
-    //     setTimeout(() => setSelectedApp(null), 300);
-    // };
-
     const pendingApps = applications.filter(app => app.status.toLowerCase() === "pending");
     const isPending = createCareerMutation.isPending || updateCareerMutation.isPending;
 
@@ -272,18 +281,18 @@ export default function AdminCareersPage() {
             <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                     <h3 className="lg:text-[20px] md:text-[18px] text-[16px] font-heading font-bold">Manage Careers</h3>
-                    <Button onClick={handleOpenAdd} className="bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white rounded-[15px] px-6 border-none font-semibold">
+                    <Button onClick={handleOpenAdd} className="bg-primary hover:bg-primary/90 text-white rounded-[15px] px-6 border-none font-semibold">
                         Add New Career <PlusCircle className="ml-2 w-5 h-5" />
                     </Button>
                 </div>
 
-                <div className="border rounded-[15px] p-4 border-primary flex flex-col gap-5">
+                <div className="border rounded-[15px] p-4 border-primary/30 flex flex-col gap-5">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                             <Clock className="text-secondary w-[14px] h-[14px]" />
                             <h4 className="lg:text-[18px] md:text-[16px] text-[14px] font-bold">Pending Career Applications</h4>
                         </div>
-                        <Badge className="bg-[#d97706] hover:bg-[#d97706] text-white px-3 py-1 text-xs">
+                        <Badge className="bg-secondary hover:bg-secondary/90 text-white px-3 py-1 text-xs">
                             {pendingApps.length} pending
                         </Badge>
                     </div>
@@ -345,7 +354,7 @@ export default function AdminCareersPage() {
                         <Button variant="outline" onClick={handleCloseModal} className="rounded-full px-6 text-primary border-primary hover:bg-primary/10">
                             <ArrowLeft className="mr-2 w-4 h-4" /> Cancel
                         </Button>
-                        <Button type="submit" form="career-form" disabled={isPending} className="bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white rounded-full px-6 shadow-sm">
+                        <Button type="submit" form="career-form" disabled={isPending} className="bg-primary hover:bg-primary/90 text-white rounded-full px-6 shadow-sm">
                             {isPending ? "Saving..." : (selectedCareerId ? "Update Career" : "Add Career")}
                             <PlusCircle className="ml-2 w-4 h-4" />
                         </Button>
@@ -452,7 +461,7 @@ export default function AdminCareersPage() {
                             <Button
                                 onClick={() => handleActionClick(selectedApp!.id, "ACCEPTED")}
                                 disabled={updateStatusMutation.isPending}
-                                className="rounded-full px-6 bg-[#2a9d5c] hover:bg-[#2a9d5c]/90 text-white shadow-sm"
+                                className="rounded-full px-6 bg-primary hover:bg-primary/90 text-white shadow-sm"
                             >
                                 Accept <CheckCircle className="ml-2 w-4 h-4" />
                             </Button>
@@ -543,7 +552,7 @@ export default function AdminCareersPage() {
                                     <Button
                                         size="icon"
                                         title="Open in New Tab"
-                                        className="bg-[#2a9d5c]/90 hover:bg-[#2a9d5c] text-white rounded-full shadow-sm h-10 w-10"
+                                        className="bg-primary hover:bg-primary/90 text-white rounded-full shadow-sm h-10 w-10"
                                         onClick={(e) => {
                                             e.preventDefault();
                                             window.open(selectedApp.cvUrl, "_blank", "noopener,noreferrer");
@@ -563,7 +572,7 @@ export default function AdminCareersPage() {
                 onClose={() => setViewingJob(null)}
                 title={viewingJob?.careerTitle || "Career Details"}
                 description={`${viewingJob?.location} • ${viewingJob?.employmentType} ${viewingJob?.salaryRange ? `• ${viewingJob.salaryRange}` : ''}`}
-                icon={<Briefcase className="w-5 h-5 text-[#30A66F]" />}
+                icon={<Briefcase className="w-5 h-5 text-primary" />}
                 className="max-w-3xl"
                 footer={
                     <div className="flex w-full justify-between items-center">
@@ -641,7 +650,7 @@ export default function AdminCareersPage() {
                             disabled={updateStatusMutation.isPending || (actionModal.type === "REJECTED" && actionMessage.trim() === "")}
                             className={`rounded-full px-8 text-white ${
                                 actionModal.type === "ACCEPTED" 
-                                    ? "bg-[#2a9d5c] hover:bg-[#2a9d5c]/90" 
+                                    ? "bg-primary hover:bg-primary/90" 
                                     : "bg-[#d32f2f] hover:bg-[#b71c1c]"
                             }`}
                         >

@@ -15,12 +15,29 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function sendApplicationEmail(
-  toEmail: string,
+  toEmail: string | null | undefined,
   applicantName: string,
   jobTitle: string,
   status: "ACCEPTED" | "REJECTED",
   message: string,
 ) {
+  if (!toEmail || toEmail.trim() === "") {
+    console.error("🔴 Error: Applicant has no email address.");
+    return {
+      success: false,
+      error:
+        "This applicant has not provided an email address. (No Email Found)",
+    };
+  }
+
+  if (!toEmail.includes("@")) {
+    console.error("🔴 Error: Invalid email format.");
+    return {
+      success: false,
+      error: "Invalid Email Format",
+    };
+  }
+
   const isAccepted = status === "ACCEPTED";
   const subject = isAccepted
     ? `Application Update: Next Steps for ${jobTitle} at AyurPath`
@@ -59,15 +76,20 @@ export async function sendApplicationEmail(
     `;
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"AyurPath Admin" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       subject: subject,
       html: htmlContent,
     });
+    console.log("🟢 Email sent successfully:", info.messageId);
     return { success: true };
-  } catch (error) {
-    console.error("Email delivery failed:", error);
-    return { success: false, error };
+  } catch (error: any) {
+    console.error("🔴 SMTP Error:", error.message);
+    return {
+      success: false,
+      error:
+        "There is an error with the email server (SMTP). Please check the App Key.",
+    };
   }
 }
