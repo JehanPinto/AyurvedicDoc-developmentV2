@@ -108,6 +108,7 @@ function mapDoctorProfile(row: any): DoctorProfile {
     languagesSpoken: row.languagesSpoken || ["english"],
     consultationTypes: row.consultationTypes || ["in_person"],
     hospitalIds: row.hospitalIds || [],
+    clinic_locations: row.clinic_locations || [],
     consultationFee: row.consultationFee || 0,
     onlineConsultationFee: row.onlineConsultationFee || undefined,
     homeVisitFee: row.homeVisitFee || undefined,
@@ -438,6 +439,7 @@ export class DbStorage implements IStorage {
         languagesSpoken: profile.languagesSpoken,
         consultationTypes: profile.consultationTypes,
         hospitalIds: profile.hospitalIds,
+        clinic_locations: profile.clinic_locations,
         consultationFee: profile.consultationFee,
         onlineConsultationFee: profile.onlineConsultationFee,
         homeVisitFee: profile.homeVisitFee,
@@ -576,6 +578,23 @@ export class DbStorage implements IStorage {
     return result as AppointmentSlot[];
   }
 
+  async getDoctorDaySlots(
+    doctorId: string,
+    date: string,
+  ): Promise<AppointmentSlot[]> {
+    const result = await db
+      .select()
+      .from(appointmentSlots)
+      .where(
+        and(
+          eq(appointmentSlots.doctorId, doctorId),
+          eq(appointmentSlots.date, date),
+        ),
+      )
+      .orderBy(appointmentSlots.startTime);
+    return result as AppointmentSlot[];
+  }
+
   async getDoctorSlots(
     doctorId: string,
     startDate: string,
@@ -589,6 +608,7 @@ export class DbStorage implements IStorage {
           eq(appointmentSlots.doctorId, doctorId),
           gte(appointmentSlots.date, startDate),
           lte(appointmentSlots.date, endDate),
+          eq(appointmentSlots.isActive, true),
         ),
       );
     return result as AppointmentSlot[];
@@ -621,9 +641,10 @@ export class DbStorage implements IStorage {
     return this.updateAppointmentSlot(slotId, { isBlocked: false });
   }
 
-  async deleteSlot(slotId: string): Promise<boolean> {
+  async deactivateSlot(slotId: string): Promise<boolean> {
     const result = await db
-      .delete(appointmentSlots)
+      .update(appointmentSlots)
+      .set({ isActive: false })
       .where(eq(appointmentSlots.id, slotId))
       .returning();
     return result.length > 0;
@@ -843,6 +864,12 @@ export class DbStorage implements IStorage {
       .insert(appointments)
       .values(appointment)
       .returning();
+
+    await db
+      .update(appointmentSlots)
+      .set({ isBooked: true })
+      .where(eq(appointmentSlots.id, appointment.slotId));
+
     return {
       ...result[0],
       createdAt: toISOString(result[0].createdAt),
@@ -872,11 +899,20 @@ export class DbStorage implements IStorage {
     reason: string,
     cancelledBy: string,
   ): Promise<Appointment | undefined> {
-    return this.updateAppointment(id, {
+    const updated = await this.updateAppointment(id, {
       status: AppointmentStatus.CANCELLED,
       cancelReason: reason,
       cancelledBy: cancelledBy as any,
     });
+
+    if (updated) {
+      await db
+        .update(appointmentSlots)
+        .set({ isBooked: false })
+        .where(eq(appointmentSlots.id, updated.slotId));
+    }
+
+    return updated;
   }
 
   async getPayment(id: string): Promise<Payment | undefined> {
@@ -1846,6 +1882,53 @@ export class DbStorage implements IStorage {
       .from(doctorProfiles)
       .where(eq(doctorProfiles.registrationNumber, registrationNumber));
     return doctor ? mapDoctorProfile(doctor) : undefined;
+  }
+
+  async getPatientPayments(patientId: string): Promise<Payment[]> {
+    const records = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.patientId, patientId))
+      .orderBy(desc(payments.createdAt));
+
+    return records.map((record) => ({
+      ...record,
+      createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : new Date().toISOString(),
+    })) as unknown as Payment[];
+  }
+
+  async setPasswordResetOtp(id: string, otp: string, expiry: Date): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        resetPasswordOtp: otp,
+        resetPasswordOtpExpiry: expiry,
+      })
+      .where(eq(users.id, id));
+  }
+
+  async verifyPasswordResetOtp(id: string, otp: string): Promise<boolean> {
+    const userList = await db.select().from(users).where(eq(users.id, id));
+    const user = userList[0];
+
+    if (!user || user.resetPasswordOtp !== otp || !user.resetPasswordOtpExpiry) {
+      return false;
+    }
+
+    if (new Date() > user.resetPasswordOtpExpiry) {
+      return false;
+    }
+
+    await db
+      .update(users)
+      .set({
+        resetPasswordOtp: null,
+        resetPasswordOtpExpiry: null,
+      })
+      .where(eq(users.id, id));
+
+    return true;
   }
 }
 

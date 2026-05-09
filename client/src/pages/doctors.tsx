@@ -147,42 +147,49 @@ export default function DoctorsPage() {
   const contentWrapperClasses = `container mx-auto px-4 ${isPatientRoute ? "pb-8" : "py-6 md:py-8"}`;
 
   return (
-    <PublicLayout showHeader={!isPatientRoute}>
-      <div className={headingWrapperClasses}>
-        <div className="container mx-auto px-4 text-center">
-          <h1 className={`${headingClasses} mb-2`}>
-            Find Ayurvedic Doctors
+    <PublicLayout>
+      <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+
+        <div className="container mx-auto px-4 py-8 md:py-10 lg:py-14 text-center">
+
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight">
+            Find{" "}
+            <span className="text-primary">Ayurvedic Doctors</span>
           </h1>
-          <p className="text-muted-foreground">
+            
+          <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             Discover trusted practitioners for your healthcare needs
-          </p>
+          </p>      
+
+          <div className="max-w-5xl mx-auto text-left">
+            <DoctorSearchFilters
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedSpecialization={selectedSpecialization}
+              onSpecializationChange={setSelectedSpecialization}
+              selectedCity={selectedCity}
+              onCityChange={setSelectedCity}
+              selectedConsultationType={selectedConsultationType}
+              onConsultationTypeChange={setSelectedConsultationType}
+              selectedLanguages={selectedLanguages}
+              onLanguagesChange={setSelectedLanguages}
+              minRating={minRating}
+              onMinRatingChange={setMinRating}
+              priceRange={priceRange}
+              onPriceRangeChange={setPriceRange}
+              sortBy={sortBy}
+              onSortByChange={setSortBy}
+              specializations={specializations}
+              cities={cities}
+              onClearFilters={clearFilters}
+              activeFilterCount={activeFilterCount}
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className={contentWrapperClasses}>
-        <DoctorSearchFilters
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedSpecialization={selectedSpecialization}
-          onSpecializationChange={setSelectedSpecialization}
-          selectedCity={selectedCity}
-          onCityChange={setSelectedCity}
-          selectedConsultationType={selectedConsultationType}
-          onConsultationTypeChange={setSelectedConsultationType}
-          selectedLanguages={selectedLanguages}
-          onLanguagesChange={setSelectedLanguages}
-          minRating={minRating}
-          onMinRatingChange={setMinRating}
-          priceRange={priceRange}
-          onPriceRangeChange={setPriceRange}
-          sortBy={sortBy}
-          onSortByChange={setSortBy}
-          specializations={specializations}
-          cities={cities}
-          onClearFilters={clearFilters}
-          activeFilterCount={activeFilterCount}
-        />
-
+      <div className={`container mx-auto px-4 pb-8`}>
         <div className="mt-6 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Showing <span className="font-medium text-foreground">{filteredDoctors.length}</span> doctors
@@ -223,6 +230,7 @@ export default function DoctorsPage() {
           </div>
         )}
       </div>
+        
       <button
         onClick={scrollToTop}
         aria-label="Scroll to top"

@@ -21,6 +21,7 @@ import type { DoctorWithDetails } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { AnimatedStat } from "@/components/ui/animated-stat";
+import  hero_image from "@/assets/image/home-page-hero-image.png";
 
 const testimonials = [
   {
@@ -125,149 +126,161 @@ export default function HomePage() {
 
   const handleSeeAllResults = () => {
     setIsDropdownOpen(false);
-    setLocation(`/doctors?q=${encodeURIComponent(debouncedQuery)}`); // මෙතනදී තමයි Doctors Page එකට යන්නේ
+    setLocation(`/doctors?q=${encodeURIComponent(debouncedQuery)}`);
   };
 
   return (
     <PublicLayout>
-      {/* Hero Section */}
-      <section className="relative bg-[#111815] min-h-[580px] flex items-center z-50">
-        {/* Full-width background image */}
-        <img
-          src="/hero-doctor.png"
-          alt="Ayurvedic doctor consultation"
-          className="absolute inset-0 w-full h-full object-cover object-left"
-        />
-        {/* Dark gradient overlay on right so text is readable */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#111815]/60 to-[#111815]" />
+      <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
 
-        {/* Text content — right side */}
-        <div className="relative z-10 ml-auto w-full max-w-xl px-6 md:px-12 py-16 text-white">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight mb-4 md:mb-6 leading-tight">
-            Find & Book Ayurvedic<br />
-            <span className="text-primary">Doctors</span> Near You
-          </h1>
+        <div className="absolute inset-0 z-10 flex items-end justify-center lg:justify-start lg:w-1/2 opacity-20 md:opacity-30 lg:opacity-100 pointer-events-none">
+          <img
+            src={hero_image}
+            alt="Ayurvedic consultation"
+            className="w-full h-[100%] lg:h-[90%] object-cover lg:object-contain object-bottom"
+          />
+        </div>
 
-          <p className="text-white/70 text-base md:text-lg mb-6 md:mb-8 max-w-lg">
-            Discover trusted Ayurvedic practitioners, book appointments online or
-            in-person, and experience holistic healthcare rooted in ancient wisdom.
-          </p>
+        {/* Gradient Blend overlay */}
+        <div className="absolute inset-0 z-0 hidden lg:block bg-gradient-to-r from-transparent via-background/10 dark:via-background/80 to-background pointer-events-none" />
 
-          <div className="relative mb-6">
-            <form onSubmit={handleSearchSubmit} className="relative z-50">
-              <div className="flex items-center bg-[#0d1410] border border-primary/50 rounded-xl overflow-hidden">
-                <input
-                  placeholder="Search doctors, specializations, or locations..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setIsDropdownOpen(true);
-                  }}
-                  className="flex-1 h-12 px-4 bg-transparent text-white placeholder:text-white/40 outline-none text-sm"
-                  data-testid="input-hero-search"
-                  autoComplete="off"
-                />
-                <button
-                  type="submit"
-                  className="h-12 w-12 bg-primary flex items-center justify-center shrink-0 hover:bg-primary/90 transition-colors"
-                  data-testid="button-hero-search"
-                >
-                  {isSearching ? (
-                    <Loader2 className="h-5 w-5 text-white animate-spin" />
-                  ) : (
-                    <Search className="h-5 w-5 text-white" />
-                  )}
-                </button>
-              </div>
-            </form>
-              
-            {/* Search results dropdown */}
-            {isDropdownOpen && debouncedQuery.length >= 2 && (
-              <>
-                <div 
-                  className="fixed inset-0 z-[60]" 
-                  onClick={() => setIsDropdownOpen(false)}
-                />
-                
-                {/* 👉 අලුත් වෙනස: z-index එක z-[100] කරලා ගොඩක් උඩට ගත්තා */}
-                <div className="absolute top-full left-0 w-full mt-2 bg-[#1a231f] border border-primary/30 rounded-xl shadow-2xl z-[100] overflow-hidden max-h-[300px] overflow-y-auto scrollbar-thin">
-                  {searchResults.length > 0 ? (
-                    <div className="flex flex-col">
-                      {searchResults.map((doctor) => (
-                        <div
-                          key={doctor.id}
-                          onClick={() => {
-                            setLocation(`/doctors/${doctor.id}`);
-                            setIsDropdownOpen(false);
-                          }}
-                          className="flex items-center gap-3 p-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 transition-colors"
-                        >
-                          <Avatar className="h-10 w-10 border border-primary/20 shrink-0">
-                            <AvatarImage src={doctor.user.profileImage || ""} />
-                            <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                              {getInitials(doctor.user.fullName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-white font-medium text-sm truncate">
-                              {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
-                            </p>
-                            <div className="flex items-center gap-2 text-xs text-white/50 mt-0.5">
-                              <span className="text-primary/90 truncate max-w-[120px]">
-                                {doctor.specializations?.[0]?.name || "Ayurvedic Doctor"}
-                              </span>
-                              {doctor.hospitals?.[0] && (
-                                <>
-                                  <span>•</span>
-                                  <span className="flex items-center truncate">
-                                    <MapPin className="h-3 w-3 mr-1 shrink-0" />
-                                    {doctor.hospitals[0].city}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      <button 
-                        type="submit"
-                        onClick={handleSeeAllResults}
-                        className="w-full p-3 text-sm text-primary font-medium hover:bg-primary/10 text-center transition-colors"
-                      >
-                        See all results for "{debouncedQuery}"
-                      </button>
-                    </div>
-                  ) : !isSearching ? (
-                    <div className="p-4 text-center text-white/50 text-sm">
-                      No doctors found matching "{debouncedQuery}"
-                    </div>
-                  ) : null}
-                </div>
-              </>
-            )}
-          </div>
+        {/* Content Container */}
+        <div className="container relative z-10 mx-auto px-4 py-16 md:py-24 lg:py-32 flex flex-col lg:flex-row items-center h-full">
           
+          {/* Spacer for Left Side (Image Area on Desktop) */}
+          <div className="hidden lg:block lg:w-[45%]"></div>
 
-          <div className="flex flex-wrap items-center gap-4 md:gap-6 text-sm text-white/60">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-primary" />
-              <span>Verified Doctors</span>
+          {/* Right Side Text & Search */}
+          <div className="w-full lg:w-[55%] flex flex-col items-center lg:items-end text-center lg:text-right pt-8 lg:pt-0">
+            
+            <h1 className="text-4xl sm:text-[50px] md:text-[60px] lg:text-[80px] font-heading font-extrabold tracking-tight mb-4 text-foreground leading-[1.1]">
+              Find & Book <br className="hidden sm:block" />
+              <span className="text-primary">Ayurvedic Doctors</span> <br className="block sm:hidden" />
+              Near You
+            </h1>
+            
+            <p className="text-muted-foreground text-base sm:text-lg md:text-xl max-w-xl mb-8 lg:ml-auto lg:mr-0">
+              Discover trusted Ayurvedic practitioners, book appointments online or via phone in-person, and experience holistic healthcare rooted in ancient wisdom.
+            </p>
+
+            <div className="relative mb-6 w-full max-w-xl lg:ml-auto lg:mr-0">
+              <form onSubmit={handleSearchSubmit} className="relative z-50 w-full">
+                <div className="flex items-center bg-card border border-primary/30 rounded-xl overflow-hidden shadow-lg hover:border-primary/60 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20">
+                  <input
+                    placeholder="Search doctors, specializations, or locations..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setIsDropdownOpen(true);
+                    }}
+                    className="flex-1 h-14 px-5 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm sm:text-base"
+                    data-testid="input-hero-search"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="submit"
+                    className="h-12 w-14 sm:w-16 bg-primary hover:bg-primary/90 flex items-center justify-center shrink-0 transition-colors m-1 rounded-lg shadow-sm"
+                    data-testid="button-hero-search"
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+                    ) : (
+                      <Search className="h-5 w-5 text-primary-foreground" />
+                    )}
+                  </button>
+                </div>
+              </form>
+                
+              {/* Search results dropdown */}
+              {isDropdownOpen && debouncedQuery.length >= 2 && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-[60]" 
+                    onClick={() => setIsDropdownOpen(false)}
+                  />
+                  
+                  <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-card border border-border rounded-xl shadow-2xl z-[100] overflow-hidden max-h-[350px] overflow-y-auto scrollbar-thin text-left">
+                    {searchResults.length > 0 ? (
+                      <div className="flex flex-col">
+                        {searchResults.map((doctor) => (
+                          <div
+                            key={doctor.id}
+                            onClick={() => {
+                              setLocation(`/doctors/${doctor.id}`);
+                              setIsDropdownOpen(false);
+                            }}
+                            className="flex items-center gap-3 p-4 hover:bg-muted cursor-pointer border-b border-border last:border-0 transition-colors"
+                          >
+                            <Avatar className="h-10 w-10 border border-primary/20 shrink-0">
+                              <AvatarImage src={doctor.user.profileImage || ""} />
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                                {getInitials(doctor.user.fullName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-foreground font-medium text-sm truncate">
+                                {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                <span className="text-primary/90 font-medium truncate max-w-[120px]">
+                                  {doctor.specializations?.[0]?.name || "Ayurvedic Doctor"}
+                                </span>
+                                {doctor.hospitals?.[0] && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="flex items-center truncate">
+                                      <MapPin className="h-3 w-3 mr-1 shrink-0" />
+                                      {doctor.hospitals[0].city}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground opacity-50" />
+                          </div>
+                        ))}
+                        
+                        <button 
+                          type="submit"
+                          onClick={handleSeeAllResults}
+                          className="w-full p-3 text-sm text-primary font-medium hover:bg-muted text-center transition-colors border-t border-border"
+                        >
+                          See all results for "{debouncedQuery}"
+                        </button>
+                      </div>
+                    ) : !isSearching ? (
+                      <div className="p-6 text-center text-muted-foreground text-sm">
+                        No doctors found matching "{debouncedQuery}"
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <Video className="h-4 w-4 text-primary" />
-              <span>Online Consultations</span>
+
+            {/* Trust Badges */}
+            <div className="flex flex-wrap items-center justify-center lg:justify-end gap-4 sm:gap-6 text-xs sm:text-sm text-muted-foreground font-medium w-full lg:ml-auto lg:mr-0">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <span>Verified Doctors</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Video className="h-4 w-4 text-primary" />
+                <span>Online Consultations</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-primary" />
+                <span>Secure Payments</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-primary" />
-              <span>Secure Payments</span>
-            </div>
+
           </div>
         </div>
       </section>
 
       {/* Stats bar */}
-      <div className="bg-primary/20 relative z-0">
+      <div className="bg-primary/20 relative">
         <div className="container mx-auto px-4 py-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
             {stats.map((stat) => (
@@ -283,59 +296,58 @@ export default function HomePage() {
       </div>
 
       {/* How It Works */}
-      <section className="py-12 md:py-16 lg:py-24 bg-[#111815]">
+      <section className="py-12 md:py-16 lg:py-24 dark:bg-background/50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 text-white">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 dark:text-white">
               How It Works
             </h2>
-            <p className="text-white/50 max-w-2xl mx-auto text-base">
+            <p className="dark:text-muted-foreground max-w-2xl mx-auto text-base">
               Book your Ayurvedic consultation in just a few simple steps
             </p>
           </div>
 
           {/* Desktop: flex row with connectors between cards */}
-          <div className="hidden md:flex items-center gap-0">
+          <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 sm:gap-6 lg:gap-0 w-full max-w-6xl mx-auto">
             {steps.map((item, index) => (
-              <>
+              <div key={item.step} className="contents">
+                
                 {/* Card */}
-                <div
-                  key={item.step}
-                  className="flex-1 text-center rounded-xl p-8 border border-white/10 bg-card group transition-all duration-300 hover:-translate-y-2 hover:border-primary/50 hover:shadow-[0_8px_32px_rgba(46,158,46,0.15)]"
-                >
-                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center mx-auto mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(46,158,46,0.4)]">
-                    <item.icon className="h-8 w-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2 text-foreground group-hover:text-primary transition-colors duration-300">{item.title}</h3>
-                  <p className="text-muted-foreground text-base transition-colors duration-300">{item.description}</p>
-                </div>
-
-                {/* Connector between cards (only between, not after last) */}
-                {index < steps.length - 1 && (
-                  <div key={`connector-${index}`} className="flex items-center shrink-0 w-20">
-                    <div className="flex-1 h-px bg-white/30" />
-                    <div className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md">
-                      {index + 1}
+                <div className="w-full sm:w-[85%] md:w-[75%] lg:w-auto lg:flex-1 relative flex flex-col items-center text-center rounded-3xl p-8 lg:p-10 border border-primary/20 dark:border-white/10 bg-card shadow-sm hover:shadow-xl transition-all duration-500 lg:hover:-translate-y-3 hover:border-primary/50 group">
+                  
+                  {/* Icon Container */}
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-primary/10 dark:bg-primary/5 flex items-center justify-center mx-auto mb-6 md:mb-8 transition-transform duration-500 group-hover:scale-110 group-hover:bg-primary relative">
+                    <item.icon className="h-10 w-10 md:h-12 md:w-12 text-primary group-hover:text-primary-foreground transition-colors duration-500" />
+                    
+                    {/* Floating Step Number */}
+                    <div className="absolute -top-1 -right-2 md:-top-2 md:-right-2 w-8 h-8 md:w-9 md:h-9 rounded-full bg-amber-500 flex items-center justify-center text-white font-black text-sm md:text-base shadow-lg border-4 border-card transition-colors duration-500">
+                      {item.step}
                     </div>
-                    <div className="flex-1 h-px bg-white/30" />
                   </div>
-                )}
-              </>
-            ))}
-          </div>
 
-          {/* Mobile: stacked cards */}
-          <div className="grid grid-cols-1 gap-6 md:hidden">
-            {steps.map((item) => (
-              <div
-                key={item.step}
-                className="text-center rounded-xl p-8 border border-white/10 bg-card"
-              >
-                <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center mx-auto mb-4">
-                  <item.icon className="h-8 w-8 text-white" />
+                  <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-foreground group-hover:text-primary transition-colors duration-300">
+                    {item.title}
+                  </h3>
+                  <p className="text-muted-foreground text-sm md:text-base leading-relaxed max-w-sm mx-auto">
+                    {item.description}
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold mb-2 text-foreground">{item.title}</h3>
-                <p className="text-muted-foreground text-base">{item.description}</p>
+
+                {/* Connectors */}
+                {index < steps.length - 1 && (
+                  <>
+                    {/* Mobile & Tablet: Vertical Arrow (පහළට පෙන්වන ඊතලය) */}
+                    <div className="flex lg:hidden justify-center items-center py-3 shrink-0 animate-bounce">
+                       <ArrowRight className="h-6 w-6 text-primary/40 rotate-90" />
+                    </div>
+                    
+                    {/* Laptop & Desktop: Horizontal Line with Arrow (හරස් අතට ඊතලය) */}
+                    <div className="hidden lg:flex items-center shrink-0 w-8 xl:w-16 relative">
+                       <div className="h-[2px] w-full bg-primary/30 dark:bg-white/10" />
+                       <ArrowRight className="h-6 w-6 text-primary/50 absolute right-0 translate-x-1/2 bg-background rounded-full" />
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -381,7 +393,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA — Are You a Practitioner */}
-      <section className="py-12 md:py-16 lg:py-24 bg-[#c8860a]">
+      <section className="py-12 md:py-16 lg:py-24 bg-primary">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 md:mb-4 text-white">
             Are You an Ayurvedic Practitioner?
@@ -392,7 +404,7 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/doctor/register">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 text-white w-full sm:w-auto">
+              <Button size="lg" className="bg-sidebar dark:text-white text-black border-none w-full sm:w-auto">
                 Register as a Doctor
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -414,7 +426,7 @@ export default function HomePage() {
       <button
         onClick={scrollToTop}
         aria-label="Scroll to top"
-        className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl ${
+        className={`fixed bottom-6 border right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl ${
           showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
         }`}
       >
