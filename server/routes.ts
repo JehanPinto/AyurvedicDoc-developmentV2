@@ -1603,6 +1603,80 @@ export async function registerRoutes(
     },
   );
 
+  app.post(
+    "/api/doctor/hospitals",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+        if (!profile) {
+          return res.status(404).json({ error: "Doctor profile not found" });
+        }
+
+        if ((profile.hospitalIds || []).length >= 5) {
+          return res.status(400).json({ error: "You have reached the maximum of 5 consultation locations." });
+        }
+
+        const { name, address } = req.body;
+        if (!name?.trim() || !address?.trim()) {
+          return res.status(400).json({ error: "Hospital name and address are required." });
+        }
+
+        const result = await storage.addDoctorHospital(profile.id, name.trim(), address.trim());
+        if (!result) {
+          return res.status(400).json({ error: "Could not add location. Limit may have been reached." });
+        }
+
+        res.status(201).json(result.hospital);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to add location" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/doctor/specializations",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+        if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
+
+        const { name, description } = req.body;
+        if (!name?.trim()) return res.status(400).json({ error: "Specialization name is required." });
+
+        const spec = await storage.createSpecialization({ name: name.trim(), description: description?.trim() || "" });
+
+        const newIds = [...(profile.specializationIds || []), spec.id];
+        await storage.updateDoctorProfile(profile.id, { specializationIds: newIds } as any);
+
+        res.status(201).json(spec);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to create specialization" });
+      }
+    },
+  );
+
+  app.delete(
+    "/api/doctor/hospitals/:hospitalId",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+        if (!profile) {
+          return res.status(404).json({ error: "Doctor profile not found" });
+        }
+        await storage.removeDoctorHospital(profile.id, req.params.hospitalId);
+        res.json({ success: true });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to remove location" });
+      }
+    },
+  );
+
   app.get(
     "/api/doctor/schedules",
     authMiddleware,

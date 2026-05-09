@@ -156,6 +156,7 @@ function Router() {
               <Route path="/doctor/earnings" component={DoctorEarningsPage} />
               <Route path="/doctor/reviews" component={DoctorReviewsPage} />
               <Route path="/doctor/profile" component={DoctorSettingsPage} />
+              <Route path="/doctor/settings" component={DoctorSettingsPage} />
               <Route path="/doctor/verify-phone" component={DoctorVerifyPhonePage} />
               <Route component={NotFound} />
             </Switch>

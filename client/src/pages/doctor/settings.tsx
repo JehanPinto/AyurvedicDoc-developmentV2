@@ -1,43 +1,34 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { 
+import {
   User,
-  Mail,
-  Phone,
-  Calendar,
   MapPin,
-  Globe,
   Save,
-  AlertCircle,
   Check,
   Lock,
   Camera,
-  Briefcase,
   Award,
-  DollarSign,
-  Clock,
   Video,
-  Home,
   Building2,
   Plus,
+  Stethoscope,
+  CalendarIcon,
+  Trash2,
   X,
-  Stethoscope
+  ArrowLeft
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingPage, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -58,7 +49,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User as UserType, DoctorWithDetails, Specialization } from "@shared/schema";
-import { ConsultationType, Language } from "@shared/schema";
 
 // Profile form schema (basic user info)
 const profileSchema = z.object({
@@ -107,6 +97,15 @@ export default function DoctorSettings() {
   const [activeTab, setActiveTab] = useState("profile");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showAddLocationForm, setShowAddLocationForm] = useState(false);
+  const [newHospName, setNewHospName] = useState("");
+  const [newHospAddress, setNewHospAddress] = useState("");
+  const [isAddingLocation, setIsAddingLocation] = useState(false);
+  const [removingHospitalId, setRemovingHospitalId] = useState<string | null>(null);
+  const [showAddSpecModal, setShowAddSpecModal] = useState(false);
+  const [newSpecName, setNewSpecName] = useState("");
+  const [newSpecDescription, setNewSpecDescription] = useState("");
+  const [isSavingSpec, setIsSavingSpec] = useState(false);
 
   // Fetch doctor profile with details
   const { data: doctorProfile, isLoading: isLoadingProfile } = useQuery<DoctorWithDetails>({
@@ -217,6 +216,8 @@ export default function DoctorSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/doctor/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/doctors"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/specializations"] });
       toast({ title: "Professional profile updated successfully" });
     },
     onError: () => {
@@ -310,6 +311,67 @@ export default function DoctorSettings() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
+  const handleAddLocation = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newHospName.trim() || !newHospAddress.trim()) return;
+    const currentCount = doctorProfile?.hospitals?.length ?? 0;
+    if (currentCount >= 5) {
+      toast({ title: "Location limit reached", description: "You can only add up to 5 consultation locations.", variant: "destructive" });
+      return;
+    }
+    setIsAddingLocation(true);
+    try {
+      await apiRequest("POST", "/api/doctor/hospitals", { name: newHospName.trim(), address: newHospAddress.trim() });
+      queryClient.invalidateQueries({ queryKey: ["/api/doctor/profile"] });
+      setNewHospName("");
+      setNewHospAddress("");
+      setShowAddLocationForm(false);
+      toast({ title: "Location added successfully" });
+    } catch {
+      toast({ title: "Failed to add location", variant: "destructive" });
+    } finally {
+      setIsAddingLocation(false);
+    }
+  };
+
+  const handleRemoveLocation = async (hospitalId: string) => {
+    setRemovingHospitalId(hospitalId);
+    try {
+      await apiRequest("DELETE", `/api/doctor/hospitals/${hospitalId}`);
+      queryClient.invalidateQueries({ queryKey: ["/api/doctor/profile"] });
+      toast({ title: "Location removed" });
+    } catch {
+      toast({ title: "Failed to remove location", variant: "destructive" });
+    } finally {
+      setRemovingHospitalId(null);
+    }
+  };
+
+  const handleAddSpecialization = async () => {
+    if (!newSpecName.trim()) return;
+    setIsSavingSpec(true);
+    try {
+      const spec = await apiRequest("POST", "/api/doctor/specializations", {
+        name: newSpecName.trim(),
+        description: newSpecDescription.trim(),
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/specializations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/doctor/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/doctors"] });
+      // Add the new spec to the form
+      const currentIds = doctorProfileForm.getValues("specializationIds") || [];
+      doctorProfileForm.setValue("specializationIds", [...currentIds, (spec as any).id]);
+      setShowAddSpecModal(false);
+      setNewSpecName("");
+      setNewSpecDescription("");
+      toast({ title: "Specialization added" });
+    } catch {
+      toast({ title: "Failed to add specialization", variant: "destructive" });
+    } finally {
+      setIsSavingSpec(false);
+    }
+  };
+
   const onProfileSubmit = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
   };
@@ -322,23 +384,9 @@ export default function DoctorSettings() {
     changePasswordMutation.mutate(data);
   };
 
-  const formatFee = (fee: number) => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      minimumFractionDigits: 0,
-    }).format(fee);
-  };
-
   if (!user || isLoadingProfile) {
     return <LoadingPage message="Loading settings..." />;
   }
-
-  const consultationTypeOptions = [
-    { value: "in_person", label: "In-Person", icon: Building2 },
-    { value: "online", label: "Online Video", icon: Video },
-    { value: "home_visit", label: "Home Visit", icon: Home },
-  ];
 
   const languageOptions = [
     { value: "english", label: "English" },
@@ -358,624 +406,737 @@ export default function DoctorSettings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="profile">
+        <TabsList className="bg-transparent border-b rounded-none h-auto p-0 gap-6 w-full justify-start">
+          <TabsTrigger
+            value="profile"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-2 px-0 font-medium"
+          >
             <User className="h-4 w-4 mr-2" />
             Personal
           </TabsTrigger>
-          <TabsTrigger value="professional">
+          <TabsTrigger
+            value="professional"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-2 px-0 font-medium"
+          >
             <Stethoscope className="h-4 w-4 mr-2" />
             Professional
           </TabsTrigger>
-          <TabsTrigger value="security">
+          <TabsTrigger
+            value="security"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-2 px-0 font-medium"
+          >
             <Lock className="h-4 w-4 mr-2" />
             Security
           </TabsTrigger>
         </TabsList>
 
         {/* Personal Profile Tab */}
-        <TabsContent value="profile" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>
-                Update your personal details and contact information
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Profile Picture */}
-              <div className="flex items-center gap-6">
-                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                  <Avatar className="h-24 w-24">
-                    <AvatarImage src={user.profileImage} />
-                    <AvatarFallback className="bg-primary/10 text-primary text-2xl font-medium">
-                      {getInitials(user.fullName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    {isUploadingImage ? (
-                      <LoadingSpinner className="h-6 w-6 text-white" />
-                    ) : (
-                      <Camera className="h-6 w-6 text-white" />
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleImageUpload}
-                    accept="image/jpeg,image/png,image/gif,image/webp"
-                    className="hidden"
-                  />
-                </div>
+        <TabsContent value="profile" className="space-y-4">
+          <Form {...profileForm}>
+            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
+              {/* Personal Information Container */}
+              <div className="rounded-xl bg-[#e8f3ef] dark:bg-[#1e2e29] p-6 space-y-5">
                 <div>
-                  <h3 className="font-semibold text-lg">Dr. {user.fullName}</h3>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
-                  <div className="flex gap-2 mt-2">
-                    {doctorProfile?.status === "verified" ? (
-                      <Badge variant="secondary" className="gap-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                        <Check className="h-3 w-3" />
-                        Verified Doctor
-                      </Badge>
-                    ) : doctorProfile?.status === "pending" ? (
-                      <Badge variant="outline" className="gap-1 text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        Verification Pending
-                      </Badge>
-                    ) : null}
+                  <h2 className="font-semibold text-base">Personal Information</h2>
+                  <p className="text-sm text-muted-foreground">Update your personal details and contact information</p>
+                </div>
+
+                {/* Avatar Row */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage src={user.profileImage} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-lg font-semibold">
+                          {getInitials(user.fullName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isUploadingImage ? (
+                          <LoadingSpinner className="h-5 w-5 text-white" />
+                        ) : (
+                          <Camera className="h-5 w-5 text-white" />
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageUpload}
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        className="hidden"
+                      />
+                    </div>
+                    <div>
+                      <p className="font-semibold">
+                        {user.fullName.startsWith("Dr") ? user.fullName : `Dr. ${user.fullName}`}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Click on the avatar to change your profile picture</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Click on the avatar to change your profile picture
-                  </p>
+                  {doctorProfile?.status === "verified" && (
+                    <Badge variant="outline" className="gap-1 border-primary text-primary bg-transparent shrink-0">
+                      <Check className="h-3 w-3" />
+                      Verified Doctor
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Fields - single column, rounded inputs */}
+                <div className="space-y-4">
+                  <FormField
+                    control={profileForm.control}
+                    name="fullName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} className="bg-white dark:bg-background rounded-lg" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={profileForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <Input {...field} className="bg-white dark:bg-background rounded-lg" placeholder="+94 77 123 4567" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={profileForm.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Gender</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="bg-white dark:bg-background rounded-lg">
+                              <SelectValue placeholder="Select gender" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={profileForm.control}
+                    name="dateOfBirth"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date of Birth</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <input
+                              {...field}
+                              type="date"
+                              className="w-full h-10 px-3 py-2 bg-white dark:bg-background rounded-lg border border-input text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:top-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-10 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                            />
+                            <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={profileForm.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <Input {...field} className="bg-white dark:bg-background rounded-lg" placeholder="Your address" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={profileForm.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>City</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="bg-white dark:bg-background rounded-lg">
+                              <SelectValue placeholder="Select city" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="colombo">Colombo</SelectItem>
+                            <SelectItem value="kandy">Kandy</SelectItem>
+                            <SelectItem value="galle">Galle</SelectItem>
+                            <SelectItem value="jaffna">Jaffna</SelectItem>
+                            <SelectItem value="negombo">Negombo</SelectItem>
+                            <SelectItem value="anuradhapura">Anuradhapura</SelectItem>
+                            <SelectItem value="matara">Matara</SelectItem>
+                            <SelectItem value="kurunegala">Kurunegala</SelectItem>
+                            <SelectItem value="batticaloa">Batticaloa</SelectItem>
+                            <SelectItem value="trincomalee">Trincomalee</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
 
-              <Form {...profileForm}>
-                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <FormField
-                      control={profileForm.control}
-                      name="fullName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Full Name</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input {...field} className="pl-10" />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+              {/* Consultation Locations Container */}
+              <div className="rounded-xl bg-[#e8f3ef] dark:bg-[#1e2e29] p-6 space-y-4">
+                <div>
+                  <h2 className="font-semibold text-base">Consultation locations</h2>
+                  <p className="text-sm text-muted-foreground">Add clinics or hospitals where you offer in-person visits</p>
+                </div>
 
-                    <FormField
-                      control={profileForm.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input {...field} className="pl-10" placeholder="+94 77 123 4567" />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={profileForm.control}
-                      name="gender"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Gender</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select gender" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={profileForm.control}
-                      name="dateOfBirth"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date of Birth</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input {...field} type="date" className="pl-10" />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={profileForm.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Address</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                              <Textarea {...field} className="pl-10 min-h-[80px]" placeholder="Your address" />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={profileForm.control}
-                      name="city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>City</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select city" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="colombo">Colombo</SelectItem>
-                              <SelectItem value="kandy">Kandy</SelectItem>
-                              <SelectItem value="galle">Galle</SelectItem>
-                              <SelectItem value="jaffna">Jaffna</SelectItem>
-                              <SelectItem value="negombo">Negombo</SelectItem>
-                              <SelectItem value="anuradhapura">Anuradhapura</SelectItem>
-                              <SelectItem value="matara">Matara</SelectItem>
-                              <SelectItem value="kurunegala">Kurunegala</SelectItem>
-                              <SelectItem value="batticaloa">Batticaloa</SelectItem>
-                              <SelectItem value="trincomalee">Trincomalee</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                {/* Existing location cards */}
+                {doctorProfile?.hospitals && doctorProfile.hospitals.length > 0 && (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {doctorProfile.hospitals.map((hospital) => (
+                      <div key={hospital.id} className="bg-white dark:bg-background rounded-xl p-4 space-y-2 relative group">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLocation(hospital.id)}
+                          disabled={removingHospitalId === hospital.id}
+                          className="absolute top-2 right-2 h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          {removingHospitalId === hospital.id ? (
+                            <LoadingSpinner className="h-3.5 w-3.5" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-primary shrink-0" />
+                          <p className="font-semibold text-sm">{hospital.name}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-6 leading-relaxed">
+                          {hospital.address}
+                        </p>
+                      </div>
+                    ))}
                   </div>
+                )}
 
-                  <div className="flex justify-end">
-                    <Button type="submit" disabled={updateProfileMutation.isPending}>
-                      {updateProfileMutation.isPending ? (
-                        <LoadingSpinner className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Save className="mr-2 h-4 w-4" />
-                      )}
-                      Save Changes
-                    </Button>
+                {/* Add location — button or form */}
+                {!showAddLocationForm ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if ((doctorProfile?.hospitals?.length ?? 0) >= 5) {
+                        toast({ title: "Location limit exceeded", description: "You can only have up to 5 consultation locations.", variant: "destructive" });
+                      } else {
+                        setShowAddLocationForm(true);
+                      }
+                    }}
+                    className="w-full border-2 border-dashed border-primary/30 rounded-xl p-4 flex items-center gap-3 hover:border-primary/60 transition-colors text-left"
+                  >
+                    <div className="h-8 w-8 rounded-full border-2 border-primary/40 flex items-center justify-center shrink-0">
+                      <Plus className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Add another location</p>
+                      <p className="text-xs text-muted-foreground">You can list up to 5 consultation venues on your profile</p>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="bg-white dark:bg-background rounded-xl p-4 space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Add another location</p>
+                      <p className="text-xs text-muted-foreground">You can list up to 5 consultation venues on your profile</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Hospital Name</label>
+                      <Input
+                        value={newHospName}
+                        onChange={(e) => setNewHospName(e.target.value)}
+                        placeholder="Meridian Heart Clinic"
+                        className="rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Address</label>
+                      <Input
+                        value={newHospAddress}
+                        onChange={(e) => setNewHospAddress(e.target.value)}
+                        placeholder="Suite 4B, 12 Wellness Ave Colombo 07, Western Province"
+                        className="rounded-lg"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setShowAddLocationForm(false); setNewHospName(""); setNewHospAddress(""); }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={isAddingLocation || !newHospName.trim() || !newHospAddress.trim()}
+                        onClick={handleAddLocation as any}
+                        className="bg-primary text-white gap-1"
+                      >
+                        {isAddingLocation ? <LoadingSpinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        Add Location
+                      </Button>
+                    </div>
                   </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+                )}
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={updateProfileMutation.isPending}
+                  className="bg-primary hover:bg-primary/90 text-white gap-2"
+                >
+                  {updateProfileMutation.isPending ? (
+                    <LoadingSpinner className="h-4 w-4" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Save Personal Profile
+                </Button>
+              </div>
+            </form>
+          </Form>
         </TabsContent>
 
         {/* Professional Profile Tab */}
-        <TabsContent value="professional" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Professional Information</CardTitle>
-              <CardDescription>
-                Update your professional details, specializations, and consultation settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...doctorProfileForm}>
-                <form onSubmit={doctorProfileForm.handleSubmit(onDoctorProfileSubmit)} className="space-y-6">
-                  {/* Biography */}
-                  <FormField
-                    control={doctorProfileForm.control}
-                    name="biography"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Biography / About Me</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            {...field} 
-                            className="min-h-[120px]" 
-                            placeholder="Tell patients about yourself, your experience, and your approach to treatment..."
+        <TabsContent value="professional" className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Professional Information</h2>
+            <p className="text-sm text-muted-foreground">Update your professional details, specializations, and consultation settings</p>
+          </div>
+
+          <Form {...doctorProfileForm}>
+            <form onSubmit={doctorProfileForm.handleSubmit(onDoctorProfileSubmit)} className="space-y-4">
+
+              {/* Biography container */}
+              <div className="rounded-xl bg-[#e8f3ef] dark:bg-[#1e2e29] p-5 space-y-3">
+                <div>
+                  <p className="font-semibold text-sm">Biography / About Me</p>
+                </div>
+                <FormField
+                  control={doctorProfileForm.control}
+                  name="biography"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          className="min-h-[110px] bg-white dark:bg-background rounded-lg resize-none"
+                          placeholder="Tell patients about yourself, your experience, and your approach to treatment..."
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">This will be displayed on your public profile</p>
+              </div>
+
+              {/* Qualifications container */}
+              <div className="rounded-xl bg-[#e8f3ef] dark:bg-[#1e2e29] p-5 space-y-3">
+                <p className="font-semibold text-sm">Qualifications</p>
+                <FormField
+                  control={doctorProfileForm.control}
+                  name="qualifications"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <div className="relative">
+                          <Award className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Textarea
+                            {...field}
+                            className="pl-10 min-h-[70px] bg-white dark:bg-background rounded-lg resize-none"
+                            placeholder="Panchakarma, Marma Therapy, Herbal Medicine"
                           />
-                        </FormControl>
-                        <FormDescription>
-                          This will be displayed on your public profile
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">List your degrees, certifications, and other qualifications</p>
+              </div>
 
-                  {/* Qualifications */}
-                  <FormField
-                    control={doctorProfileForm.control}
-                    name="qualifications"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Qualifications</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Award className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Textarea 
-                              {...field} 
-                              className="pl-10 min-h-[80px]" 
-                              placeholder="BAMS, MD (Ayurveda), PhD..."
-                            />
-                          </div>
-                        </FormControl>
-                        <FormDescription>
-                          List your degrees, certifications, and other qualifications
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              {/* Specializations — free floating */}
+              <FormField
+                control={doctorProfileForm.control}
+                name="specializationIds"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-sm">Specializations</p>
+                      <p className="text-xs text-muted-foreground">Select your areas of expertise</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {allSpecializations.map((spec) => {
+                        const isSelected = field.value?.includes(spec.id);
+                        return (
+                          <button
+                            key={spec.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                field.onChange(field.value.filter((id: string) => id !== spec.id));
+                              } else {
+                                field.onChange([...(field.value || []), spec.id]);
+                              }
+                            }}
+                            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                              isSelected
+                                ? "bg-primary text-white border-primary"
+                                : "bg-transparent border-border text-foreground hover:border-primary/50"
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3" />}
+                            {spec.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddSpecModal(true)}
+                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border border-primary text-primary hover:bg-primary/5 transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add new Specializations
+                      </button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {/* Availability Toggle */}
+              {/* Languages Spoken — free floating */}
+              <FormField
+                control={doctorProfileForm.control}
+                name="languagesSpoken"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <p className="font-semibold text-sm">Languages Spoken</p>
+                    <div className="flex flex-wrap gap-2">
+                      {languageOptions.map((lang) => {
+                        const isSelected = field.value?.includes(lang.value);
+                        return (
+                          <button
+                            key={lang.value}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected && (field.value?.length ?? 0) > 1) {
+                                field.onChange(field.value.filter((l: string) => l !== lang.value));
+                              } else if (!isSelected) {
+                                field.onChange([...(field.value || []), lang.value]);
+                              }
+                            }}
+                            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                              isSelected
+                                ? "bg-primary text-white border-primary"
+                                : "bg-transparent border-border text-foreground hover:border-primary/50"
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3" />}
+                            {lang.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Consultation Types + Fees + Booking Settings container */}
+              <div className="rounded-xl bg-[#e8f3ef] dark:bg-[#1e2e29] p-5 space-y-6">
+                {/* Consultation Types */}
+                <FormField
+                  control={doctorProfileForm.control}
+                  name="consultationTypes"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <div>
+                        <p className="font-semibold text-sm">Consultation Types</p>
+                        <p className="text-xs text-muted-foreground">Select the types of consultations you offer</p>
+                      </div>
+                      <div className="flex gap-3 flex-wrap">
+                        {[
+                          { value: "in_person", label: "In-Person", Icon: Building2 },
+                          { value: "online", label: "Online", Icon: Video },
+                        ].map(({ value, label, Icon }) => {
+                          const isSelected = field.value?.includes(value);
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected && (field.value?.length ?? 0) > 1) {
+                                  field.onChange(field.value.filter((t: string) => t !== value));
+                                } else if (!isSelected) {
+                                  field.onChange([...(field.value || []), value]);
+                                }
+                              }}
+                              className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium border transition-all ${
+                                isSelected
+                                  ? "bg-primary text-white border-primary"
+                                  : "bg-white dark:bg-background border-border text-foreground hover:border-primary/50"
+                              }`}
+                            >
+                              {isSelected && <Check className="h-3.5 w-3.5" />}
+                              {label}
+                              <Icon className="h-4 w-4" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Consultation Fees */}
+                <div className="space-y-3">
+                  <p className="font-semibold text-sm">Consultation Fees (LKR)</p>
+                  <div className="grid sm:grid-cols-2 gap-4">
                     <FormField
                       control={doctorProfileForm.control}
-                      name="isAvailable"
+                      name="consultationFee"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Available for Appointments</FormLabel>
-                            <FormDescription>
-                              Toggle off when you're unavailable
-                            </FormDescription>
-                          </div>
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">In person Fees</FormLabel>
                           <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
+                              <Input
+                                {...field}
+                                type="number"
+                                min="0"
+                                className="pl-10 bg-white dark:bg-background rounded-lg"
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </div>
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={doctorProfileForm.control}
+                      name="onlineConsultationFee"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">Online Fee</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
+                              <Input
+                                {...field}
+                                type="number"
+                                min="0"
+                                className="pl-10 bg-white dark:bg-background rounded-lg"
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
+                </div>
 
-                  {/* Specializations */}
-                  <FormField
-                    control={doctorProfileForm.control}
-                    name="specializationIds"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Specializations</FormLabel>
-                        <FormDescription>
-                          Select your areas of expertise
-                        </FormDescription>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {allSpecializations.map((spec) => {
-                            const isSelected = field.value?.includes(spec.id);
-                            return (
-                              <Badge
-                                key={spec.id}
-                                variant={isSelected ? "default" : "outline"}
-                                className={`cursor-pointer transition-all ${
-                                  isSelected 
-                                    ? "bg-primary text-primary-foreground" 
-                                    : "hover:bg-primary/10"
-                                }`}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    field.onChange(field.value.filter((id: string) => id !== spec.id));
-                                  } else {
-                                    field.onChange([...field.value, spec.id]);
-                                  }
-                                }}
-                              >
-                                {isSelected && <Check className="h-3 w-3 mr-1" />}
-                                {spec.name}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Languages */}
-                  <FormField
-                    control={doctorProfileForm.control}
-                    name="languagesSpoken"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Languages Spoken</FormLabel>
-                        <div className="flex flex-wrap gap-2">
-                          {languageOptions.map((lang) => {
-                            const isSelected = field.value?.includes(lang.value);
-                            return (
-                              <Badge
-                                key={lang.value}
-                                variant={isSelected ? "default" : "outline"}
-                                className={`cursor-pointer transition-all ${
-                                  isSelected 
-                                    ? "bg-primary text-primary-foreground" 
-                                    : "hover:bg-primary/10"
-                                }`}
-                                onClick={() => {
-                                  if (isSelected && field.value.length > 1) {
-                                    field.onChange(field.value.filter((l: string) => l !== lang.value));
-                                  } else if (!isSelected) {
-                                    field.onChange([...field.value, lang.value]);
-                                  }
-                                }}
-                              >
-                                <Globe className="h-3 w-3 mr-1" />
-                                {lang.label}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Consultation Types */}
-                  <FormField
-                    control={doctorProfileForm.control}
-                    name="consultationTypes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Consultation Types</FormLabel>
-                        <FormDescription>
-                          Select the types of consultations you offer
-                        </FormDescription>
-                        <div className="grid sm:grid-cols-3 gap-3 mt-2">
-                          {consultationTypeOptions.map((type) => {
-                            const isSelected = field.value?.includes(type.value);
-                            return (
-                              <div
-                                key={type.value}
-                                className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all ${
-                                  isSelected 
-                                    ? "border-primary bg-primary/5" 
-                                    : "hover:border-primary/50"
-                                }`}
-                                onClick={() => {
-                                  if (isSelected && field.value.length > 1) {
-                                    field.onChange(field.value.filter((t: string) => t !== type.value));
-                                  } else if (!isSelected) {
-                                    field.onChange([...field.value, type.value]);
-                                  }
-                                }}
-                              >
-                                <type.icon className={`h-5 w-5 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                                <span className="font-medium">{type.label}</span>
-                                {isSelected && <Check className="h-4 w-4 text-primary ml-auto" />}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Consultation Fees */}
-                  <div className="space-y-4">
-                    <h4 className="font-medium flex items-center gap-2">
-                      <DollarSign className="h-4 w-4" />
-                      Consultation Fees (LKR)
-                    </h4>
-                    <div className="grid sm:grid-cols-3 gap-4">
-                      <FormField
-                        control={doctorProfileForm.control}
-                        name="consultationFee"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>In-Person Fee</FormLabel>
+                {/* Booking Settings */}
+                <div className="space-y-3">
+                  <p className="font-semibold text-sm">Booking Settings</p>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={doctorProfileForm.control}
+                      name="slotDurationMinutes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">Appointment Duration (minutes)</FormLabel>
+                          <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
                             <FormControl>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
-                                <Input 
-                                  {...field} 
-                                  type="number" 
-                                  min="0"
-                                  className="pl-10"
-                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                                />
-                              </div>
+                              <SelectTrigger className="bg-white dark:bg-background rounded-lg">
+                                <SelectValue placeholder="Select duration" />
+                              </SelectTrigger>
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={doctorProfileForm.control}
-                        name="onlineConsultationFee"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Online Fee</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
-                                <Input 
-                                  {...field} 
-                                  type="number" 
-                                  min="0"
-                                  className="pl-10"
-                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                                />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={doctorProfileForm.control}
-                        name="homeVisitFee"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Home Visit Fee</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
-                                <Input 
-                                  {...field} 
-                                  type="number" 
-                                  min="0"
-                                  className="pl-10"
-                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                                />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Booking Settings */}
-                  <div className="space-y-4">
-                    <h4 className="font-medium flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Booking Settings
-                    </h4>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <FormField
-                        control={doctorProfileForm.control}
-                        name="slotDurationMinutes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Appointment Duration (minutes)</FormLabel>
-                            <Select 
-                              onValueChange={(val) => field.onChange(parseInt(val))} 
-                              value={field.value?.toString()}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select duration" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="15">15 minutes</SelectItem>
-                                <SelectItem value="20">20 minutes</SelectItem>
-                                <SelectItem value="30">30 minutes</SelectItem>
-                                <SelectItem value="45">45 minutes</SelectItem>
-                                <SelectItem value="60">60 minutes</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={doctorProfileForm.control}
-                        name="bufferTimeMinutes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Buffer Time Between Slots (minutes)</FormLabel>
-                            <Select 
-                              onValueChange={(val) => field.onChange(parseInt(val))} 
-                              value={field.value?.toString()}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select buffer" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="0">No buffer</SelectItem>
-                                <SelectItem value="5">5 minutes</SelectItem>
-                                <SelectItem value="10">10 minutes</SelectItem>
-                                <SelectItem value="15">15 minutes</SelectItem>
-                                <SelectItem value="30">30 minutes</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={doctorProfileForm.control}
-                        name="maxAdvanceBookingDays"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Max Advance Booking (days)</FormLabel>
-                            <FormControl>
-                              <Input 
-                                {...field} 
-                                type="number" 
-                                min="1"
-                                max="90"
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              How far in advance patients can book
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={doctorProfileForm.control}
-                        name="minBookingNoticeHours"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Minimum Notice (hours)</FormLabel>
-                            <FormControl>
-                              <Input 
-                                {...field} 
-                                type="number" 
-                                min="1"
-                                max="72"
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 2)}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Minimum hours before appointment for booking
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-4">
-                    <Button type="submit" disabled={updateDoctorProfileMutation.isPending}>
-                      {updateDoctorProfileMutation.isPending ? (
-                        <LoadingSpinner className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Save className="mr-2 h-4 w-4" />
+                            <SelectContent>
+                              <SelectItem value="15">15 minutes</SelectItem>
+                              <SelectItem value="20">20 minutes</SelectItem>
+                              <SelectItem value="30">30 minutes</SelectItem>
+                              <SelectItem value="45">45 minutes</SelectItem>
+                              <SelectItem value="60">60 minutes</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                      Save Professional Profile
-                    </Button>
+                    />
+                    <FormField
+                      control={doctorProfileForm.control}
+                      name="bufferTimeMinutes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">Buffer Time Between Slots (minutes)</FormLabel>
+                          <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
+                            <FormControl>
+                              <SelectTrigger className="bg-white dark:bg-background rounded-lg">
+                                <SelectValue placeholder="Select buffer" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="0">No buffer</SelectItem>
+                              <SelectItem value="5">5 minutes</SelectItem>
+                              <SelectItem value="10">10 minutes</SelectItem>
+                              <SelectItem value="15">15 minutes</SelectItem>
+                              <SelectItem value="30">30 minutes</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={doctorProfileForm.control}
+                      name="maxAdvanceBookingDays"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">Max Advance Booking (days)</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min="1"
+                              max="90"
+                              className="bg-white dark:bg-background rounded-lg"
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">How far in advance patients can book</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={doctorProfileForm.control}
+                      name="minBookingNoticeHours"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground">Minimum Notice (hours)</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min="1"
+                              max="72"
+                              className="bg-white dark:bg-background rounded-lg"
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 2)}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Minimum hours before appointment for booking</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+                </div>
+              </div>
+
+              {/* Save button */}
+              <div className="flex justify-end">
+                <Button type="submit" disabled={updateDoctorProfileMutation.isPending} className="bg-primary text-white gap-2">
+                  {updateDoctorProfileMutation.isPending ? <LoadingSpinner className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                  Save Professional Profile
+                </Button>
+              </div>
+            </form>
+          </Form>
+
+          {/* Add new Specialization Modal */}
+          {showAddSpecModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-background rounded-2xl p-8 w-full max-w-lg shadow-xl relative">
+                <button
+                  onClick={() => { setShowAddSpecModal(false); setNewSpecName(""); setNewSpecDescription(""); }}
+                  className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold">Add new Specialization?</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Fill in the details for the new specialization</p>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Specialization Name</label>
+                    <Input
+                      value={newSpecName}
+                      onChange={(e) => setNewSpecName(e.target.value)}
+                      placeholder="Enter the specialization name"
+                      className="rounded-xl border-primary/40 focus:border-primary"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Enter Description</label>
+                    <Textarea
+                      value={newSpecDescription}
+                      onChange={(e) => setNewSpecDescription(e.target.value)}
+                      placeholder='Provide brief description like "Traditional Ayurvedic detoxification and rejuvenation therapy."'
+                      className="min-h-[120px] rounded-xl border-primary/40 focus:border-primary resize-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 rounded-xl gap-2 border-primary text-primary hover:bg-primary/5"
+                    onClick={() => { setShowAddSpecModal(false); setNewSpecName(""); setNewSpecDescription(""); }}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Profile
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={isSavingSpec || !newSpecName.trim()}
+                    onClick={handleAddSpecialization}
+                    className="flex-1 rounded-xl bg-primary text-white gap-2"
+                  >
+                    {isSavingSpec ? <LoadingSpinner className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                    Save Specialization
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* Security Tab */}
