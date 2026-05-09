@@ -11,7 +11,8 @@ import {
   Brain,
   ArrowRight,
   ArrowUp,
-  Search
+  Search,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,68 +110,49 @@ export default function SpecializationsPage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
         
-        <div className="container mx-auto px-4 py-10 md:py-14 lg:py-24 relative">
+        <div className="container mx-auto px-4 py-8 md:py-10 lg:pt-14 relative">
           <div className="max-w-3xl mx-auto text-center">
-            <Badge variant="secondary" className="mb-6 px-4 py-1.5">
-              Explore Ayurvedic Treatments
-            </Badge>
             
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight mb-6">
-              Ayurvedic{" "}
-              <span className="text-primary">Specializations</span>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight mb-4">
+              Browse by <span className="text-primary">Specialization</span>
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Discover the diverse branches of Ayurvedic medicine and find the right 
-              specialist for your health needs.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* About Ayurvedic Specializations */}
-      <section className="py-12 bg-card border-y">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-2xl md:text-3xl font-heading font-bold mb-4">
-              What is Ayurvedic Medicine?
-            </h2>
-            <p className="text-muted-foreground leading-relaxed">
-              Ayurveda, meaning "science of life" in Sanskrit, is an ancient Indian medical system 
-              that has been practiced for over 5,000 years. It focuses on maintaining health through 
-              balance of mind, body, and spirit using natural treatments, herbal medicines, dietary 
-              changes, and lifestyle modifications. Our specialists are trained in various branches 
-              of this holistic healing tradition.
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
+              Discover the diverse branches of Ayurvedic medicine. Select a specialization or search keywords below to find the right expert for your specific health concerns.
             </p>
           </div>
         </div>
       </section>
 
       {/* Specializations Grid */}
-      <section className="py-12 md:py-16 lg:py-24">
+      <section className="pb-12 md:pb-16 lg:pb-24">
         <div className="container mx-auto px-4">
-          {/* Search Bar */}
-          <div className="mx-auto mb-4">
-            <div className="relative">
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none rounded-md bg-primary w-12 h-12 flex items-center justify-center">
-                <Search className="h-6 w-6 text-white" />
+      
+          <div className="max-w-3xl mx-auto mb-12 px-2">
+            <div className="relative flex items-center bg-card border border-primary/30 rounded-xl overflow-hidden shadow-md focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20 p-1">
+              <div className="pl-3 text-primary shrink-0">
+                <Search className="h-5 w-5" />
               </div>
-              <Input
-                placeholder="Search specializations..."
+              <input
+                placeholder="Search specializations by name or keyword..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-14 h-12 text-base"
+                className="flex-1 h-11 px-3 bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground outline-none border-none w-full"
               />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery("")} 
+                  className="p-1.5 mr-1 rounded-full hover:bg-muted transition-colors"
+                >
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
             </div>
           </div>
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
-              Browse by Specialization
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Select a specialization to find doctors who can help with your specific health concerns
-            </p>
-          </div>
+
+          <p className="text-muted-foreground mb-5 text-sm md:text-base">
+            Show results for <span className="font-medium">{filteredSpecializations.length}</span> specializations
+          </p>
 
           {isLoading ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -198,7 +180,7 @@ export default function SpecializationsPage() {
                 const conditions = commonConditions[iconKey] || ["General treatment", "Consultation"];
 
                 return (
-                  <Card key={spec.id} className="group transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg hover:border-primary/40 flex flex-col">
+                  <Card key={spec.id} className="group transition-all duration-300 hover:-translate-y-1.5 border border-primary/50 hover:shadow-lg hover:border-primary flex flex-col">
                     <CardContent className="p-6 flex flex-col flex-1">
                       <div className={cn(
                         "inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4",
@@ -305,25 +287,24 @@ export default function SpecializationsPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 md:py-24 bg-secondary text-primary-foreground">
+      <section className="py-16 md:py-24 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 md:mb-4 text-white">
-            Ready to Start Your Healing Journey?
+            Are You an Ayurvedic Practitioner?
           </h2>
           <p className="text-white/65 max-w-2xl mx-auto mb-6 md:mb-8 text-sm md:text-base px-2">
-            Connect with verified Ayurvedic practitioners and experience the benefits of 
-            traditional medicine combined with modern convenience.
+            Join our platform to reach thousands of patients, manage your practice efficiently, and grow your Ayurvedic practice online.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/doctors">
-              <Button size="lg" variant="default" className="transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:ring-1 hover:ring-white/25 hover:ring-offset-1">
+              <Button size="lg" variant="default" className="bg-sidebar dark:text-white text-black border-none w-full sm:w-auto">
                 Find a Doctor Now
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
             <Link href="/register">
-              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/15 hover:border-white/50 transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:ring-1 hover:ring-white/20 hover:ring-offset-1">
-                Create Account
+              <Button size="lg" variant="outline" className="border-white/40 text-white bg-transparent hover:bg-white/10 w-full sm:w-auto">
+                Lern More
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
