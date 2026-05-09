@@ -41,7 +41,7 @@ const buildRegisterSchema = (requirePassword: boolean) => z.object({
     : z.string().optional(),
   confirmPassword: requirePassword ? z.string() : z.string().optional(),
   fullName: z.string().min(2, "Full name is required"),
-  phone: z.string().min(10, "Valid phone number required"),
+  phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)"),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
   preferredLanguage: z.enum([Language.ENGLISH, Language.SINHALA, Language.TAMIL]),
   agreeTerms: z.boolean().refine(val => val === true, "You must agree to the terms"),
@@ -189,11 +189,10 @@ export default function RegisterPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <Link href="/">
-              <div className="inline-flex items-center gap-2 cursor-pointer mb-4">
-                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold text-xl">A</span>
-                </div>
-                <span className="font-heading font-bold text-2xl">AyurvedicDoctor</span>
+              <div className="flex items-center justify-center
+               cursor-pointer">
+                <img src="/logo-light.png" alt="AyurPath" className="h-10 w-auto dark:hidden" />
+                <img src="/logo-dark.png" alt="AyurPath" className="h-10 w-auto hidden dark:block" />
               </div>
             </Link>
           </div>
@@ -243,11 +242,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/">
-            <div className="inline-flex items-center gap-2 cursor-pointer mb-4">
-              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">A</span>
-              </div>
-              <span className="font-heading font-bold text-2xl">AyurvedicDoctor</span>
+            <div className="flex items-center justify-center cursor-pointer">
+              <img src="/logo-light.png" alt="AyurPath" className="h-10 w-auto dark:hidden" />
+              <img src="/logo-dark.png" alt="AyurPath" className="h-10 w-auto hidden dark:block" />
             </div>
           </Link>
           <p className="text-muted-foreground">

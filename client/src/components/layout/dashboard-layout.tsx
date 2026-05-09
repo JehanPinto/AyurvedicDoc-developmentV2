@@ -158,12 +158,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="flex h-screen w-full overflow-hidden bg-background">
         <Sidebar>
           <SidebarHeader className="border-b p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold">A</span>
+            <Link href="/">
+              <div className="flex items-center cursor-pointer">
+                <img src="/logo-light.png" alt="AyurPath" className="h-8 w-auto dark:hidden" />
+                <img src="/logo-dark.png" alt="AyurPath" className="h-8 w-auto hidden dark:block" />
               </div>
-              <span className="font-heading font-bold">AyurvedicDoctor</span>
-            </div>
+            </Link>
           </SidebarHeader>
 
           <SidebarContent className="scrollbar-thin">

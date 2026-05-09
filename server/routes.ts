@@ -3,7 +3,7 @@ import type { Express, NextFunction, Request, Response } from "express";
 import { type Server } from "http";
 import { pool } from "./db";
 import { storage } from "./storage";
-import { sendApplicationEmail } from "./util/email";
+import { sendApplicationEmail, sendPasswordResetOtpEmail } from "./util/email";
 
 import {
   AppointmentStatus,
@@ -464,6 +464,7 @@ export async function registerRoutes(
           specializationIds: req.body.specializationIds || [],
           languagesSpoken: req.body.languagesSpoken || ["english"],
           consultationTypes: req.body.consultationTypes || ["in_person"],
+          clinic_locations: req.body.clinic_locations || [],
           consultationFee: parseInt(req.body.consultationFee) || 0,
           onlineConsultationFee: req.body.onlineConsultationFee
             ? parseInt(req.body.onlineConsultationFee)
@@ -1532,7 +1533,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Date is required" });
       }
 
-      const slots = await storage.getAvailableSlots(
+      const slots = await storage.getDoctorDaySlots(
         req.params.id,
         date as string,
       );
@@ -1702,11 +1703,29 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Doctor profile not found" });
         }
 
-        // Add this missing code:
         const data = insertAppointmentSlotSchema.parse({
           ...req.body,
           doctorId: profile.id,
         });
+
+        // Check for overlapping slots on the same date before creating a new one
+        const existingSlots = await storage.getAvailableSlots(profile.id, data.date);
+        
+        // Helper function for time comparison in backend
+        const isOverlap = (s1: string, e1: string, s2: string, e2: string) => {
+          return s1 < e2 && s2 < e1;
+        };
+
+        const hasOverlap = existingSlots.some((slot) => 
+          !slot.isBlocked && 
+          slot.isActive !== false &&
+          isOverlap(data.startTime, data.endTime, slot.startTime, slot.endTime)
+        );
+
+        if (hasOverlap) {
+          return res.status(400).json({ error: "A slot already exists during this time period on the selected date." });
+        }
+
         const slot = await storage.createAppointmentSlot(data);
         res.status(201).json(slot);
       } catch (error) {
@@ -1808,6 +1827,7 @@ export async function registerRoutes(
         };
 
         const appointment = await storage.createAppointment(appointmentData);
+        await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: true });
 
         let consultationFee = doctor.consultationFee;
         if (
@@ -1919,13 +1939,12 @@ export async function registerRoutes(
     },
   );
 
-  app.delete(
-    "/api/slots/:id",
+  app.patch(
+    "/api/slots/:id/deactivate",
     authMiddleware,
     roleMiddleware(UserRole.DOCTOR),
     async (req: AuthenticatedRequest, res: Response) => {
       try {
-        // Verify the slot belongs to this doctor
         const profile = await storage.getDoctorProfileByUserId(req.user!.id);
         if (!profile) {
           return res.status(404).json({ error: "Doctor profile not found" });
@@ -1937,23 +1956,21 @@ export async function registerRoutes(
         }
 
         if (slot.doctorId !== profile.id) {
-          return res
-            .status(403)
-            .json({ error: "Not authorized to delete this slot" });
+          return res.status(403).json({ error: "Not authorized" });
         }
 
         if (slot.isBooked) {
-          return res.status(400).json({ error: "Cannot delete a booked slot" });
+          return res.status(400).json({ error: "Cannot deactivate a booked slot" });
         }
 
-        const success = await storage.deleteSlot(req.params.id);
+        const success = await storage.deactivateSlot(req.params.id);
         if (success) {
-          res.json({ success: true, message: "Slot deleted successfully" });
+          res.json({ success: true, message: "Slot deactivated successfully" });
         } else {
-          res.status(500).json({ error: "Failed to delete slot" });
+          res.status(500).json({ error: "Failed to deactivate slot" });
         }
       } catch (error) {
-        res.status(500).json({ error: "Failed to delete slot" });
+        res.status(500).json({ error: "Failed to deactivate slot" });
       }
     },
   );
@@ -2592,6 +2609,7 @@ export async function registerRoutes(
         };
 
         const appointment = await storage.createAppointment(appointmentData);
+        await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: true });
 
         let consultationFee = doctor.consultationFee;
         if (
@@ -3544,15 +3562,12 @@ export async function registerRoutes(
     },
   );
 
-  // Profile image upload endpoint for authenticated users
+  // Profile image upload endpoint (Updated to strictly catch Cloudinary URL)
   app.post(
     "/api/users/profile-image",
     authMiddleware,
     upload.single("image"),
-    async (
-      req: AuthenticatedRequest & { file?: MulterFile },
-      res: Response,
-    ) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         if (!req.file) {
           return res.status(400).json({ error: "No image uploaded" });
@@ -3565,41 +3580,41 @@ export async function registerRoutes(
           "image/gif",
           "image/webp",
         ];
+        
         if (!allowedTypes.includes(req.file.mimetype)) {
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (e) {}
           return res.status(400).json({
-            error:
-              "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
+            error: "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.",
           });
         }
 
-        const imageUrl = `/uploads/${req.file.filename}`;
+        const fileObj = req.file as any;
+        const imageUrl = fileObj.secure_url || fileObj.url || req.file.path;
 
-        // Update user's profile image
+        console.log("CLOUDINARY UPLOAD SUCCESS! URL:", imageUrl);
+
+        if (!imageUrl) {
+          console.error("❌ ERROR: Could not extract URL from Cloudinary response.", fileObj);
+          return res.status(500).json({ error: "Failed to extract image URL." });
+        }
+
         const user = await storage.updateUser(req.user!.id, {
           profileImage: imageUrl,
         });
+
         if (!user) {
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (e) {}
-          return res.status(404).json({ error: "User not found" });
+          return res.status(404).json({ error: "User not found in DB" });
         }
 
+        console.log("DB UPDATED SUCCESSFULLY FOR USER:", user.email);
+
         const { password: _, ...userWithoutPassword } = user;
+        
         res.json({
           url: imageUrl,
           user: userWithoutPassword,
         });
       } catch (error) {
-        console.error("Profile image upload error:", error);
-        if (req.file) {
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (e) {}
-        }
+        console.error("❌ PROFILE IMAGE UPLOAD ERROR:", error);
         res.status(500).json({ error: "Failed to upload profile image" });
       }
     },
@@ -3626,6 +3641,10 @@ export async function registerRoutes(
           if (req.body[key] !== undefined) {
             updates[key] = req.body[key];
           }
+        }
+
+        if (updates.phone && !/^07[0-9]{8}$/.test(updates.phone)) {
+          return res.status(400).json({ error: "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)" });
         }
 
         const user = await storage.updateUser(req.user!.id, updates);
@@ -3893,6 +3912,50 @@ export async function registerRoutes(
         res.status(500).json({ error: "Failed to update application status" });
       }
     },
+  );
+
+  // 1. Send OTP to Email
+  app.post("/api/users/send-password-otp", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+      const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+      await storage.setPasswordResetOtp(req.user!.id, otp, expiry);
+
+      const emailResult = await sendPasswordResetOtpEmail(req.user!.email, otp);
+
+      if (!emailResult.success) {
+        throw new Error("Failed to send email via Nodemailer");
+      }
+
+      res.json({ message: "OTP sent successfully" });
+    } catch (error) {
+      console.error("❌ OTP Send Error:", error);
+      res.status(500).json({ error: "Failed to send OTP email" });
+    }
+  });
+
+  // 2. Verify OTP and Reset Password
+  app.post(
+    "/api/users/reset-password-with-otp", 
+    authMiddleware, 
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { otp, newPassword } = req.body;
+
+        const isValid = await storage.verifyPasswordResetOtp(req.user!.id, otp);
+        if (!isValid) {
+          return res.status(400).json({ error: "Invalid or expired OTP." });
+        }
+
+        const hashedPassword = await hashPassword(newPassword);
+        await storage.updateUser(req.user!.id, { password: hashedPassword });
+
+        res.json({ message: "Password updated successfully" });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to reset password" });
+      }
+    }
   );
 
   return httpServer;

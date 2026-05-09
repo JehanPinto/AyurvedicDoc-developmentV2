@@ -107,6 +107,8 @@ export const users = pgTable("users", {
   provider: varchar("provider", { length: 20 }).notNull().default("local"),
   providerId: varchar("provider_id", { length: 120 }),
   registrationComplete: boolean("registration_complete").default(true),
+  resetPasswordOtp: varchar("reset_password_otp", { length: 10 }),
+  resetPasswordOtpExpiry: timestamp("reset_password_otp_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -159,7 +161,7 @@ export const doctorProfiles = pgTable("doctor_profiles", {
   hospitalIds: text("hospital_ids")
     .array()
     .default(sql`ARRAY[]::text[]`),
-  consultationFee: integer("consultation_fee").notNull().default(0),
+  clinic_locations: text("clinic_locations").array().default(sql`ARRAY[]::text[]`),  consultationFee: integer("consultation_fee").notNull().default(0),
   onlineConsultationFee: integer("online_consultation_fee"),
   homeVisitFee: integer("home_visit_fee"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
@@ -206,12 +208,14 @@ export const appointmentSlots = pgTable("appointment_slots", {
     .notNull()
     .references(() => doctorProfiles.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
+  clinicLocation: text("clinic_location"),
   date: varchar("date", { length: 10 }).notNull(),
   startTime: varchar("start_time", { length: 5 }).notNull(),
   endTime: varchar("end_time", { length: 5 }).notNull(),
   consultationType: varchar("consultation_type", { length: 20 }).notNull(),
   isBooked: boolean("is_booked").default(false),
   isBlocked: boolean("is_blocked").default(false),
+  isActive: boolean("is_active").default(true),
 });
 
 export const appointments = pgTable("appointments", {
@@ -489,7 +493,7 @@ export const insertUserSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   fullName: z.string().min(2, "Full name is required"),
-  phone: z.string().min(10, "Valid phone number required"),
+  phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)"),
   role: z.enum([UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN]),
   nic: z.string().optional(),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
@@ -569,6 +573,7 @@ export const insertDoctorProfileSchema = z.object({
       ]),
     )
     .min(1),
+  clinic_locations: z.array(z.string()).default([]),
   hospitalIds: z.array(z.string()).default([]),
   consultationFee: z.number().min(0, "Fee must be positive"),
   onlineConsultationFee: z.number().min(0).optional(),
@@ -641,6 +646,7 @@ export interface DoctorSchedule extends InsertDoctorSchedule {
 export const insertAppointmentSlotSchema = z.object({
   doctorId: z.string(),
   hospitalId: z.string().optional(),
+  clinicLocation: z.string().optional(),
   date: z.string(),
   startTime: z.string(),
   endTime: z.string(),
@@ -651,6 +657,7 @@ export const insertAppointmentSlotSchema = z.object({
   ]),
   isBooked: z.boolean().default(false),
   isBlocked: z.boolean().default(false),
+  isActive: z.boolean().default(true),
 });
 
 export type InsertAppointmentSlot = z.infer<typeof insertAppointmentSlotSchema>;
@@ -892,6 +899,7 @@ export const registerDoctorSchema = insertUserSchema
         ]),
       )
       .min(1),
+    clinic_locations: z.array(z.string()).default([]),
     consultationFee: z.number().min(0),
   })
   .refine((data) => data.password === data.confirmPassword, {

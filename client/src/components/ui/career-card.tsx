@@ -1,4 +1,4 @@
-import { Edit, Trash2, UserCircle2, ArrowUpRight } from "lucide-react";
+import { Edit, Trash2, User, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CareerCardProps {
@@ -21,7 +21,7 @@ export function CareerCard({
   onView
 }: CareerCardProps) {
   return (
-    <div className="border border-primary bg-primary/10 dark:bg-primary/5 rounded-xl p-5 relative flex flex-col group hover:shadow-md transition-shadow">
+    <div className="border border-primary/30 bg-primary/10 dark:bg-primary/5 rounded-xl p-5 relative flex flex-col group hover:shadow-md transition-shadow">
       <button
         onClick={onView}
         className="absolute top-0 right-0 h-8 w-8 text-primary rounded-full z-10 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -30,8 +30,8 @@ export function CareerCard({
         <ArrowUpRight className="w-5 h-5" />
       </button>
       <div className="flex items-center gap-4 mb-4">
-        <div className="w-12 h-12 rounded-full border border-primary flex items-center justify-center shrink-0">
-          <UserCircle2 className="w-6 h-6 text-primary" strokeWidth={1.5} />
+        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <User className="w-6 h-6 text-primary" strokeWidth={1.5} />
         </div>
         <div>
           <h3 className="text-[18px] md:text-[20px] font-extrabold leading-tight">
