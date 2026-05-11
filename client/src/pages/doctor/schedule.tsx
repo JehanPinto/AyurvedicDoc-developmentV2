@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { AppointmentSlot, DoctorProfile } from "@shared/schema";
+import type { AppointmentSlot, DoctorWithDetails } from "@shared/schema";
 import { Modal } from "@/components/ui/modal";
 
 // Generate 24h time slots
@@ -71,9 +71,10 @@ export default function DoctorSchedule() {
     endTime: "09:30",
     consultationType: "in_person" as "in_person" | "online",
     clinicLocation: "",
+    hospitalId: "",
   });
 
-  const { data: profile } = useQuery<DoctorProfile>({
+  const { data: profile } = useQuery<DoctorWithDetails>({
     queryKey: ["/api/doctor/profile"],
   });
 
@@ -104,6 +105,7 @@ export default function DoctorSchedule() {
         ...data,
         doctorId: profile?.id,
         clinicLocation: data.consultationType === "in_person" ? data.clinicLocation : undefined,
+        hospitalId: data.consultationType === "in_person" && data.hospitalId ? data.hospitalId : undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/doctor/slots"] });
@@ -446,7 +448,7 @@ export default function DoctorSchedule() {
                 }`}
                 onClick={(e) => {
                   e.preventDefault();
-                  setNewSlot({ ...newSlot, consultationType: "online" });
+                  setNewSlot({ ...newSlot, consultationType: "online", clinicLocation: "", hospitalId: "" });
                 }}
               >
                 <Video className="w-4 h-4" /> Online
@@ -458,16 +460,24 @@ export default function DoctorSchedule() {
           {newSlot.consultationType === "in_person" && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
               <Label>Clinic Location</Label>
-              <Select value={newSlot.clinicLocation} onValueChange={(v) => setNewSlot({ ...newSlot, clinicLocation: v })}>
+              <Select
+                value={newSlot.hospitalId}
+                onValueChange={(hospitalId) => {
+                  const hospital = profile?.hospitals?.find((h) => h.id === hospitalId);
+                  setNewSlot({ ...newSlot, hospitalId, clinicLocation: hospital?.name ?? "" });
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select where you'll be" />
                 </SelectTrigger>
                 <SelectContent>
-                  {profile?.clinic_locations?.map((loc) => (
-                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                  {profile?.hospitals?.map((hospital) => (
+                    <SelectItem key={hospital.id} value={hospital.id}>
+                      {hospital.name}
+                    </SelectItem>
                   ))}
-                  {(!profile?.clinic_locations || profile.clinic_locations.length === 0) && (
-                    <SelectItem value="none" disabled>Please add locations in your profile first</SelectItem>
+                  {(!profile?.hospitals || profile.hospitals.length === 0) && (
+                    <SelectItem value="none" disabled>Please add locations in your profile settings first</SelectItem>
                   )}
                 </SelectContent>
               </Select>
