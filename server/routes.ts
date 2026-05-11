@@ -3601,6 +3601,38 @@ export async function registerRoutes(
     },
   );
 
+  // Tax entries (admin only)
+  app.get("/api/admin/tax-entries", authMiddleware, roleMiddleware(UserRole.ADMIN), async (_req: Request, res: Response) => {
+    try {
+      const entries = await storage.getTaxEntries();
+      res.json(entries);
+    } catch { res.status(500).json({ error: "Failed to get tax entries" }); }
+  });
+
+  // Public endpoint so book-appointment page can fetch without admin auth
+  app.get("/api/tax-entries", async (_req: Request, res: Response) => {
+    try {
+      const entries = await storage.getTaxEntries();
+      res.json(entries);
+    } catch { res.status(500).json({ error: "Failed to get tax entries" }); }
+  });
+
+  app.post("/api/admin/tax-entries", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const { title, rate } = req.body;
+      if (!title?.trim() || rate === undefined) return res.status(400).json({ error: "Title and rate are required" });
+      const entry = await storage.createTaxEntry(title.trim(), Number(rate));
+      res.status(201).json(entry);
+    } catch { res.status(500).json({ error: "Failed to create tax entry" }); }
+  });
+
+  app.delete("/api/admin/tax-entries/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteTaxEntry(req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ error: "Failed to delete tax entry" }); }
+  });
+
   app.put(
     "/api/admin/specializations/:id",
     authMiddleware,
