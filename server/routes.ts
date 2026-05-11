@@ -1156,10 +1156,9 @@ export async function registerRoutes(
     },
   );
 
-  // Blog featured image upload — requires login only
+  // Blog featured image upload — open to all (no auth required)
   app.post(
     "/api/blog-image-upload",
-    authMiddleware,
     upload.single("file"),
     async (req: Request, res: Response) => {
       try {
@@ -1249,7 +1248,9 @@ export async function registerRoutes(
   app.get("/api/blogs/:id", async (req: Request, res: Response) => {
     try {
       const result = await pool.query(
-        `SELECT b.*, s.content, s.featured_image as "featuredImage", s.submitted_by_name as "submittedByName", s.submitted_by_email as "submittedByEmail"
+        `SELECT b.id, b.title, b.description, b.category, b.created_at as "createdAt",
+                COALESCE(s.featured_image, b.featured_image) as "featuredImage",
+                s.content, s.submitted_by_name as "submittedByName", s.submitted_by_email as "submittedByEmail"
          FROM blogs b
          LEFT JOIN blog_submissions s ON s.blog_id = b.id AND s.status = 'approved'
          WHERE b.id = $1`,
@@ -1278,24 +1279,23 @@ export async function registerRoutes(
   );
 
   // ================== BLOG SUBMISSION ROUTES ==================
-  app.post(
-    "/api/blog-submissions",
-    authMiddleware,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const user = req.user!;
-        const submission = await storage.createBlogSubmission({
-          ...req.body,
-          submittedById: user.id,
-          submittedByName: user.fullName,
-          submittedByEmail: user.email,
-        });
-        res.status(201).json(submission);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to submit blog" });
+  app.post("/api/blog-submissions", async (req: Request, res: Response) => {
+    try {
+      const { submittedByName, submittedByEmail, ...rest } = req.body;
+      if (!submittedByName || !submittedByEmail) {
+        return res.status(400).json({ error: "Name and email are required" });
       }
-    },
-  );
+      const submission = await storage.createBlogSubmission({
+        ...rest,
+        submittedById: "anonymous",
+        submittedByName,
+        submittedByEmail,
+      });
+      res.status(201).json(submission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to submit blog" });
+    }
+  });
 
   app.get(
     "/api/blog-submissions",

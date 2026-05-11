@@ -1077,11 +1077,9 @@ export const blogs = pgTable("blogs", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   title: varchar("title", { length: 255 }).notNull(),
-  content: text("content"),
   description: text("description"),
   category: varchar("category", { length: 100 }),
-  image: text("image"),
-  authorId: varchar("author_id", { length: 50 }),
+  featuredImage: text("featured_image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
