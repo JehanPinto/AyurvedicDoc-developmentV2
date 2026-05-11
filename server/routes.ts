@@ -3988,6 +3988,61 @@ export async function registerRoutes(
     },
   );
 
+  // Forgot Password: Send OTP to email (unauthenticated)
+  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email.toLowerCase().trim());
+      // Always return success to prevent email enumeration
+      if (!user) {
+        return res.json({ message: "If that email is registered, an OTP has been sent." });
+      }
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+      await storage.setPasswordResetOtp(user.id, otp, expiry);
+      await sendPasswordResetOtpEmail(user.email, otp);
+
+      res.json({ message: "If that email is registered, an OTP has been sent." });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
+
+  // Forgot Password: Verify OTP and reset password (unauthenticated)
+  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+    try {
+      const { email, otp, newPassword } = req.body;
+      if (!email || !otp || !newPassword) {
+        return res.status(400).json({ error: "Email, OTP, and new password are required" });
+      }
+
+      const user = await storage.getUserByEmail(email.toLowerCase().trim());
+      if (!user) {
+        return res.status(400).json({ error: "Invalid OTP or email" });
+      }
+
+      const isValid = await storage.verifyPasswordResetOtp(user.id, otp);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      const hashedPassword = await hashPassword(newPassword);
+      await storage.updateUser(user.id, { password: hashedPassword });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
   // 1. Send OTP to Email
   app.post("/api/users/send-password-otp", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
