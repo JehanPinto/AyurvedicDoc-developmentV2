@@ -3989,8 +3989,8 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Application not found" });
         }
 
-        // 2. Email send
-        await sendApplicationEmail(
+        // 2. Email send (මෙතන තමයි අපි Result එක අල්ලගන්නේ)
+        const emailResult = await sendApplicationEmail(
           updatedApplication.email,
           updatedApplication.fullName,
           updatedApplication.jobTitle,
@@ -3998,7 +3998,13 @@ export async function registerRoutes(
           message || "No additional comments provided.",
         );
 
-        res.json(updatedApplication);
+        // 🟢 Frontend එකට emailSuccess එකයි emailError එකයි යවනවා
+        res.json({
+          ...updatedApplication,
+          emailSuccess: emailResult.success,
+          emailError: emailResult.error
+        });
+
       } catch (error) {
         console.error("Failed to update application status:", error);
         res.status(500).json({ error: "Failed to update application status" });
