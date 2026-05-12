@@ -5,11 +5,27 @@ dotenv.config({ path: path.join(process.cwd(), ".env") });
 
 import express, { NextFunction, type Request, Response } from "express";
 import { createServer } from "http";
+import helmet from "helmet";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 
 const app = express();
 const httpServer = createServer(app);
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5000";
+
+app.use(cors({
+  origin: CLIENT_URL,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-registration-token", "x-registration-email"]
+}));
 
 declare module "http" {
   interface IncomingMessage {

@@ -103,6 +103,7 @@ const emailToSession = new Map<string, string>();
 const registrationSessions = new Map<string, RegistrationSession>();
 const SESSION_EXPIRY_MS = 2 * 60 * 60 * 1000;
 const MAX_UPLOADS_PER_SESSION = 5;
+const tokenBlacklist = new Map<string, number>();
 
 function createRegistrationSession(email: string): string {
   const existingToken = emailToSession.get(email.toLowerCase());
@@ -166,6 +167,15 @@ setInterval(
   },
   15 * 60 * 1000,
 );
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, exp] of tokenBlacklist.entries()) {
+    if (now > exp) {
+      tokenBlacklist.delete(token);
+    }
+  }
+}, 60 * 60 * 1000);
 
 const sessionCreationLimits = new Map<
   string,
@@ -338,6 +348,11 @@ function authMiddleware(
   }
 
   const token = authHeader.split(" ")[1];
+
+  if (tokenBlacklist.has(token)) {
+    return res.status(401).json({ error: "Token has been revoked. Please login again." });
+  }
+
   const user = verifyToken(token);
 
   if (!user) {
@@ -665,7 +680,30 @@ export async function registerRoutes(
             path: ["consultationFee"],
           });
       }
-    });
+    }
+  );
+
+  app.post(
+    "/api/auth/logout",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const authHeader = req.headers.authorization;
+        const token = authHeader!.split(" ")[1];
+
+        // Token එකේ Expiry Time එක හොයාගන්නවා
+        const payload = decodeToken(token);
+        const exp = payload?.exp ? payload.exp : Date.now() + 7 * 24 * 60 * 60 * 1000;
+
+        // Token එක Blacklist එකට දානවා (එතකොට ආයේ පාවිච්චි කරන්න බෑ)
+        tokenBlacklist.set(token, exp);
+
+        res.json({ success: true, message: "Logged out successfully" });
+      } catch (error) {
+        res.status(500).json({ error: "Logout failed" });
+      }
+    }
+  );
 
   app.post(
     "/api/auth/complete-registration",

@@ -8,6 +8,8 @@ import {
   text,
   timestamp,
   varchar,
+  date,
+  time,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -209,9 +211,9 @@ export const appointmentSlots = pgTable("appointment_slots", {
     .references(() => doctorProfiles.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
   clinicLocation: text("clinic_location"),
-  date: varchar("date", { length: 10 }).notNull(),
-  startTime: varchar("start_time", { length: 5 }).notNull(),
-  endTime: varchar("end_time", { length: 5 }).notNull(),
+  date: date("date").notNull(),
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time").notNull(),
   consultationType: varchar("consultation_type", { length: 20 }).notNull(),
   isBooked: boolean("is_booked").default(false),
   isBlocked: boolean("is_blocked").default(false),
@@ -232,8 +234,8 @@ export const appointments = pgTable("appointments", {
     .notNull()
     .references(() => appointmentSlots.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
-  appointmentDate: varchar("appointment_date", { length: 10 }).notNull(),
-  appointmentTime: varchar("appointment_time", { length: 5 }).notNull(),
+  appointmentDate: date("appointment_date").notNull(),
+  appointmentTime: time("appointment_time").notNull(),
   consultationType: varchar("consultation_type", { length: 20 }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
   symptoms: text("symptoms").notNull(),
