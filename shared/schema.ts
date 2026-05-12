@@ -861,6 +861,13 @@ export interface PlatformSettings extends InsertPlatformSettings {
   updatedAt: string;
 }
 
+export interface TaxEntry {
+  id: string;
+  title: string;
+  rate: number;
+  createdAt: string;
+}
+
 // ================== AUTH SCHEMAS ==================
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),

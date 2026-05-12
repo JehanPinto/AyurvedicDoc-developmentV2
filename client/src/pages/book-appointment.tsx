@@ -46,6 +46,7 @@ import {
   Gender,
   type DoctorWithDetails,
   type AppointmentSlot,
+  type TaxEntry,
 } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -153,6 +154,16 @@ export default function BookAppointmentPage() {
       return res.json();
     },
     staleTime: 0,
+  });
+
+  const { data: customTaxes = [] } = useQuery<TaxEntry[]>({
+    queryKey: ["/api/tax-entries"],
+    queryFn: async () => {
+      const res = await fetch("/api/tax-entries");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: doctor, isLoading: doctorLoading } = useQuery<DoctorWithDetails>({
@@ -272,7 +283,12 @@ export default function BookAppointmentPage() {
   const bookingCharges = bookingSettings?.bookingCharges ?? 100;
   const taxRate = bookingSettings?.taxRate ?? 4;
   const tax = Math.round(consultationFee * (taxRate / 100));
-  const totalAmount = consultationFee + bookingCharges + tax;
+  const customTaxAmounts = customTaxes.map((t) => ({
+    ...t,
+    amount: Math.round(consultationFee * (t.rate / 100)),
+  }));
+  const customTaxTotal = customTaxAmounts.reduce((sum, t) => sum + t.amount, 0);
+  const totalAmount = consultationFee + bookingCharges + tax + customTaxTotal;
 
   const stepIndex = step === "details" ? 1 : step === "payment" ? 2 : 3;
 
@@ -483,6 +499,12 @@ export default function BookAppointmentPage() {
           <span className="text-muted-foreground">Tax ({taxRate}%)</span>
           <span>{formatFee(tax)}</span>
         </div>
+        {customTaxAmounts.map((t) => (
+          <div key={t.id} className="flex justify-between text-sm">
+            <span className="text-muted-foreground">{t.title} ({t.rate}%)</span>
+            <span>{formatFee(t.amount)}</span>
+          </div>
+        ))}
       </div>
 
       {/* Total */}

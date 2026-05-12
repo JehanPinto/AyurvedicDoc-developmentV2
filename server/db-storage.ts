@@ -53,6 +53,7 @@ import {
   type PatientDashboardStats,
   type Payment,
   type PlatformSettings,
+  type TaxEntry,
   type Prescription,
   type Review,
   type ReviewWithDoctor,
@@ -1729,6 +1730,41 @@ export class DbStorage implements IStorage {
       maintenanceMode: result[0].maintenanceMode ?? false,
       updatedAt: toISOString(result[0].updatedAt),
     };
+  }
+
+  async getTaxEntries(): Promise<TaxEntry[]> {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tax_entries (
+        id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        title VARCHAR(255) NOT NULL,
+        rate INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    const result = await pool.query(`SELECT id, title, rate, created_at FROM tax_entries ORDER BY created_at ASC`);
+    return result.rows.map((r: any) => ({ id: r.id, title: r.title, rate: r.rate, createdAt: r.created_at }));
+  }
+
+  async createTaxEntry(title: string, rate: number): Promise<TaxEntry> {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tax_entries (
+        id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        title VARCHAR(255) NOT NULL,
+        rate INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    const result = await pool.query(
+      `INSERT INTO tax_entries (title, rate) VALUES ($1, $2) RETURNING id, title, rate, created_at`,
+      [title, rate]
+    );
+    const r = result.rows[0];
+    return { id: r.id, title: r.title, rate: r.rate, createdAt: r.created_at };
+  }
+
+  async deleteTaxEntry(id: string): Promise<boolean> {
+    const result = await pool.query(`DELETE FROM tax_entries WHERE id = $1`, [id]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   async createBlogSubmission(
