@@ -2068,17 +2068,23 @@ export async function registerRoutes(
     roleMiddleware(UserRole.DOCTOR),
     async (req: AuthenticatedRequest, res: Response) => {
       try {
+        const existingAppointment = await storage.getAppointment(req.params.id);
+        if (!existingAppointment) {
+          return res.status(404).json({ error: "Appointment not found" });
+        }
+
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+
+        if (!profile || existingAppointment.doctorId !== profile.id) {
+          return res.status(403).json({ error: "Forbidden: You can only confirm your own appointments." });
+        }
+
         const appointment = await storage.updateAppointment(req.params.id, {
           status: AppointmentStatus.CONFIRMED,
         });
 
         if (appointment) {
-          const doctorProfile = await storage.getDoctorProfile(
-            appointment.doctorId,
-          );
-          const doctorUser = doctorProfile
-            ? await storage.getUser(doctorProfile.userId)
-            : null;
+          const doctorUser = await storage.getUser(profile.userId);
           const doctorName = doctorUser?.fullName || "your doctor";
           const [yr, mo, dy] = appointment.appointmentDate.split("-");
           const months = [
@@ -2089,8 +2095,8 @@ export async function registerRoutes(
 
           await storage.createNotification({
             userId: appointment.patientId,
-            title: "Appointment Confirmed", // Fixed Title
-            message: `Your appointment with Dr. ${doctorName} for ${formattedDate} at ${appointment.appointmentTime} has been confirmed.`, // More detailed message
+            title: "Appointment Confirmed",
+            message: `Your appointment with Dr. ${doctorName} for ${formattedDate} at ${appointment.appointmentTime} has been confirmed.`,
             type: "appointment",
             isRead: false,
             relatedId: appointment.id,
