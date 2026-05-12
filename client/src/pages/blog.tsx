@@ -2,38 +2,28 @@ import { useLocation, Link } from "wouter";
 import { ArrowUpRight, PlusCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { useAuth } from "@/lib/auth-context";
-import { useToast } from "@/hooks/use-toast";
-
-const blogPosts: { id: string; category: string; title: string; description: string }[] = [
-  { id: "", category: "Consultation", title: "Discovering Your Dosha", description: "Learn how Ayurveda identifies your Vata, Pitta, or Kapha type and uses it to guide personalized wellness care." },
-  { id: "", category: "Consultation", title: "The Ayurvedic Consultation Process", description: "Learn how Ayurveda identifies your Vata, Pitta, or Kapha type and uses it to guide personalized wellness care." },
-  { id: "", category: "Therapy", title: "The Healing Power of Oil Massage", description: "Explore how warm herbal oil massage supports relaxation, circulation, and stress relief." },
-  { id: "", category: "Therapy", title: "Ayurvedic Therapies for Daily Balance", description: "Discover traditional therapies that help restore harmony in the body and mind." },
-  { id: "", category: "Consultation", title: "Herbal Remedies for Better Wellness", description: "Learn how herbs and natural preparations are used in Ayurvedic care." },
-  { id: "", category: "Therapy", title: "Ayurvedic Self-Care Rituals", description: "See how daily routine, massage, and mindful habits can support long-term well-being." },
-];
 
 export default function BlogPage() {
-  const { user } = useAuth();
-  const { toast } = useToast();
   const [, setLocation] = useLocation();
-
-  const handleAddBlog = () => {
-    if (!user) {
-      toast({ title: "Login required", description: "Please login before adding a blog.", variant: "destructive" });
-      return;
-    }
-    setLocation("/blog/new");
-  };
 
   const { data: apiBlogs = [], isLoading } = useQuery<{ id: string; title: string; description: string; category: string; }[]>({
     queryKey: ["/api/blogs"],
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
-  const displayBlogs = apiBlogs.length > 0 ? apiBlogs : isLoading ? [] : blogPosts;
-  const showEmpty = !isLoading && apiBlogs.length === 0 && blogPosts.length === 0;
+  const displayBlogs = apiBlogs.slice(0, 6);
+  const showEmpty = !isLoading && apiBlogs.length === 0;
+
+  if (isLoading) {
+    return (
+      <PublicLayout showFooter={false}>
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </PublicLayout>
+    );
+  }
 
   if (showEmpty) {
     return (
@@ -51,6 +41,12 @@ export default function BlogPage() {
           <p className="text-muted-foreground text-sm md:text-base text-center max-w-md">
             We're busy preparing insightful content. Check back soon for new articles and wellness tips.
           </p>
+          <button
+            onClick={() => setLocation("/blog/new")}
+            className="mt-6 flex items-center gap-2 bg-primary text-white text-sm font-semibold px-5 py-2 rounded-full hover:bg-primary/90 transition-colors"
+          >
+            Add New Blog <PlusCircle className="h-4 w-4" />
+          </button>
         </div>
       </PublicLayout>
     );
@@ -74,12 +70,11 @@ export default function BlogPage() {
       <section className="pb-16 bg-background">
         <div className="container mx-auto px-8 md:px-16 max-w-6xl">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayBlogs.map((post, index) => (
+            {displayBlogs.map((post) => (
               <div
-                key={index}
+                key={post.id}
                 className="bg-primary/10 border border-primary/40 rounded-2xl p-6 flex flex-col min-h-[360px]"
               >
-                {/* Icon in green circle + Category */}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                     <img
@@ -91,19 +86,12 @@ export default function BlogPage() {
                   <span className="text-sm font-medium text-foreground">{post.category}</span>
                 </div>
 
-                {/* Title */}
-                <h3 className="text-lg font-bold text-foreground mb-3">
-                  {post.title}
-                </h3>
+                <h3 className="text-lg font-bold text-foreground mb-3">{post.title}</h3>
 
-                {/* Description */}
-                <p className="text-sm text-muted-foreground flex-1 mb-6">
-                  {post.description}
-                </p>
+                <p className="text-sm text-muted-foreground flex-1 mb-6">{post.description}</p>
 
-                {/* Learn More — full width at bottom */}
                 <div className="mt-auto">
-                  <Link href={post.id ? `/blog/${post.id}` : "#"}>
+                  <Link href={`/blog/${post.id}`}>
                     <button className="w-full flex items-center justify-center gap-2 bg-primary text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-all duration-200 hover:bg-primary/90 hover:scale-[1.02] hover:shadow-md active:scale-[0.98] group">
                       Learn More
                       <ArrowUpRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -114,10 +102,9 @@ export default function BlogPage() {
             ))}
           </div>
 
-          {/* Add New Blog Button — right-aligned under the grid */}
           <div className="flex justify-end mt-6">
             <button
-              onClick={handleAddBlog}
+              onClick={() => setLocation("/blog/new")}
               className="flex items-center gap-2 bg-primary text-white text-sm font-semibold px-5 py-2 rounded-full transition-all duration-200 hover:bg-primary/90 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
             >
               Add New Blog

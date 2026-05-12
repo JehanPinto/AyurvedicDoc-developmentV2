@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Eye, CheckCircle, XCircle, Clock, BookOpen, ArrowUpRight, Trash2, Pin, PlusCircle } from "lucide-react";
+import { Eye, CheckCircle, XCircle, Clock, BookOpen, ArrowUpRight, Trash2, Pin, PlusCircle, CloudUpload, FileText } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+const CATEGORIES = ["Consultation", "Therapy", "Lifestyle"];
 
 interface BlogSubmission {
   id: string;
@@ -43,6 +45,16 @@ export default function AdminBlogsPage() {
   } | null>(null);
   const [discardReason, setDiscardReason] = useState("");
 
+  // Add Blog Modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { data: submissions = [], isLoading: subLoading } = useQuery<BlogSubmission[]>({
     queryKey: ["/api/blog-submissions"],
     staleTime: 0,
@@ -66,7 +78,7 @@ export default function AdminBlogsPage() {
       toast({ title: "Approved!", description: "Blog has been published." });
       if (sub?.submittedByEmail) {
         const subject = encodeURIComponent("Your Blog Has Been Approved!");
-        const body = encodeURIComponent(`Hi ${sub.submittedByName},\n\nYour blog post "${sub.title}" has been approved and is now live!\n\nThank you!\n\nAyurvedicDoctor Team`);
+        const body = encodeURIComponent(`Hi ${sub.submittedByName},\n\nYour blog post "${sub.title}" has been approved and is now live!\n\nThank you!\n\nAyurPath Team`);
         window.open(`mailto:${sub.submittedByEmail}?subject=${subject}&body=${body}`);
       }
     },
@@ -101,6 +113,60 @@ export default function AdminBlogsPage() {
     onError: () => toast({ title: "Error", description: "Failed to delete.", variant: "destructive" }),
   });
 
+  const createBlogMutation = useMutation({
+    mutationFn: async () => {
+      let featuredImage: string | undefined;
+      if (newImageFile) {
+        const formData = new FormData();
+        formData.append("file", newImageFile);
+        const token = localStorage.getItem("token");
+        const uploadRes = await fetch("/api/blog-image-upload", {
+          method: "POST",
+          body: formData,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          featuredImage = data.url;
+        }
+      }
+      return apiRequest("POST", "/api/blogs", {
+        title: newTitle,
+        category: newCategory,
+        description: newContent,
+        featuredImage,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/blogs"] });
+      toast({ title: "Published!", description: "Blog post is now live." });
+      setShowAddModal(false);
+      setNewTitle(""); setNewCategory(""); setNewContent("");
+      setNewImageFile(null); setNewImagePreview(null);
+    },
+    onError: () => toast({ title: "Error", description: "Failed to create blog.", variant: "destructive" }),
+  });
+
+  const handleNewImage = (file: File) => {
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      toast({ title: "Invalid file", description: "Only JPG and PNG are supported.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 10MB.", variant: "destructive" });
+      return;
+    }
+    setNewImageFile(file);
+    setNewImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleCreateSubmit = () => {
+    if (!newTitle.trim()) { toast({ title: "Required", description: "Enter a title.", variant: "destructive" }); return; }
+    if (!newCategory) { toast({ title: "Required", description: "Select a category.", variant: "destructive" }); return; }
+    if (!newContent.trim()) { toast({ title: "Required", description: "Enter content.", variant: "destructive" }); return; }
+    createBlogMutation.mutate();
+  };
+
   const openDiscard = (target: typeof discardTarget) => {
     setDiscardTarget(target);
     setDiscardReason("");
@@ -123,7 +189,7 @@ export default function AdminBlogsPage() {
     <div className="space-y-8">
       <h1 className="text-2xl font-bold font-heading text-foreground">Manage Blogs</h1>
 
-      {/* Pending Submissions — green bordered card */}
+      {/* Pending Submissions */}
       <div className="border border-primary/30 bg-primary/5 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -145,19 +211,14 @@ export default function AdminBlogsPage() {
           <div className="space-y-3">
             {pendingSubmissions.map((sub) => (
               <div key={sub.id} className="bg-background border border-primary/20 rounded-xl px-4 py-3 flex items-start gap-3">
-                {/* Icon */}
                 <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
                   <img src={categoryIcon(sub.category)} alt={sub.category} className="w-5 h-5 object-contain" />
                 </div>
-
-                {/* Text */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-foreground">{sub.title}</p>
                   <p className="text-xs text-muted-foreground mb-0.5">{sub.category}</p>
                   <p className="text-xs text-muted-foreground truncate">{sub.content.slice(0, 90)}...</p>
                 </div>
-
-                {/* Right: date + buttons */}
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <p className="text-xs text-muted-foreground whitespace-nowrap">Submitted: {formatDateTime(sub.createdAt)}</p>
                   <div className="flex items-center gap-1.5">
@@ -194,7 +255,6 @@ export default function AdminBlogsPage() {
           <BookOpen className="h-4 w-4 text-primary" />
           Current Blogs
         </h2>
-
         {blogLoading ? (
           <p className="text-sm text-muted-foreground text-center py-6">Loading...</p>
         ) : blogs.length === 0 ? (
@@ -211,7 +271,6 @@ export default function AdminBlogsPage() {
                 </div>
                 <p className="text-sm font-bold text-foreground mb-1 line-clamp-2">{blog.title}</p>
                 <p className="text-xs text-muted-foreground flex-1 line-clamp-3">{blog.description}</p>
-
                 <div className="flex items-center justify-end gap-2 mt-4">
                   <button
                     onClick={() => setLocation(`/blog/${blog.id}`)}
@@ -237,12 +296,116 @@ export default function AdminBlogsPage() {
       {/* Add New Blog */}
       <div className="flex justify-end">
         <button
-          onClick={() => setLocation("/blog/new")}
+          onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 bg-primary text-white text-sm font-semibold px-5 py-2 rounded-full hover:bg-primary/90 transition-colors"
         >
           Add New Blog <PlusCircle className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Add Blog Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowAddModal(false)}>
+          <div className="bg-background rounded-2xl shadow-2xl max-w-2xl w-full my-8" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6">
+              <div className="bg-background rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold font-heading text-foreground">Create a New Blog Post</h2>
+                  <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-foreground">
+                    <XCircle className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">Add your blog post details — published directly without review.</p>
+
+                {/* Title */}
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Blog Post Title<span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter Title"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full border border-primary/40 rounded-lg px-3 py-2.5 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+
+                {/* Category */}
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Post Category<span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    className="w-full border border-primary/40 rounded-lg px-3 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <option value="">Select type</option>
+                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                {/* Content */}
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Content<span className="text-destructive">*</span>
+                  </label>
+                  <textarea
+                    placeholder="Enter content"
+                    value={newContent}
+                    onChange={(e) => setNewContent(e.target.value)}
+                    rows={6}
+                    className="w-full border border-primary/40 rounded-lg px-3 py-2.5 text-sm bg-muted/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  />
+                </div>
+
+                {/* Image */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Blog featured image</label>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleNewImage(f); }}
+                    className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors ${dragging ? "border-primary bg-primary/10" : "border-primary/40 bg-primary/5"}`}
+                  >
+                    {newImagePreview ? (
+                      <img src={newImagePreview} alt="Preview" className="max-h-32 object-contain rounded-lg" />
+                    ) : (
+                      <>
+                        <CloudUpload className="h-7 w-7 text-muted-foreground mb-2" />
+                        <p className="text-sm text-muted-foreground text-center">Drag & Drop or Click to Upload</p>
+                        <p className="text-xs text-muted-foreground mt-1">JPG, PNG (Max 10MB)</p>
+                      </>
+                    )}
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => e.target.files?.[0] && handleNewImage(e.target.files[0])} />
+                </div>
+
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between mt-6">
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="flex items-center gap-2 border border-primary text-primary text-sm font-medium px-4 py-2 rounded-full hover:bg-primary/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateSubmit}
+                  disabled={createBlogMutation.isPending}
+                  className="flex items-center gap-2 bg-primary text-white text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60"
+                >
+                  {createBlogMutation.isPending ? "Publishing..." : "Publish Blog"}
+                  <FileText className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Discard Dialog */}
       {discardTarget && (
@@ -259,7 +422,7 @@ export default function AdminBlogsPage() {
             </div>
             <p className="text-sm text-foreground mt-4 mb-2">
               {discardTarget.type === "submission"
-                ? "Tell Why you reject this blog to the person who add this blog"
+                ? "Tell why you reject this blog to the person who submitted it"
                 : "Reason for removing this blog"}
             </p>
             <textarea
@@ -276,7 +439,7 @@ export default function AdminBlogsPage() {
                 className="flex-1 flex items-center justify-center gap-2 bg-red-700 text-white text-sm font-bold px-4 py-3 rounded-full hover:bg-red-800 transition-colors disabled:opacity-60"
               >
                 <XCircle className="h-4 w-4" />
-                {rejectMutation.isPending || deleteBlogMutation.isPending ? "Processing..." : "Reject"}
+                {rejectMutation.isPending || deleteBlogMutation.isPending ? "Processing..." : "Confirm"}
               </button>
               <button
                 onClick={() => setDiscardTarget(null)}

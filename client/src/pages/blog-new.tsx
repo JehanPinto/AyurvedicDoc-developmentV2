@@ -1,10 +1,9 @@
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, CloudUpload, FileText, Lock } from "lucide-react";
+import { ArrowLeft, CloudUpload, FileText, Lock, X } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth-context";
 import { PublicLayout } from "@/components/layout/public-layout";
 
 const CATEGORIES = ["Consultation", "Therapy", "Lifestyle"];
@@ -22,8 +21,13 @@ export default function BlogNewPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
+  // Email popup state (only for non-logged-in users)
+  const [showEmailPopup, setShowEmailPopup] = useState(false);
+  const [popupName, setPopupName] = useState("");
+  const [popupEmail, setPopupEmail] = useState("");
+
   const submitMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (submitterInfo: { name: string; email: string }) => {
       let featuredImage: string | undefined;
       if (imageFile) {
         const formData = new FormData();
@@ -37,12 +41,28 @@ export default function BlogNewPage() {
         if (uploadRes.ok) {
           const data = await uploadRes.json();
           featuredImage = data.url;
+        } else {
+          throw new Error("Image upload failed. Please try a smaller image (max 10MB).");
         }
       }
-      return apiRequest("POST", "/api/blog-submissions", { title, category, content, featuredImage });
+      const res = await fetch("/api/blog-submissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          category,
+          content,
+          featuredImage,
+          submittedByName: submitterInfo.name,
+          submittedByEmail: submitterInfo.email,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to submit");
+      return res.json();
     },
     onSuccess: () => {
       toast({ title: "Submitted!", description: "Your blog has been submitted for admin review." });
+      setShowEmailPopup(false);
       setLocation("/blog");
     },
     onError: () => {
@@ -74,14 +94,27 @@ export default function BlogNewPage() {
     if (!title.trim()) { toast({ title: "Required", description: "Please enter a blog title.", variant: "destructive" }); return; }
     if (!category) { toast({ title: "Required", description: "Please select a category.", variant: "destructive" }); return; }
     if (!content.trim()) { toast({ title: "Required", description: "Please enter content.", variant: "destructive" }); return; }
-    submitMutation.mutate();
+
+    if (user) {
+      // Logged in — use their account info directly
+      submitMutation.mutate({ name: user.fullName, email: user.email });
+    } else {
+      // Not logged in — show email popup
+      setShowEmailPopup(true);
+    }
+  };
+
+  const handlePopupSubmit = () => {
+    if (!popupName.trim()) { toast({ title: "Required", description: "Please enter your name.", variant: "destructive" }); return; }
+    if (!popupEmail.trim() || !popupEmail.includes("@")) { toast({ title: "Required", description: "Please enter a valid email.", variant: "destructive" }); return; }
+    submitMutation.mutate({ name: popupName, email: popupEmail });
   };
 
   return (
     <PublicLayout showFooter={false}>
       <div className="min-h-screen bg-muted/30 py-8 px-4">
         {/* Header */}
-        <div className="max-w-2xl mx-auto mb-6 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto mb-6">
           <h1 className="text-2xl font-bold font-heading text-foreground">Create a New Blog Post</h1>
         </div>
 
@@ -188,6 +221,68 @@ export default function BlogNewPage() {
           </p>
         </div>
       </div>
+
+      {/* Email popup — only shown for non-logged-in users */}
+      {showEmailPopup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowEmailPopup(false)}>
+          <div className="bg-background rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">One last step</h2>
+                <p className="text-sm text-muted-foreground mt-1">We need your contact details so we can notify you when your blog is approved.</p>
+              </div>
+              <button onClick={() => setShowEmailPopup(false)} className="text-muted-foreground hover:text-foreground ml-4">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Your Name<span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Full name"
+                  value={popupName}
+                  autoComplete="off"
+                  onChange={(e) => setPopupName(e.target.value)}
+                  className="w-full border border-primary/40 rounded-lg px-3 py-2.5 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Your Email<span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={popupEmail}
+                  autoComplete="email"
+                  onChange={(e) => setPopupEmail(e.target.value)}
+                  className="w-full border border-primary/40 rounded-lg px-3 py-2.5 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowEmailPopup(false)}
+                className="flex-1 border border-primary text-primary text-sm font-medium px-4 py-2.5 rounded-full hover:bg-primary/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePopupSubmit}
+                disabled={submitMutation.isPending}
+                className="flex-1 bg-primary text-white text-sm font-semibold px-4 py-2.5 rounded-full hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                {submitMutation.isPending ? "Submitting..." : "Submit Blog"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PublicLayout>
   );
 }
