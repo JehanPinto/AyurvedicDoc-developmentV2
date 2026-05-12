@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "crypto";
+import { createHmac, randomUUID } from "crypto";
 import type { Express, NextFunction, Request, Response } from "express";
 import { type Server } from "http";
 import { pool } from "./db";
@@ -253,12 +253,15 @@ function generateToken(
   const header = Buffer.from(
     JSON.stringify({ alg: "HS256", typ: "JWT" }),
   ).toString("base64url");
+  
   const body = Buffer.from(
     JSON.stringify({ ...payload, exp: Date.now() + ttlMs }),
   ).toString("base64url");
-  const signature = createHash("sha256")
-    .update(`${header}.${body}.${JWT_SECRET}`)
+  
+  const signature = createHmac("sha256", JWT_SECRET)
+    .update(`${header}.${body}`)
     .digest("base64url");
+    
   return `${header}.${body}.${signature}`;
 }
 
@@ -268,10 +271,15 @@ function decodeToken(token: string): JwtPayload | null {
     if (parts.length !== 3) return null;
 
     const [header, body, signature] = parts;
-    const expectedSignature = createHash("sha256")
-      .update(`${header}.${body}.${JWT_SECRET}`)
+    
+    const expectedSignature = createHmac("sha256", JWT_SECRET)
+      .update(`${header}.${body}`)
       .digest("base64url");
-    if (signature !== expectedSignature) return null;
+      
+    if (signature !== expectedSignature) {
+      console.error("🔴 Security Alert: Invalid Token Signature detected!");
+      return null;
+    }
 
     const payload = JSON.parse(Buffer.from(body, "base64url").toString());
     if (payload.exp < Date.now()) return null;
