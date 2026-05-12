@@ -483,33 +483,43 @@ export class DbStorage implements IStorage {
     return this.updateDoctorProfile(id, updates);
   }
 
-  async addDoctorHospital(doctorProfileId: string, name: string, address: string): Promise<{ hospital: Hospital; hospitalIds: string[] } | null> {
+  async addDoctorHospital(
+    doctorProfileId: string,
+    name: string,
+    address: string,
+  ): Promise<{ hospital: Hospital; hospitalIds: string[] } | null> {
     const profile = await this.getDoctorProfile(doctorProfileId);
     if (!profile) return null;
     const currentIds: string[] = profile.hospitalIds || [];
     if (currentIds.length >= 5) return null;
 
-    const hospResult = await db.insert(hospitals).values({
-      name,
-      address,
-      city: "",
-      contactNumber: "N/A",
-    }).returning();
+    const hospResult = await db
+      .insert(hospitals)
+      .values({
+        name,
+        address,
+        city: "",
+        contactNumber: "N/A",
+      })
+      .returning();
     const hospital = hospResult[0] as Hospital;
 
     await pool.query(
       `UPDATE doctor_profiles SET hospital_ids = array_append(hospital_ids, $1), updated_at = NOW() WHERE id = $2`,
-      [hospital.id, doctorProfileId]
+      [hospital.id, doctorProfileId],
     );
 
     const newIds = [...currentIds, hospital.id];
     return { hospital, hospitalIds: newIds };
   }
 
-  async removeDoctorHospital(doctorProfileId: string, hospitalId: string): Promise<boolean> {
+  async removeDoctorHospital(
+    doctorProfileId: string,
+    hospitalId: string,
+  ): Promise<boolean> {
     await pool.query(
       `UPDATE doctor_profiles SET hospital_ids = array_remove(hospital_ids, $1), updated_at = NOW() WHERE id = $2`,
-      [hospitalId, doctorProfileId]
+      [hospitalId, doctorProfileId],
     );
     return true;
   }
@@ -1065,6 +1075,9 @@ export class DbStorage implements IStorage {
       ...result[0],
       createdAt: toISOString(result[0].createdAt),
       updatedAt: toISOString(result[0].updatedAt),
+      doctorRespondedAt: result[0].doctorRespondedAt
+        ? toISOString(result[0].doctorRespondedAt)
+        : undefined,
     } as Review;
   }
 
@@ -1081,6 +1094,9 @@ export class DbStorage implements IStorage {
       ...result[0],
       createdAt: toISOString(result[0].createdAt),
       updatedAt: toISOString(result[0].updatedAt),
+      doctorRespondedAt: result[0].doctorRespondedAt
+        ? toISOString(result[0].doctorRespondedAt)
+        : undefined,
     } as Review;
   }
 
@@ -1099,6 +1115,9 @@ export class DbStorage implements IStorage {
           ...r,
           createdAt: toISOString(r.createdAt),
           updatedAt: toISOString(r.updatedAt),
+          doctorRespondedAt: r.doctorRespondedAt
+            ? toISOString(r.doctorRespondedAt)
+            : undefined,
           patient,
         } as ReviewWithPatient);
       }
@@ -1121,6 +1140,9 @@ export class DbStorage implements IStorage {
           ...r,
           createdAt: toISOString(r.createdAt),
           updatedAt: toISOString(r.updatedAt),
+          doctorRespondedAt: r.doctorRespondedAt
+            ? toISOString(r.doctorRespondedAt)
+            : undefined,
           doctor,
         } as ReviewWithDoctor);
       }
@@ -1150,6 +1172,9 @@ export class DbStorage implements IStorage {
       ...result[0],
       createdAt: toISOString(result[0].createdAt),
       updatedAt: toISOString(result[0].updatedAt),
+      doctorRespondedAt: result[0].doctorRespondedAt
+        ? toISOString(result[0].doctorRespondedAt)
+        : undefined,
     } as Review;
   }
 
@@ -1163,15 +1188,60 @@ export class DbStorage implements IStorage {
       .where(eq(reviews.id, id))
       .returning();
     if (!result[0]) return undefined;
+
+    const doctorReviews = await db
+      .select()
+      .from(reviews)
+      .where(
+        and(
+          eq(reviews.doctorId, result[0].doctorId),
+          eq(reviews.isHidden, false),
+        ),
+      );
+    const totalRating = doctorReviews.reduce((sum, r) => sum + r.rating, 0);
+    const avgRating =
+      doctorReviews.length > 0 ? totalRating / doctorReviews.length : 0;
+
+    await db
+      .update(doctorProfiles)
+      .set({
+        averageRating: parseFloat(avgRating.toFixed(1)),
+        totalReviews: doctorReviews.length,
+      })
+      .where(eq(doctorProfiles.id, result[0].doctorId));
+
     return {
       ...result[0],
       createdAt: toISOString(result[0].createdAt),
       updatedAt: toISOString(result[0].updatedAt),
+      doctorRespondedAt: result[0].doctorRespondedAt
+        ? toISOString(result[0].doctorRespondedAt)
+        : undefined,
     } as Review;
   }
 
   async hideReview(id: string): Promise<Review | undefined> {
     return this.updateReview(id, { isHidden: true });
+  }
+  
+  async deleteReview(id: string): Promise<boolean> {
+    const existing = await db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
+    if (!existing[0]) return false;
+    const doctorId = existing[0].doctorId;
+
+    const result = await db.delete(reviews).where(eq(reviews.id, id)).returning();
+    
+    if (result.length > 0) {
+      const doctorReviews = await db.select().from(reviews).where(and(eq(reviews.doctorId, doctorId), eq(reviews.isHidden, false)));
+      const totalRating = doctorReviews.reduce((sum, r) => sum + r.rating, 0);
+      const avgRating = doctorReviews.length > 0 ? totalRating / doctorReviews.length : 0;
+      
+      await db.update(doctorProfiles)
+        .set({ averageRating: parseFloat(avgRating.toFixed(1)), totalReviews: doctorReviews.length })
+        .where(eq(doctorProfiles.id, doctorId));
+      return true;
+    }
+    return false;
   }
 
   async getUserNotifications(userId: string): Promise<Notification[]> {
@@ -1929,12 +1999,20 @@ export class DbStorage implements IStorage {
 
     return records.map((record) => ({
       ...record,
-      createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : new Date().toISOString(),
+      createdAt: record.createdAt
+        ? new Date(record.createdAt).toISOString()
+        : new Date().toISOString(),
+      updatedAt: record.updatedAt
+        ? new Date(record.updatedAt).toISOString()
+        : new Date().toISOString(),
     })) as unknown as Payment[];
   }
 
-  async setPasswordResetOtp(id: string, otp: string, expiry: Date): Promise<void> {
+  async setPasswordResetOtp(
+    id: string,
+    otp: string,
+    expiry: Date,
+  ): Promise<void> {
     await db
       .update(users)
       .set({
@@ -1948,7 +2026,11 @@ export class DbStorage implements IStorage {
     const userList = await db.select().from(users).where(eq(users.id, id));
     const user = userList[0];
 
-    if (!user || user.resetPasswordOtp !== otp || !user.resetPasswordOtpExpiry) {
+    if (
+      !user ||
+      user.resetPasswordOtp !== otp ||
+      !user.resetPasswordOtpExpiry
+    ) {
       return false;
     }
 

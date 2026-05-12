@@ -3551,7 +3551,7 @@ export async function registerRoutes(
     },
   );
 
-  // ✅ Merged settings endpoint
+  // Merged settings endpoint
   app.put(
     "/api/admin/settings",
     authMiddleware,
@@ -3766,6 +3766,7 @@ export async function registerRoutes(
     },
   );
 
+  // Password update endpoint with current password verification and admin notification
   app.put(
     "/api/users/password",
     authMiddleware,
@@ -3855,22 +3856,6 @@ export async function registerRoutes(
       }
     },
   );
-
-  // Admin: Update application status (Accept / Reject)
-  // app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-  //   try {
-  //     const { status } = req.body;
-  //     if (!['ACCEPTED', 'REJECTED'].includes(status)) {
-  //       return res.status(400).json({ error: "Invalid status" });
-  //     }
-
-  //     // Create this in storage: updateJobApplicationStatus(id, status)
-  //     const updatedApplication = await storage.updateJobApplicationStatus(req.params.id, status);
-  //     res.json(updatedApplication);
-  //   } catch (error) {
-  //     res.status(500).json({ error: "Failed to update application status" });
-  //   }
-  // });
 
   // ==========================================
   // PUBLIC CAREERS ROUTE
@@ -3980,6 +3965,7 @@ export async function registerRoutes(
     },
   );
 
+  // 5. Update application status (Accept / Reject) with email notification
   app.patch(
     "/api/admin/applications/:id/status",
     authMiddleware,
@@ -4115,6 +4101,52 @@ export async function registerRoutes(
         res.json({ message: "Password updated successfully" });
       } catch (error) {
         res.status(500).json({ error: "Failed to reset password" });
+      }
+    }
+  );
+
+  // =======================================
+  // Reviews Management
+  // =======================================
+
+  // Update Patient's Review
+  app.patch(
+    "/api/reviews/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.PATIENT),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { rating, comment } = req.body;
+        const review = await storage.getReview(req.params.id);
+        
+        if (!review || review.patientId !== req.user!.id) {
+          return res.status(403).json({ error: "Forbidden or Review not found" });
+        }
+
+        const updated = await storage.updateReview(req.params.id, { rating, comment });
+        res.json(updated);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to update review" });
+      }
+    }
+  );
+
+  // Delete Patient's Review
+  app.delete(
+    "/api/reviews/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.PATIENT),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const review = await storage.getReview(req.params.id);
+        if (!review || review.patientId !== req.user!.id) {
+          return res.status(403).json({ error: "Forbidden or Review not found" });
+        }
+
+        await storage.deleteReview(req.params.id);
+        res.json({ success: true });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to delete review" });
       }
     }
   );

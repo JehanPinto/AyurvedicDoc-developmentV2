@@ -174,7 +174,8 @@ export interface IStorage {
     updates: Partial<InsertReview>,
   ): Promise<Review | undefined>;
   hideReview(id: string): Promise<Review | undefined>;
-
+  deleteReview(id: string): Promise<boolean>;
+  
   getUserNotifications(userId: string): Promise<Notification[]>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
