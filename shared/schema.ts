@@ -1070,6 +1070,9 @@ export const careers = pgTable("careers", {
   requiredQualifications: text("required_qualifications"),
   benefits: text("benefits"),
   isActive: boolean("is_active").default(true).notNull(),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const blogs = pgTable("blogs", {
