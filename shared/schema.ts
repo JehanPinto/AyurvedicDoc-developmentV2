@@ -354,7 +354,7 @@ export const blogSubmissions = pgTable("blog_submissions", {
   category: varchar("category", { length: 50 }).notNull(),
   featuredImage: text("featured_image"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
-  submittedById: varchar("submitted_by_id", { length: 50 }).notNull(),
+  submittedById: varchar("submitted_by_id", { length: 50 }).notNull().references(() => users.id, { onDelete: "cascade" }),
   submittedByName: varchar("submitted_by_name", { length: 255 }).notNull(),
   submittedByEmail: varchar("submitted_by_email", { length: 255 }).notNull(),
   rejectionReason: text("rejection_reason"),
@@ -491,10 +491,16 @@ export const insertPlatformSettingsSchemaDb = createInsertSchema(
 
 export const insertUserSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Password must contain at least one special character"),
   fullName: z.string().min(2, "Full name is required"),
   phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)"),
-  role: z.enum([UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN]),
+  role: z.enum([UserRole.PATIENT, UserRole.DOCTOR]),
   nic: z.string().optional(),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
   dateOfBirth: z.string().optional(),
@@ -521,7 +527,11 @@ export interface User extends InsertUser {
   id: string;
   createdAt: string;
   updatedAt: string;
+  resetPasswordOtp?: string | null;
+  resetPasswordOtpExpiry?: string | null;
 }
+
+export type SafeUser = Omit<User, "password" | "resetPasswordOtp" | "resetPasswordOtpExpiry">;
 
 export const insertSpecializationSchema = z.object({
   name: z.string().min(2, "Specialization name required"),
@@ -605,12 +615,13 @@ export interface DoctorProfile extends InsertDoctorProfile {
   totalReviews: number;
   totalAppointments: number;
   currentQueueNumber: number;
+  rejectionReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface DoctorWithDetails extends DoctorProfile {
-  user: User;
+  user: SafeUser;
   specializations: Specialization[];
   hospitals: Hospital[];
 }
@@ -714,7 +725,7 @@ export interface Appointment extends InsertAppointment {
 }
 
 export interface AppointmentWithDetails extends Appointment {
-  patient: User;
+  patient: SafeUser;
   doctor: DoctorWithDetails;
   slot: AppointmentSlot;
   hospital?: Hospital;
@@ -804,7 +815,7 @@ export interface Review extends InsertReview {
 }
 
 export interface ReviewWithPatient extends Review {
-  patient: User;
+  patient: SafeUser;
 }
 
 export interface ReviewWithDoctor extends Review {
@@ -1081,7 +1092,7 @@ export const blogs = pgTable("blogs", {
   description: text("description"),
   category: varchar("category", { length: 100 }),
   image: text("image"),
-  authorId: varchar("author_id", { length: 50 }),
+  authorId: varchar("author_id", { length: 50 }).references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
