@@ -2117,9 +2117,9 @@ export async function registerRoutes(
 
           await storage.createNotification({
             userId: appointment.patientId,
-            title: "Doctor approved your request",
-            message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
-            type: "system",
+            title: "Appointment Confirmed",
+            message: `Dr. ${doctorName} has confirmed your appointment on ${formattedDate}.`,
+            type: "appointment",
             isRead: false,
             relatedId: appointment.id,
           });
@@ -2278,9 +2278,9 @@ export async function registerRoutes(
 
           await storage.createNotification({
             userId: appointment.patientId,
-            title: "Doctor approved your request",
-            message: `Dr. ${doctorName} has reviewed your referral request and approved specialist care.`,
-            type: "system",
+            title: "Appointment Completed",
+            message: `Your appointment with Dr. ${doctorName} has been completed. Please leave a review!`,
+            type: "appointment",
             isRead: false,
             relatedId: appointment.id,
           });
