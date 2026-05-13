@@ -3781,6 +3781,13 @@ export async function registerRoutes(
     async (req: AuthenticatedRequest, res: Response) => {
       try {
         const { currentPassword, newPassword } = req.body;
+        const passwordValidation = validatePasswordStrength(newPassword);
+        if (!passwordValidation.valid) {
+          return res.status(400).json({
+            error: "Password does not meet security requirements",
+            details: passwordValidation.errors,
+          });
+        }
         const user = await storage.getUser(req.user!.id);
         if (!user || !(await verifyPassword(currentPassword, user.password))) {
           return res
@@ -4103,6 +4110,14 @@ export async function registerRoutes(
     async (req: AuthenticatedRequest, res: Response) => {
       try {
         const { otp, newPassword } = req.body;
+
+        const passwordValidation = validatePasswordStrength(newPassword);
+        if (!passwordValidation.valid) {
+          return res.status(400).json({
+            error: "Password does not meet security requirements",
+            details: passwordValidation.errors,
+          });
+        }
 
         const isValid = await storage.verifyPasswordResetOtp(req.user!.id, otp);
         if (!isValid) {
