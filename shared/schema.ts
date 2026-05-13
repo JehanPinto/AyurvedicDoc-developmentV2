@@ -3,6 +3,7 @@ import {
   boolean,
   integer,
   jsonb,
+  pgEnum,
   pgTable,
   real,
   text,
@@ -135,6 +136,8 @@ export const hospitals = pgTable("hospitals", {
   longitude: real("longitude"),
   parkingAvailable: boolean("parking_available").default(false),
   directions: text("directions"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const doctorProfiles = pgTable("doctor_profiles", {
@@ -330,6 +333,14 @@ export const reviews = pgTable("reviews", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "appointment",
+  "payment",
+  "reminder",
+  "system",
+  "verification",
+]);
+
 export const notifications = pgTable("notifications", {
   id: varchar("id", { length: 50 })
     .primaryKey()
@@ -339,7 +350,7 @@ export const notifications = pgTable("notifications", {
     .references(() => users.id),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
-  type: varchar("type", { length: 20 }).notNull(),
+  type: notificationTypeEnum("type").notNull(),
   isRead: boolean("is_read").default(false),
   relatedId: varchar("related_id", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -423,6 +434,8 @@ export const insertSpecializationSchemaDb = createInsertSchema(
 
 export const insertHospitalSchemaDb = createInsertSchema(hospitals).omit({
   id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const insertDoctorProfileSchemaDb = createInsertSchema(
@@ -1003,6 +1016,23 @@ export const bookingSchema = z.object({
     .enum([Gender.MALE, Gender.FEMALE, Gender.OTHER])
     .optional(),
   dependentContact: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.isForDependent) {
+    if (!data.dependentName || data.dependentName.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dependent name is required when booking for a dependent",
+        path: ["dependentName"],
+      });
+    }
+    if (data.dependentAge === undefined || data.dependentAge === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dependent age is required when booking for a dependent",
+        path: ["dependentAge"],
+      });
+    }
+  }
 });
 
 export type BookingInput = z.infer<typeof bookingSchema>;
