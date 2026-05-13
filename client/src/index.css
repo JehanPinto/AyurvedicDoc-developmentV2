@@ -23,18 +23,18 @@
   --sidebar-accent: 152 25% 90%;
   --sidebar-accent-foreground: 152 25% 20%;
   --sidebar-ring: 152 60% 32%;
-  --popover: 48 20% 96%;
+  --popover: 48 20% 96%;                   /* cream color */
   --popover-foreground: 150 10% 12%;
   --popover-border: 150 8% 88%;
-  --primary: 152 60% 32%;
+  --primary: 152 60% 32%;                  /* green */
   --primary-foreground: 0 0% 100%;
-  --secondary: 36 80% 50%;
+  --secondary: 36 80% 50%;                 /* yellow */
   --secondary-foreground: 0 0% 100%;
-  --muted: 150 10% 92%;
+  --muted: 150 10% 92%;                    /* black */
   --muted-foreground: 150 8% 40%;
-  --accent: 152 20% 90%;
+  --accent: 152 20% 90%;                   /* card bg color */
   --accent-foreground: 152 20% 20%;
-  --destructive: 0 72% 45%;
+  --destructive: 0 72% 45%;                /* red */
   --destructive-foreground: 0 0% 100%;
   --input: 150 10% 80%;
   --ring: 152 60% 32%;

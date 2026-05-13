@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "crypto";
+import { createHmac, randomUUID } from "crypto";
 import type { Express, NextFunction, Request, Response } from "express";
 import { type Server } from "http";
 import { pool } from "./db";
@@ -253,12 +253,15 @@ function generateToken(
   const header = Buffer.from(
     JSON.stringify({ alg: "HS256", typ: "JWT" }),
   ).toString("base64url");
+  
   const body = Buffer.from(
     JSON.stringify({ ...payload, exp: Date.now() + ttlMs }),
   ).toString("base64url");
-  const signature = createHash("sha256")
-    .update(`${header}.${body}.${JWT_SECRET}`)
+  
+  const signature = createHmac("sha256", JWT_SECRET)
+    .update(`${header}.${body}`)
     .digest("base64url");
+    
   return `${header}.${body}.${signature}`;
 }
 
@@ -268,10 +271,15 @@ function decodeToken(token: string): JwtPayload | null {
     if (parts.length !== 3) return null;
 
     const [header, body, signature] = parts;
-    const expectedSignature = createHash("sha256")
-      .update(`${header}.${body}.${JWT_SECRET}`)
+    
+    const expectedSignature = createHmac("sha256", JWT_SECRET)
+      .update(`${header}.${body}`)
       .digest("base64url");
-    if (signature !== expectedSignature) return null;
+      
+    if (signature !== expectedSignature) {
+      console.error("🔴 Security Alert: Invalid Token Signature detected!");
+      return null;
+    }
 
     const payload = JSON.parse(Buffer.from(body, "base64url").toString());
     if (payload.exp < Date.now()) return null;
@@ -1156,10 +1164,9 @@ export async function registerRoutes(
     },
   );
 
-  // Blog featured image upload — requires login only
+  // Blog featured image upload — open to all (no auth required)
   app.post(
     "/api/blog-image-upload",
-    authMiddleware,
     upload.single("file"),
     async (req: Request, res: Response) => {
       try {
@@ -1249,7 +1256,9 @@ export async function registerRoutes(
   app.get("/api/blogs/:id", async (req: Request, res: Response) => {
     try {
       const result = await pool.query(
-        `SELECT b.*, s.content, s.featured_image as "featuredImage", s.submitted_by_name as "submittedByName", s.submitted_by_email as "submittedByEmail"
+        `SELECT b.id, b.title, b.description, b.category, b.created_at as "createdAt",
+                COALESCE(s.featured_image, b.featured_image) as "featuredImage",
+                s.content, s.submitted_by_name as "submittedByName", s.submitted_by_email as "submittedByEmail"
          FROM blogs b
          LEFT JOIN blog_submissions s ON s.blog_id = b.id AND s.status = 'approved'
          WHERE b.id = $1`,
@@ -1278,24 +1287,23 @@ export async function registerRoutes(
   );
 
   // ================== BLOG SUBMISSION ROUTES ==================
-  app.post(
-    "/api/blog-submissions",
-    authMiddleware,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const user = req.user!;
-        const submission = await storage.createBlogSubmission({
-          ...req.body,
-          submittedById: user.id,
-          submittedByName: user.fullName,
-          submittedByEmail: user.email,
-        });
-        res.status(201).json(submission);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to submit blog" });
+  app.post("/api/blog-submissions", async (req: Request, res: Response) => {
+    try {
+      const { submittedByName, submittedByEmail, ...rest } = req.body;
+      if (!submittedByName || !submittedByEmail) {
+        return res.status(400).json({ error: "Name and email are required" });
       }
-    },
-  );
+      const submission = await storage.createBlogSubmission({
+        ...rest,
+        submittedById: "anonymous",
+        submittedByName,
+        submittedByEmail,
+      });
+      res.status(201).json(submission);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to submit blog" });
+    }
+  });
 
   app.get(
     "/api/blog-submissions",
@@ -3551,7 +3559,7 @@ export async function registerRoutes(
     },
   );
 
-  // ✅ Merged settings endpoint
+  // Merged settings endpoint
   app.put(
     "/api/admin/settings",
     authMiddleware,
@@ -3600,6 +3608,38 @@ export async function registerRoutes(
       }
     },
   );
+
+  // Tax entries (admin only)
+  app.get("/api/admin/tax-entries", authMiddleware, roleMiddleware(UserRole.ADMIN), async (_req: Request, res: Response) => {
+    try {
+      const entries = await storage.getTaxEntries();
+      res.json(entries);
+    } catch { res.status(500).json({ error: "Failed to get tax entries" }); }
+  });
+
+  // Public endpoint so book-appointment page can fetch without admin auth
+  app.get("/api/tax-entries", async (_req: Request, res: Response) => {
+    try {
+      const entries = await storage.getTaxEntries();
+      res.json(entries);
+    } catch { res.status(500).json({ error: "Failed to get tax entries" }); }
+  });
+
+  app.post("/api/admin/tax-entries", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      const { title, rate } = req.body;
+      if (!title?.trim() || rate === undefined) return res.status(400).json({ error: "Title and rate are required" });
+      const entry = await storage.createTaxEntry(title.trim(), Number(rate));
+      res.status(201).json(entry);
+    } catch { res.status(500).json({ error: "Failed to create tax entry" }); }
+  });
+
+  app.delete("/api/admin/tax-entries/:id", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteTaxEntry(req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ error: "Failed to delete tax entry" }); }
+  });
 
   app.put(
     "/api/admin/specializations/:id",
@@ -3734,6 +3774,7 @@ export async function registerRoutes(
     },
   );
 
+  // Password update endpoint with current password verification and admin notification
   app.put(
     "/api/users/password",
     authMiddleware,
@@ -3823,22 +3864,6 @@ export async function registerRoutes(
       }
     },
   );
-
-  // Admin: Update application status (Accept / Reject)
-  // app.patch("/api/admin/applications/:id/status", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req: Request, res: Response) => {
-  //   try {
-  //     const { status } = req.body;
-  //     if (!['ACCEPTED', 'REJECTED'].includes(status)) {
-  //       return res.status(400).json({ error: "Invalid status" });
-  //     }
-
-  //     // Create this in storage: updateJobApplicationStatus(id, status)
-  //     const updatedApplication = await storage.updateJobApplicationStatus(req.params.id, status);
-  //     res.json(updatedApplication);
-  //   } catch (error) {
-  //     res.status(500).json({ error: "Failed to update application status" });
-  //   }
-  // });
 
   // ==========================================
   // PUBLIC CAREERS ROUTE
@@ -3948,6 +3973,7 @@ export async function registerRoutes(
     },
   );
 
+  // 5. Update application status (Accept / Reject) with email notification
   app.patch(
     "/api/admin/applications/:id/status",
     authMiddleware,
@@ -3971,8 +3997,8 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Application not found" });
         }
 
-        // 2. Email send
-        await sendApplicationEmail(
+        // 2. Email send (මෙතන තමයි අපි Result එක අල්ලගන්නේ)
+        const emailResult = await sendApplicationEmail(
           updatedApplication.email,
           updatedApplication.fullName,
           updatedApplication.jobTitle,
@@ -3980,13 +4006,74 @@ export async function registerRoutes(
           message || "No additional comments provided.",
         );
 
-        res.json(updatedApplication);
+        // 🟢 Frontend එකට emailSuccess එකයි emailError එකයි යවනවා
+        res.json({
+          ...updatedApplication,
+          emailSuccess: emailResult.success,
+          emailError: emailResult.error
+        });
+
       } catch (error) {
         console.error("Failed to update application status:", error);
         res.status(500).json({ error: "Failed to update application status" });
       }
     },
   );
+
+  // Forgot Password: Send OTP to email (unauthenticated)
+  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email.toLowerCase().trim());
+      // Always return success to prevent email enumeration
+      if (!user) {
+        return res.json({ message: "If that email is registered, an OTP has been sent." });
+      }
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+      await storage.setPasswordResetOtp(user.id, otp, expiry);
+      await sendPasswordResetOtpEmail(user.email, otp);
+
+      res.json({ message: "If that email is registered, an OTP has been sent." });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
+
+  // Forgot Password: Verify OTP and reset password (unauthenticated)
+  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+    try {
+      const { email, otp, newPassword } = req.body;
+      if (!email || !otp || !newPassword) {
+        return res.status(400).json({ error: "Email, OTP, and new password are required" });
+      }
+
+      const user = await storage.getUserByEmail(email.toLowerCase().trim());
+      if (!user) {
+        return res.status(400).json({ error: "Invalid OTP or email" });
+      }
+
+      const isValid = await storage.verifyPasswordResetOtp(user.id, otp);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      const hashedPassword = await hashPassword(newPassword);
+      await storage.updateUser(user.id, { password: hashedPassword });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
 
   // 1. Send OTP to Email
   app.post("/api/users/send-password-otp", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
@@ -4028,6 +4115,52 @@ export async function registerRoutes(
         res.json({ message: "Password updated successfully" });
       } catch (error) {
         res.status(500).json({ error: "Failed to reset password" });
+      }
+    }
+  );
+
+  // =======================================
+  // Reviews Management
+  // =======================================
+
+  // Update Patient's Review
+  app.patch(
+    "/api/reviews/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.PATIENT),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { rating, comment } = req.body;
+        const review = await storage.getReview(req.params.id);
+        
+        if (!review || review.patientId !== req.user!.id) {
+          return res.status(403).json({ error: "Forbidden or Review not found" });
+        }
+
+        const updated = await storage.updateReview(req.params.id, { rating, comment });
+        res.json(updated);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to update review" });
+      }
+    }
+  );
+
+  // Delete Patient's Review
+  app.delete(
+    "/api/reviews/:id",
+    authMiddleware,
+    roleMiddleware(UserRole.PATIENT),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const review = await storage.getReview(req.params.id);
+        if (!review || review.patientId !== req.user!.id) {
+          return res.status(403).json({ error: "Forbidden or Review not found" });
+        }
+
+        await storage.deleteReview(req.params.id);
+        res.json({ success: true });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to delete review" });
       }
     }
   );

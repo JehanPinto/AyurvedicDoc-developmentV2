@@ -1,5 +1,10 @@
-import { type ReactNode, useState, useEffect } from "react";
+import { type ReactNode, useState, useEffect, createContext, useContext } from "react";
 import { Link, useLocation } from "wouter";
+
+// ── Shared settings tab state ─────────────────────────────────────────────────
+interface SettingsTabCtx { tab: string; setTab: (t: string) => void; }
+export const SettingsTabContext = createContext<SettingsTabCtx>({ tab: "payment", setTab: () => {} });
+export const useSettingsTab = () => useContext(SettingsTabContext);
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import {
@@ -19,7 +24,8 @@ import {
   BriefcaseBusiness,
   Menu,
   BookOpen,
-
+  Shield,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -86,13 +92,26 @@ const adminManagementNavItems = [
   { icon: DollarSign, label: "Payments", href: "/admin/payments" },
   { icon: BriefcaseBusiness, label: "Careers", href: "/admin/careers" },
   { icon: BookOpen, label: "Blogs", href: "/admin/blogs" },
-  { icon: Settings, label: "Settings", href: "/admin/settings" },
+];
+
+const adminSettingsSubItems = [
+  { icon: DollarSign, label: "Payment & Commission", tab: "payment" },
+  { icon: Shield, label: "Security & Verification", tab: "security" },
+  { icon: AlertTriangle, label: "Danger Zone", tab: "danger" },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("payment");
+
+  // Reset to default tab when navigating away from settings
+  useEffect(() => {
+    if (!location.startsWith("/admin/settings")) {
+      setSettingsTab("payment");
+    }
+  }, [location]);
 
   const { data: notifications = [] } = useQuery<{ isRead: boolean }[]>({
     queryKey: ["/api/notifications"],
@@ -155,6 +174,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
+    <SettingsTabContext.Provider value={{ tab: settingsTab, setTab: setSettingsTab }}>
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
         <Sidebar className="[&>[data-sidebar=sidebar]]:bg-[#c8ddd6] dark:[&>[data-sidebar=sidebar]]:bg-[#2a3d37]">
@@ -199,6 +219,50 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                           </SidebarMenuButton>
                         </SidebarMenuItem>
                       ))}
+
+                      {/* Expandable Settings */}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={location.startsWith("/admin/settings")}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            if (!location.startsWith("/admin/settings")) {
+                              setLocation("/admin/settings");
+                            }
+                          }}
+                        >
+                          <Settings className="h-4 w-4" />
+                          <span>Settings</span>
+                          <ChevronDown
+                            className={`ml-auto h-4 w-4 transition-transform duration-200 ${
+                              location.startsWith("/admin/settings") ? "rotate-180" : ""
+                            }`}
+                          />
+                        </SidebarMenuButton>
+                        {location.startsWith("/admin/settings") && (
+                          <div className="mt-1 mx-2 bg-white dark:bg-background rounded-xl shadow-sm border border-border/40 py-1.5 px-1">
+                            {adminSettingsSubItems.map((sub) => (
+                              <div
+                                key={sub.tab}
+                                onClick={() => {
+                                  setSettingsTab(sub.tab);
+                                  if (!location.startsWith("/admin/settings")) {
+                                    setLocation("/admin/settings");
+                                  }
+                                }}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
+                                  settingsTab === sub.tab
+                                    ? "bg-primary text-primary-foreground"
+                                    : "text-foreground hover:bg-muted"
+                                }`}
+                              >
+                                <sub.icon className="h-4 w-4 shrink-0" />
+                                <span>{sub.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </SidebarMenuItem>
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </SidebarGroup>
@@ -331,5 +395,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </div>
     </SidebarProvider>
+    </SettingsTabContext.Provider>
   );
 }

@@ -18,6 +18,7 @@ import BlogPage from "@/pages/blog";
 import BlogNewPage from "@/pages/blog-new";
 import BlogDetailPage from "@/pages/blog-detail";
 import LoginPage from "@/pages/login";
+import ForgotPasswordPage from "@/pages/forgot-password";
 import RegisterPage from "@/pages/register";
 import AuthCallbackPage from "@/pages/auth-callback";
 import DoctorsPage from "@/pages/doctors";
@@ -100,6 +101,7 @@ function Router() {
       <Route path="/blog/new" component={BlogNewPage} />
       <Route path="/blog/:id" component={BlogDetailPage} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/auth/callback" component={AuthCallbackPage} />
       <Route path="/doctor/register" component={DoctorRegisterPage} />

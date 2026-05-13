@@ -1,37 +1,81 @@
 import { useState, useEffect } from "react";
+import { useSettingsTab } from "@/components/layout/dashboard-layout";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { 
-  Settings, 
-  DollarSign,
-  Percent,
-  Clock,
-  Bell,
+import {
   Shield,
-  Globe,
-  Mail,
-  Save,
-  Loader2
+  AlertTriangle,
+  Plus,
+  Trash2,
+  Loader2,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { LoadingPage } from "@/components/ui/loading-spinner";
-import type { PlatformSettings } from "@shared/schema";
+import type { PlatformSettings, TaxEntry } from "@shared/schema";
+
+function SpinnerBox({
+  label,
+  value,
+  unit,
+  description,
+  onChange,
+  min = 0,
+  max = 100,
+  step = 1,
+  testId,
+}: {
+  label: string;
+  value: string;
+  unit: "%" | "LKR";
+  description: string;
+  onChange: (val: string) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  testId?: string;
+}) {
+  const num = parseFloat(value) || 0;
+  const display = unit === "%" ? `${num}%` : String(num);
+
+  return (
+    <div className="flex-1 bg-[#e8f3ef] dark:bg-primary/10 rounded-xl px-6 py-5 flex flex-col gap-3">
+      <p className="text-sm font-medium text-center text-foreground">{label}</p>
+      <div className="flex items-center justify-center gap-3">
+        <p className="text-4xl font-bold text-foreground">{display}</p>
+        <div className="flex flex-col gap-0.5">
+          <button
+            type="button"
+            onClick={() => onChange(String(Math.min(max, +(num + step).toFixed(2))))}
+            className="text-foreground/60 hover:text-foreground transition-colors"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(String(Math.max(min, +(num - step).toFixed(2))))}
+            className="text-foreground/60 hover:text-foreground transition-colors"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground text-center">{description}</p>
+      <input type="hidden" data-testid={testId} value={value} />
+    </div>
+  );
+}
 
 export default function AdminSettingsPage() {
   const { toast } = useToast();
+  const { tab: activeTab } = useSettingsTab();
+
   const [settings, setSettings] = useState({
     platformCommissionRate: "10",
     bookingCharges: "100",
@@ -47,19 +91,28 @@ export default function AdminSettingsPage() {
     requireDoctorVerification: true,
     allowOnlinePayments: true,
     allowClinicPayments: false,
+    autoGenerateInvoices: false,
+    twoFactorAuth: false,
+    sessionTimeout: false,
     defaultLanguage: "english",
     maintenanceMode: false,
   });
 
-  // Fetch settings from API
+  const [newTaxTitle, setNewTaxTitle] = useState("");
+  const [newTaxRate, setNewTaxRate] = useState("");
+
   const { data: serverSettings, isLoading, isError } = useQuery<PlatformSettings>({
     queryKey: ["/api/admin/settings"],
   });
 
-  // Update local state when server settings are loaded
+  const { data: taxEntries = [], isLoading: taxLoading } = useQuery<TaxEntry[]>({
+    queryKey: ["/api/admin/tax-entries"],
+  });
+
   useEffect(() => {
     if (serverSettings) {
-      setSettings({
+      setSettings((prev) => ({
+        ...prev,
         platformCommissionRate: String(serverSettings.platformCommissionRate),
         bookingCharges: String(serverSettings.bookingCharges),
         taxRate: String(serverSettings.taxRate),
@@ -76,29 +129,45 @@ export default function AdminSettingsPage() {
         allowClinicPayments: serverSettings.allowClinicPayments,
         defaultLanguage: serverSettings.defaultLanguage,
         maintenanceMode: serverSettings.maintenanceMode,
-      });
+      }));
     }
   }, [serverSettings]);
 
-  // Mutation to save settings
   const saveMutation = useMutation({
-    mutationFn: async (data: Partial<PlatformSettings>) => {
-      return apiRequest("PUT", "/api/admin/settings", data);
-    },
+    mutationFn: async (data: Partial<PlatformSettings>) =>
+      apiRequest("PUT", "/api/admin/settings", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/booking-settings"] });
-      toast({
-        title: "Settings Saved",
-        description: "Platform settings have been updated successfully.",
-      });
+      toast({ title: "Settings Saved", description: "Platform settings have been updated successfully." });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save settings",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to save settings", variant: "destructive" });
+    },
+  });
+
+  const addTaxMutation = useMutation({
+    mutationFn: async ({ title, rate }: { title: string; rate: number }) =>
+      apiRequest("POST", "/api/admin/tax-entries", { title, rate }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tax-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tax-entries"] });
+      setNewTaxTitle("");
+      setNewTaxRate("");
+      toast({ title: "Tax Added", description: "Custom tax entry has been added." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to add tax", variant: "destructive" });
+    },
+  });
+
+  const deleteTaxMutation = useMutation({
+    mutationFn: async (id: string) =>
+      apiRequest("DELETE", `/api/admin/tax-entries/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tax-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tax-entries"] });
+      toast({ title: "Tax Removed", description: "Custom tax entry has been deleted." });
     },
   });
 
@@ -123,13 +192,24 @@ export default function AdminSettingsPage() {
     });
   };
 
-  const updateSetting = (key: string, value: any) => {
-    setSettings({ ...settings, [key]: value });
+  const handleAddTax = () => {
+    const title = newTaxTitle.trim();
+    const rate = parseFloat(newTaxRate);
+    if (!title) {
+      toast({ title: "Error", description: "Please enter a tax title", variant: "destructive" });
+      return;
+    }
+    if (isNaN(rate) || rate <= 0) {
+      toast({ title: "Error", description: "Please enter a valid tax rate", variant: "destructive" });
+      return;
+    }
+    addTaxMutation.mutate({ title, rate });
   };
 
-  if (isLoading) {
-    return <LoadingPage message="Loading settings..." />;
-  }
+  const update = (key: string, value: unknown) =>
+    setSettings((prev) => ({ ...prev, [key]: value }));
+
+  if (isLoading) return <LoadingPage message="Loading settings..." />;
 
   if (isError) {
     return (
@@ -142,194 +222,335 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold">Platform Settings</h1>
-          <p className="text-muted-foreground">Configure platform-wide settings and preferences</p>
-        </div>
-        <Button onClick={handleSave} disabled={saveMutation.isPending} data-testid="button-save">
-          {saveMutation.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
-            </>
-          )}
-        </Button>
+      <div>
+        <h1 className="text-2xl md:text-3xl font-heading font-bold">Platform Settings</h1>
+        <p className="text-muted-foreground">Configure platform-wide settings and preferences</p>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Payment & Commission Settings
-            </CardTitle>
-            <CardDescription>
-              Configure payment methods and commission rates
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="commissionRate">Platform Commission (%)</Label>
-                <div className="relative">
-                  <Input
-                    id="commissionRate"
-                    type="number"
-                    value={settings.platformCommissionRate}
-                    onChange={(e) => updateSetting("platformCommissionRate", e.target.value)}
-                    className="pr-8"
-                    data-testid="input-commission"
-                  />
-                  <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Percentage charged on each consultation
-                </p>
+      {/* ── Payment & Commission ── */}
+      {activeTab === "payment" && (
+        <>
+          <div className="border border-primary/40 rounded-2xl p-6 space-y-6">
+            {/* Header */}
+            <div>
+              <div className="flex items-center gap-2">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/>
+                  <line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+                <h2 className="font-semibold">Payment &amp; Commission Settings</h2>
               </div>
+              <p className="text-sm text-muted-foreground mt-1">Configure payment methods and commission rates</p>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="bookingCharges">Booking Charges (LKR)</Label>
-                <Input
-                  id="bookingCharges"
-                  type="number"
-                  value={settings.bookingCharges}
-                  onChange={(e) => updateSetting("bookingCharges", e.target.value)}
-                  data-testid="input-booking-charges"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Fixed fee per appointment booking
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="taxRate">Tax Rate (%)</Label>
-                <div className="relative">
-                  <Input
-                    id="taxRate"
-                    type="number"
-                    value={settings.taxRate}
-                    onChange={(e) => updateSetting("taxRate", e.target.value)}
-                    className="pr-8"
-                    data-testid="input-tax"
-                  />
-                  <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Tax percentage on consultation fees
-                </p>
-              </div>
+            {/* 3 spinner boxes */}
+            <div className="flex gap-4">
+              <SpinnerBox
+                label="Platform Commission (%)"
+                value={settings.platformCommissionRate}
+                unit="%"
+                description="Percentage charged on each consultation"
+                onChange={(v) => update("platformCommissionRate", v)}
+                min={0}
+                max={100}
+                testId="input-commission"
+              />
+              <SpinnerBox
+                label="Booking Charges (LKR)"
+                value={settings.bookingCharges}
+                unit="LKR"
+                description="Fixed fee per appointment booking"
+                onChange={(v) => update("bookingCharges", v)}
+                min={0}
+                max={10000}
+                step={50}
+                testId="input-booking-charges"
+              />
+              <SpinnerBox
+                label="Tax Rate (%)"
+                value={settings.taxRate}
+                unit="%"
+                description="Tax percentage on consultation fees"
+                onChange={(v) => update("taxRate", v)}
+                min={0}
+                max={50}
+                testId="input-tax"
+              />
             </div>
 
             <Separator />
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>Allow Online Payments</Label>
-                <p className="text-sm text-muted-foreground">
-                  Enable online payment processing
-                </p>
+            {/* Add new Tax */}
+            <div className="border border-primary/30 rounded-xl p-5 space-y-4">
+              <h3 className="font-semibold text-sm">Add new Tax</h3>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1 space-y-1.5">
+                  <Label htmlFor="taxTitle" className="text-xs font-medium">
+                    Tax Title<span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="taxTitle"
+                    placeholder="Booking Charges"
+                    value={newTaxTitle}
+                    onChange={(e) => setNewTaxTitle(e.target.value)}
+                    className="border-primary/30"
+                    data-testid="input-tax-title"
+                  />
+                </div>
+                <div className="w-44 space-y-1.5">
+                  <Label htmlFor="newTaxRate" className="text-xs font-medium">
+                    Tax Rate<span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="newTaxRate"
+                    type="number"
+                    placeholder="0%"
+                    min={0}
+                    max={100}
+                    value={newTaxRate}
+                    onChange={(e) => setNewTaxRate(e.target.value)}
+                    className="border-primary/30"
+                    data-testid="input-new-tax-rate"
+                  />
+                </div>
+                <Button
+                  onClick={handleAddTax}
+                  disabled={addTaxMutation.isPending}
+                  className="gap-1.5 shrink-0"
+                  data-testid="button-add-tax"
+                >
+                  {addTaxMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>Add Tax <Plus className="h-4 w-4" /></>
+                  )}
+                </Button>
+              </div>
+
+              {!taxLoading && taxEntries.length > 0 && (
+                <div className="space-y-2">
+                  {taxEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-primary/5 border border-primary/20"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">{entry.title}</span>
+                        <span className="text-xs text-muted-foreground">{entry.rate}%</span>
+                      </div>
+                      <button
+                        onClick={() => deleteTaxMutation.mutate(entry.id)}
+                        disabled={deleteTaxMutation.isPending}
+                        className="text-destructive hover:text-destructive/70 transition-colors"
+                        data-testid={`button-delete-tax-${entry.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Allow Online Payments */}
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">Allow Online Payments</p>
+                  {settings.allowOnlinePayments && (
+                    <span className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" />
+                      Enabled
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">Enable online payment processing</p>
               </div>
               <Switch
                 checked={settings.allowOnlinePayments}
-                onCheckedChange={(checked) => updateSetting("allowOnlinePayments", checked)}
+                onCheckedChange={(v) => update("allowOnlinePayments", v)}
                 data-testid="switch-online-payments"
               />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Security & Verification
-            </CardTitle>
-            <CardDescription>
-              Configure security and verification settings
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>Require Doctor Verification</Label>
-                <p className="text-sm text-muted-foreground">
+            <Separator />
+
+            {/* Auto-generate Invoices */}
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="font-medium">Auto-generate Invoices</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Send PDF invoices to patients after each payment</p>
+              </div>
+              <Switch
+                checked={settings.autoGenerateInvoices}
+                onCheckedChange={(v) => update("autoGenerateInvoices", v)}
+                data-testid="switch-auto-invoices"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className="px-8 gap-2"
+              data-testid="button-save"
+            >
+              {saveMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Saving...</>
+              ) : (
+                <>
+                  Save Changes
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                </>
+              )}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* ── Security & Verification ── */}
+      {activeTab === "security" && (
+        <>
+          <div className="border border-primary/40 rounded-2xl p-6 space-y-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                <h2 className="font-semibold">Security &amp; Verification</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Configure security and verification settings</p>
+            </div>
+
+            {/* Require Doctor Verification — functional */}
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">Require Doctor Verification</p>
+                  {settings.requireDoctorVerification && (
+                    <span className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" />
+                      Enabled
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">
                   New doctors must be verified by admin before accepting appointments
                 </p>
               </div>
               <Switch
                 checked={settings.requireDoctorVerification}
-                onCheckedChange={(checked) => updateSetting("requireDoctorVerification", checked)}
+                onCheckedChange={(v) => update("requireDoctorVerification", v)}
                 data-testid="switch-doctor-verification"
               />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Localization
-            </CardTitle>
-            <CardDescription>
-              Configure language and regional settings
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>Default Language</Label>
-                <Select 
-                  value={settings.defaultLanguage}
-                  onValueChange={(value) => updateSetting("defaultLanguage", value)}
-                >
-                  <SelectTrigger data-testid="select-language">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="english">English</SelectItem>
-                    <SelectItem value="sinhala">Sinhala</SelectItem>
-                    <SelectItem value="tamil">Tamil</SelectItem>
-                  </SelectContent>
-                </Select>
+            <Separator />
+
+            {/* Two-factor Authentication — UI only, no backend */}
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="font-medium">Two-factor Authentication</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Require 2FA for admin accounts
+                </p>
               </div>
+              <Switch
+                checked={settings.twoFactorAuth}
+                onCheckedChange={(v) => update("twoFactorAuth", v)}
+                data-testid="switch-2fa"
+              />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <Settings className="h-5 w-5" />
-              Danger Zone
-            </CardTitle>
-            <CardDescription>
-              These settings can affect platform availability
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label>Maintenance Mode</Label>
-                <p className="text-sm text-muted-foreground">
-                  Temporarily disable the platform for maintenance
+            <Separator />
+
+            {/* Session Timeout — UI only, no backend */}
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="font-medium">Session Timeout</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Auto-logout inactive sessions after 30 minutes
+                </p>
+              </div>
+              <Switch
+                checked={settings.sessionTimeout}
+                onCheckedChange={(v) => update("sessionTimeout", v)}
+                data-testid="switch-session-timeout"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className="px-8 gap-2"
+              data-testid="button-save-security"
+            >
+              {saveMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Saving...</>
+              ) : (
+                <>
+                  Save Changes
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                </>
+              )}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* ── Danger Zone ── */}
+      {activeTab === "danger" && (
+        <>
+          <div className="border border-destructive/40 rounded-2xl p-6 space-y-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <h2 className="font-semibold text-destructive">Danger Zone</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">These settings can affect platform availability</p>
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="font-medium">Maintenance Mode</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Temporarily disable the platform for maintenance. Users will see a maintenance page.
                 </p>
               </div>
               <Switch
                 checked={settings.maintenanceMode}
-                onCheckedChange={(checked) => updateSetting("maintenanceMode", checked)}
+                onCheckedChange={(v) => update("maintenanceMode", v)}
                 data-testid="switch-maintenance"
               />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              variant="destructive"
+              className="px-8"
+              data-testid="button-save-danger"
+            >
+              {saveMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+              ) : "Save Changes"}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

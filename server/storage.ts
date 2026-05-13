@@ -33,6 +33,7 @@ import {
   type Payment,
   PaymentStatus,
   type PlatformSettings,
+  type TaxEntry,
   type Prescription,
   type Review,
   type ReviewWithDoctor,
@@ -174,7 +175,8 @@ export interface IStorage {
     updates: Partial<InsertReview>,
   ): Promise<Review | undefined>;
   hideReview(id: string): Promise<Review | undefined>;
-
+  deleteReview(id: string): Promise<boolean>;
+  
   getUserNotifications(userId: string): Promise<Notification[]>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -234,6 +236,9 @@ export interface IStorage {
   updatePlatformSettings(
     updates: Partial<InsertPlatformSettings>,
   ): Promise<PlatformSettings>;
+  getTaxEntries(): Promise<TaxEntry[]>;
+  createTaxEntry(title: string, rate: number): Promise<TaxEntry>;
+  deleteTaxEntry(id: string): Promise<boolean>;
   createJobApplication(
     application: InsertJobApplication,
   ): Promise<JobApplication>;
@@ -1578,6 +1583,25 @@ export class MemStorage implements IStorage {
       updatedAt: new Date().toISOString(),
     };
     return this.platformSettings;
+  }
+
+  private taxEntries: TaxEntry[] = [];
+
+  async getTaxEntries(): Promise<TaxEntry[]> {
+    return this.taxEntries;
+  }
+
+  async createTaxEntry(title: string, rate: number): Promise<TaxEntry> {
+    const entry: TaxEntry = { id: randomUUID(), title, rate, createdAt: new Date().toISOString() };
+    this.taxEntries.push(entry);
+    return entry;
+  }
+
+  async deleteTaxEntry(id: string): Promise<boolean> {
+    const idx = this.taxEntries.findIndex((t) => t.id === id);
+    if (idx === -1) return false;
+    this.taxEntries.splice(idx, 1);
+    return true;
   }
 
   async getDoctorByRegistrationNumber(

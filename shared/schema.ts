@@ -872,6 +872,13 @@ export interface PlatformSettings extends InsertPlatformSettings {
   updatedAt: string;
 }
 
+export interface TaxEntry {
+  id: string;
+  title: string;
+  rate: number;
+  createdAt: string;
+}
+
 // ================== AUTH SCHEMAS ==================
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -1081,6 +1088,9 @@ export const careers = pgTable("careers", {
   requiredQualifications: text("required_qualifications"),
   benefits: text("benefits"),
   isActive: boolean("is_active").default(true).notNull(),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const blogs = pgTable("blogs", {
@@ -1088,7 +1098,6 @@ export const blogs = pgTable("blogs", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   title: varchar("title", { length: 255 }).notNull(),
-  content: text("content"),
   description: text("description"),
   category: varchar("category", { length: 100 }),
   image: text("image"),

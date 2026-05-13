@@ -11,6 +11,13 @@ function getAuthHeaders(): HeadersInit {
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    // If unauthorized, clear token and redirect to login
+    if (res.status === 401) {
+      localStorage.removeItem("token"); 
+      window.location.href = "/login"; 
+      throw new Error("Session expired. Please login again.");
+    }
+    // Try to get error message from response body, fallback to status text
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
