@@ -192,12 +192,6 @@ export default function DoctorRegisterPage() {
     type: string;
     previewUrl?: string;
   } | null>(null);
-
-  const [customSpecs, setCustomSpecs] = useState<
-    { id: string; name: string }[]
-  >([]);
-  const [isOtherChecked, setIsOtherChecked] = useState(false);
-  const [otherInputValue, setOtherInputValue] = useState("");
   const [locationInput, setLocationInput] = useState("");
 
   const { data: specializations = [] } = useQuery<Specialization[]>({
@@ -208,30 +202,6 @@ export default function DoctorRegisterPage() {
     () => buildPersonalInfoSchema(!isSocialFlow),
     [isSocialFlow],
   );
-
-  const handleAddCustomSpec = (e?: React.MouseEvent | React.KeyboardEvent) => {
-    if (e) e.preventDefault();
-    if (!otherInputValue.trim()) return;
-
-    const newSpecId = `custom-${otherInputValue.trim()}`;
-
-    if (!customSpecs.find((s) => s.id === newSpecId)) {
-      setCustomSpecs((prev) => [
-        ...prev,
-        { id: newSpecId, name: otherInputValue.trim() },
-      ]);
-
-      const currentValues =
-        professionalForm.getValues("specializationIds") || [];
-      professionalForm.setValue(
-        "specializationIds",
-        [...currentValues, newSpecId],
-        { shouldValidate: true },
-      );
-    }
-
-    setOtherInputValue("");
-  };
 
   const personalForm = useForm<PersonalInfo>({
     resolver: zodResolver(personalSchema),
@@ -971,13 +941,11 @@ export default function DoctorRegisterPage() {
                     control={professionalForm.control}
                     name="specializationIds"
                     render={({ field }) => {
-                      const allSpecs = [...specializations, ...customSpecs];
-
                       return (
                         <FormItem>
                           <FormLabel>Specializations *</FormLabel>
                           <div className="grid grid-cols-2 gap-2">
-                            {allSpecs.map((spec) => (
+                            {specializations.map((spec) => (
                               <div
                                 key={spec.id}
                                 className="flex items-center space-x-2"
@@ -1005,49 +973,7 @@ export default function DoctorRegisterPage() {
                                 </label>
                               </div>
                             ))}
-
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="other-spec"
-                                checked={isOtherChecked}
-                                onCheckedChange={(checked) =>
-                                  setIsOtherChecked(!!checked)
-                                }
-                              />
-                              <label
-                                htmlFor="other-spec"
-                                className="text-sm cursor-pointer"
-                              >
-                                Other (+ Add new)
-                              </label>
-                            </div>
                           </div>
-
-                          {isOtherChecked && (
-                            <div className="flex items-center gap-2 mt-3 bg-muted/30 rounded-xl animate-in fade-in zoom-in duration-200">
-                              <Input
-                                placeholder="Type new specialization..."
-                                value={otherInputValue}
-                                onChange={(e) =>
-                                  setOtherInputValue(e.target.value)
-                                }
-                                className="flex-1 bg-background h-9"
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    handleAddCustomSpec(e);
-                                  }
-                                }}
-                              />
-                              <Button
-                                type="button"
-                                onClick={handleAddCustomSpec}
-                                size="sm"
-                                className="h-9 px-4 shrink-0 bg-primary hover:bg-primary/80 text-primary-foreground"
-                              >
-                                <PlusCircle className="h-4 w-4 mr-1.5" /> Add
-                              </Button>
-                            </div>
-                          )}
                           <FormMessage />
                         </FormItem>
                       );

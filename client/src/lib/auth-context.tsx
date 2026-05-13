@@ -17,14 +17,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
-    const token = localStorage.getItem("token");
     
-    if (storedUser && token) {
+    if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch {
         localStorage.removeItem("user");
-        localStorage.removeItem("token");
       }
     }
     setIsLoading(false);
@@ -32,13 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (user: User, token: string) => {
     localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("token", token);
     setUser(user);
   };
 
   const logout = () => {
     localStorage.removeItem("user");
-    localStorage.removeItem("token");
     setUser(null);
   };
 

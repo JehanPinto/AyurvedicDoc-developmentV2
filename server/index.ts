@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import path from "path";
+import cookieParser from "cookie-parser";
 
 dotenv.config({ path: path.join(process.cwd(), ".env") });
 
@@ -26,6 +27,8 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-registration-token", "x-registration-email"]
 }));
+
+app.use(cookieParser());
 
 declare module "http" {
   interface IncomingMessage {

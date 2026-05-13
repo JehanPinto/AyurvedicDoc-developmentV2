@@ -105,6 +105,13 @@ const SESSION_EXPIRY_MS = 2 * 60 * 60 * 1000;
 const MAX_UPLOADS_PER_SESSION = 5;
 const tokenBlacklist = new Map<string, number>();
 
+export const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict" as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
 function createRegistrationSession(email: string): string {
   const existingToken = emailToSession.get(email.toLowerCase());
   if (existingToken) {
@@ -342,12 +349,11 @@ function authMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const token = req.cookies?.token; 
+
+  if (!token) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-
-  const token = authHeader.split(" ")[1];
 
   if (tokenBlacklist.has(token)) {
     return res.status(401).json({ error: "Token has been revoked. Please login again." });
@@ -601,7 +607,7 @@ export async function registerRoutes(
         });
 
         const { password: _, ...userWithoutPassword } = user;
-        res.json({ user: userWithoutPassword, token });
+        res.cookie("token", token, cookieOptions).json({ user: userWithoutPassword, token });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
@@ -688,15 +694,16 @@ export async function registerRoutes(
     authMiddleware,
     async (req: AuthenticatedRequest, res: Response) => {
       try {
-        const authHeader = req.headers.authorization;
-        const token = authHeader!.split(" ")[1];
+        const token = req.cookies?.token;
 
-        // Token එකේ Expiry Time එක හොයාගන්නවා
-        const payload = decodeToken(token);
-        const exp = payload?.exp ? payload.exp : Date.now() + 7 * 24 * 60 * 60 * 1000;
+        if (token) {
+          const payload = decodeToken(token);
+          const exp = payload?.exp ? payload.exp : Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-        // Token එක Blacklist එකට දානවා (එතකොට ආයේ පාවිච්චි කරන්න බෑ)
-        tokenBlacklist.set(token, exp);
+          tokenBlacklist.set(token, exp);
+        }
+
+        res.clearCookie("token", { httpOnly: true, sameSite: "strict" });
 
         res.json({ success: true, message: "Logged out successfully" });
       } catch (error) {
@@ -781,7 +788,7 @@ export async function registerRoutes(
         });
         const { password: _, ...userWithoutPassword } = updatedUser;
 
-        res.json({ user: userWithoutPassword, token });
+        res.cookie("token", token, cookieOptions).json({ user: userWithoutPassword, token });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
@@ -821,7 +828,7 @@ export async function registerRoutes(
         });
 
         const { password: _, ...userWithoutPassword } = user;
-        res.json({ user: userWithoutPassword, token });
+        res.cookie("token", token, cookieOptions).json({ user: userWithoutPassword, token });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
@@ -1669,30 +1676,6 @@ export async function registerRoutes(
         res.status(201).json(result.hospital);
       } catch (error) {
         res.status(500).json({ error: "Failed to add location" });
-      }
-    },
-  );
-
-  app.post(
-    "/api/doctor/specializations",
-    authMiddleware,
-    roleMiddleware(UserRole.DOCTOR),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
-        if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
-
-        const { name, description } = req.body;
-        if (!name?.trim()) return res.status(400).json({ error: "Specialization name is required." });
-
-        const spec = await storage.createSpecialization({ name: name.trim(), description: description?.trim() || "" });
-
-        const newIds = [...(profile.specializationIds || []), spec.id];
-        await storage.updateDoctorProfile(profile.id, { specializationIds: newIds } as any);
-
-        res.status(201).json(spec);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to create specialization" });
       }
     },
   );
@@ -2798,24 +2781,36 @@ export async function registerRoutes(
           refundPendingCount
         };
 
-        // --- My Doctors (Unique doctors the patient has visited/booked) ---
-        const uniqueDoctorIds = [...new Set(allAppointments.map(a => a.doctorId))];
-        const myDoctors = [];
-        for (const docId of uniqueDoctorIds.slice(0, 4)) {
-           const doc = await storage.getDoctorWithDetails(docId);
-           if (doc) myDoctors.push(doc);
-        }
+        const myDoctorIds = [...new Set(allAppointments.map(a => a.doctorId))].slice(0, 4);
+        
+        const recentPayments = allPayments.slice(0, 4);
+        const recentPaymentDoctorIds = recentPayments
+          .map(p => allAppointments.find(a => a.id === p.appointmentId)?.doctorId)
+          .filter(Boolean) as string[];
+
+        // 
+        const allNeededDoctorIds = [...new Set([...myDoctorIds, ...recentPaymentDoctorIds])];
+
+        const doctorsList = allNeededDoctorIds.length > 0 
+          ? await storage.getDoctorsWithDetailsByIds(allNeededDoctorIds) 
+          : [];
+
+        const doctorMap = new Map(doctorsList.map(doc => [doc.id, doc]));
+
+        // --- My Doctors ---
+        const myDoctors = myDoctorIds.map(id => doctorMap.get(id)).filter(Boolean);
 
         // --- Recent Transactions ---
-        const recentTransactions = await Promise.all(allPayments.slice(0, 4).map(async (p) => {
+        const recentTransactions = recentPayments.map(p => {
            const appointment = allAppointments.find(a => a.id === p.appointmentId);
-           const doctor = appointment ? await storage.getDoctorWithDetails(appointment.doctorId) : null;
+           const doctor = appointment ? doctorMap.get(appointment.doctorId) : null;
+           
            return {
              ...p,
              doctorName: doctor?.user?.fullName || "Doctor",
              date: p.createdAt
            };
-        }));
+        });
 
         res.json({
           stats,
