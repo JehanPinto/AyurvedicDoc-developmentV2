@@ -332,11 +332,11 @@ export default function DoctorPatients() {
                               </p>
                               <div className="text-sm mt-1 p-2 bg-muted rounded">
                                 <p><strong>Diagnosis:</strong> {apt.prescription.diagnosis}</p>
-                                {apt.prescription.medicines && apt.prescription.medicines.length > 0 && (
+                                {apt.prescription.medications && apt.prescription.medications.length > 0 && (
                                   <div className="mt-2">
                                     <strong>Medicines:</strong>
                                     <ul className="list-disc list-inside ml-2">
-                                      {apt.prescription.medicines.map((med: any, i: number) => (
+                                      {apt.prescription.medications.map((med: any, i: number) => (
                                         <li key={i}>{med.name} - {med.dosage}</li>
                                       ))}
                                     </ul>

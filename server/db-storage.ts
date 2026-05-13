@@ -61,6 +61,7 @@ import {
   type Specialization,
   // Types
   type User,
+  type SafeUser,
 } from "@shared/schema";
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { db, pool } from "./db";
@@ -95,7 +96,16 @@ function mapUser(row: any): User {
     googleId: row.googleId || undefined,
     createdAt: toISOString(row.createdAt),
     updatedAt: toISOString(row.updatedAt),
+    resetPasswordOtp: row.resetPasswordOtp ?? null,
+    resetPasswordOtpExpiry: row.resetPasswordOtpExpiry
+      ? toISOString(row.resetPasswordOtpExpiry)
+      : null,
   };
+}
+
+function mapSafeUser(row: any): SafeUser {
+  const { password: _password, ...safe } = mapUser(row);
+  return safe as SafeUser;
 }
 
 function mapDoctorProfile(row: any): DoctorProfile {
@@ -333,8 +343,9 @@ export class DbStorage implements IStorage {
     const profile = await this.getDoctorProfile(doctorId);
     if (!profile) return undefined;
 
-    const user = await this.getUser(profile.userId);
-    if (!user) return undefined;
+    const fullUser = await this.getUser(profile.userId);
+    if (!fullUser) return undefined;
+    const { password: _pw, ...safeUser } = fullUser;
 
     const allSpecs = await this.getAllSpecializations();
     const specializationsData = allSpecs.filter((s) =>
@@ -348,7 +359,7 @@ export class DbStorage implements IStorage {
 
     return {
       ...profile,
-      user,
+      user: safeUser as SafeUser,
       specializations: specializationsData,
       hospitals: hospitalsData,
     };
@@ -766,10 +777,10 @@ export class DbStorage implements IStorage {
       : [];
 
     const patientMap = new Map(
-      (patientRows as any[]).map((r) => [r.id, mapUser(r)]),
+      (patientRows as any[]).map((r) => [r.id, mapSafeUser(r)]),
     );
     const doctorUserMap = new Map(
-      (doctorUserRows as any[]).map((r) => [r.id, mapUser(r)]),
+      (doctorUserRows as any[]).map((r) => [r.id, mapSafeUser(r)]),
     );
     const slotMap = new Map(
       (slotRows as any[]).map((r) => [r.id, r as AppointmentSlot]),
@@ -1111,6 +1122,7 @@ export class DbStorage implements IStorage {
     for (const r of result) {
       const patient = await this.getUser(r.patientId);
       if (patient) {
+        const { password: _pw, ...safePatient } = patient;
         reviewsWithPatient.push({
           ...r,
           createdAt: toISOString(r.createdAt),
@@ -1118,7 +1130,8 @@ export class DbStorage implements IStorage {
           doctorRespondedAt: r.doctorRespondedAt
             ? toISOString(r.doctorRespondedAt)
             : undefined,
-          patient,
+          patient: safePatient as SafeUser,
+
         } as ReviewWithPatient);
       }
     }
@@ -1503,7 +1516,7 @@ export class DbStorage implements IStorage {
 
   async getDoctorPatients(doctorId: string): Promise<
     {
-      patient: User;
+      patient: SafeUser;
       lastVisit: string;
       totalVisits: number;
       appointments: AppointmentWithDetails[];
@@ -1518,7 +1531,7 @@ export class DbStorage implements IStorage {
     const patientMap = new Map<
       string,
       {
-        patient: User;
+        patient: SafeUser;
         lastVisit: string;
         totalVisits: number;
         appointments: AppointmentWithDetails[];
@@ -1531,8 +1544,9 @@ export class DbStorage implements IStorage {
       if (!patientMap.has(patientId)) {
         const patient = await this.getUser(patientId);
         if (patient) {
+          const { password: _pw, ...safePatient } = patient;
           patientMap.set(patientId, {
-            patient,
+            patient: safePatient as SafeUser,
             lastVisit: apt.appointmentDate,
             totalVisits: 0,
             appointments: [],
