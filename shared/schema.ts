@@ -136,8 +136,6 @@ export const hospitals = pgTable("hospitals", {
   longitude: real("longitude"),
   parkingAvailable: boolean("parking_available").default(false),
   directions: text("directions"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const doctorProfiles = pgTable("doctor_profiles", {
