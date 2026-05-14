@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function validateSession() {
       try {
-        const res = await fetch("/api/auth/me");
+        const res = await fetch("/api/auth/me", { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           setUser(data.user);
@@ -37,6 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = (userData: User, _token?: string) => {
+    if (_token) {
+      localStorage.setItem("token", _token);
+    }
+    localStorage.setItem("user", JSON.stringify(userData));
     setUser(userData);
   };
 
@@ -46,16 +50,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch(e) {
       console.error("Logout failed", e);
     }
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setUser(null);
     window.location.href = "/login";
   };
 
   const updateUser = async (): Promise<void> => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
     try {
       const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (res.ok) {
         const data = await res.json();
