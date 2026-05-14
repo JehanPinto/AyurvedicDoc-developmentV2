@@ -6,7 +6,7 @@ interface SettingsTabCtx { tab: string; setTab: (t: string) => void; }
 export const SettingsTabContext = createContext<SettingsTabCtx>({ tab: "payment", setTab: () => {} });
 export const useSettingsTab = () => useContext(SettingsTabContext);
 import { useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   LayoutDashboard,
   Calendar,
@@ -152,9 +152,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       .slice(0, 2);
   };
 
-  const handleLogout = () => {
-    logout();
-    setLocation("/");
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+    } catch (error) {
+      console.error("Server logout failed:", error);
+    } finally {
+      logout();
+      setLocation("/");
+    }
   };
 
   const getRoleLabel = (role: string) => {

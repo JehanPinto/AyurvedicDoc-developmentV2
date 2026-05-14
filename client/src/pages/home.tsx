@@ -21,7 +21,7 @@ import type { DoctorWithDetails } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { AnimatedStat } from "@/components/ui/animated-stat";
-import  hero_image from "@/assets/image/home-page-hero-image.png";
+import HomeAnimation from "@/components/ui/home-animation";
 
 const testimonials = [
   {
@@ -131,30 +131,22 @@ export default function HomePage() {
 
   return (
     <PublicLayout>
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+      <section className="relative bg-gradient-to-b from-primary/5 via-background to-background">
+        
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] z-0" />
+        <div className="absolute inset-0 z-0 hidden lg:block bg-gradient-to-r from-transparent via-background/50 dark:via-background/80 to-background pointer-events-none" />
 
-        <div className="absolute inset-0 z-10 flex items-end justify-center lg:justify-start lg:w-1/2 opacity-20 md:opacity-30 lg:opacity-100 pointer-events-none">
-          <img
-            src={hero_image}
-            alt="Ayurvedic consultation"
-            className="w-full h-[100%] lg:h-[90%] object-cover lg:object-contain object-bottom"
-          />
-        </div>
-
-        {/* Gradient Blend overlay */}
-        <div className="absolute inset-0 z-0 hidden lg:block bg-gradient-to-r from-transparent via-background/10 dark:via-background/80 to-background pointer-events-none" />
-
-        {/* Content Container */}
-        <div className="container relative z-10 mx-auto px-4 py-16 md:py-24 lg:py-32 flex flex-col lg:flex-row items-center h-full">
+        <div className="container relative z-10 mx-auto px-4 py-12 sm:py-16 lg:py-20 xl:py-28 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8 xl:gap-16 min-h-[calc(100vh-80px)]">
           
-          {/* Spacer for Left Side (Image Area on Desktop) */}
-          <div className="hidden lg:block lg:w-[45%]"></div>
+          {/* Left Side: Animation */}
+          <div className="w-full lg:w-1/2 flex justify-center lg:justify-start items-center max-sm:overflow-hidden max-sm:pb-4">
+            <HomeAnimation />
+          </div>
 
-          {/* Right Side Text & Search */}
-          <div className="w-full lg:w-[55%] flex flex-col items-center lg:items-end text-center lg:text-right pt-8 lg:pt-0">
+          {/* Right Side: Heading, Search, Badges */}
+          <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-end text-center lg:text-right mt-4 lg:mt-0">
             
-            <h1 className="text-4xl sm:text-[50px] md:text-[60px] lg:text-[80px] font-heading font-extrabold tracking-tight mb-4 text-foreground leading-[1.1]">
+            <h1 className="text-4xl sm:text-[50px] md:text-[60px] lg:text-[70px] xl:text-[80px] font-heading font-extrabold tracking-tight mb-4 text-foreground leading-[1.1]">
               Find & Book <br className="hidden sm:block" />
               <span className="text-primary">Ayurvedic Doctors</span> <br className="block sm:hidden" />
               Near You
