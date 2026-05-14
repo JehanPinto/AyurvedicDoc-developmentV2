@@ -7,7 +7,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (user: User, token?: string) => void;
   logout: () => void;
-  updateUser: (user: User) => void;
+  updateUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,8 +50,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = "/login";
   };
 
-  const updateUser = (updatedUser: User) => {
-    setUser(updatedUser);
+  const updateUser = async (): Promise<void> => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const fresh: User = data.user;
+        localStorage.setItem("user", JSON.stringify(fresh));
+        setUser(fresh);
+      }
+    } catch {
+      // silent — keep existing state if re-fetch fails
+    }
   };
 
   return (

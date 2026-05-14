@@ -174,11 +174,11 @@ export default function PatientSettings() {
       const result = await apiRequest("PUT", "/api/users/profile", data);
       return result as UserType;
     },
-    onSuccess: (updatedUser: UserType) => {
-      updateUser(updatedUser);
+    onSuccess: async () => {
+      await updateUser();
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Profile updated successfully" });
-      setIsEditing(false); // Lock fields after save
+      setIsEditing(false);
     },
     onError: () => {
       toast({ title: "Failed to update profile", variant: "destructive" });
@@ -270,9 +270,7 @@ export default function PatientSettings() {
 
       if (!response.ok) throw new Error("Upload failed");
 
-      const data = await response.json();
-      
-      updateUser(data.user); 
+      await updateUser();
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       
       toast({ title: "Profile picture updated!" });
