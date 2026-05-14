@@ -1,12 +1,13 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import type { User } from "@shared/schema";
+import { apiRequest } from "./queryClient";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (user: User, token: string) => void;
+  login: (user: User, token?: string) => void;
   logout: () => void;
-  updateUser: (user: User) => void;
+  updateUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,35 +17,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const token = localStorage.getItem("token");
-    
-    if (storedUser && token) {
+    async function validateSession() {
       try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        setUser(null);
+      } finally {
+        setIsLoading(false);
       }
     }
-    setIsLoading(false);
+
+    validateSession();
   }, []);
 
-  const login = (user: User, token: string) => {
-    localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("token", token);
-    setUser(user);
+  const login = (userData: User, _token?: string) => {
+    setUser(userData);
   };
 
-  const logout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+  const logout = async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+    } catch(e) {
+      console.error("Logout failed", e);
+    }
     setUser(null);
+    window.location.href = "/login";
   };
 
-  const updateUser = (updatedUser: User) => {
-    localStorage.setItem("user", JSON.stringify(updatedUser));
-    setUser(updatedUser);
+  const updateUser = async (): Promise<void> => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const fresh: User = data.user;
+        localStorage.setItem("user", JSON.stringify(fresh));
+        setUser(fresh);
+      }
+    } catch {
+      // silent — keep existing state if re-fetch fails
+    }
   };
 
   return (

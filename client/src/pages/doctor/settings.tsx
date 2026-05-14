@@ -199,8 +199,8 @@ export default function DoctorSettings() {
       const result = await apiRequest("PUT", "/api/users/profile", data);
       return result as UserType;
     },
-    onSuccess: (updatedUser: UserType) => {
-      updateUser(updatedUser);
+    onSuccess: async () => {
+      await updateUser();
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Profile updated successfully" });
     },
@@ -287,8 +287,7 @@ export default function DoctorSettings() {
         throw new Error("Upload failed");
       }
 
-      const data = await response.json();
-      updateUser(data.user);
+      await updateUser();
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/doctor/profile"] });
       toast({ title: "Profile picture updated successfully" });

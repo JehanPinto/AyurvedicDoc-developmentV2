@@ -2062,6 +2062,25 @@ export class DbStorage implements IStorage {
 
     return true;
   }
+
+  async getDoctorsWithDetailsByIds(ids: string[]) {
+    if (ids.length === 0) return [];
+    
+    const query = `
+      SELECT 
+        dp.*, 
+        json_build_object(
+          'fullName', u.full_name,
+          'profileImage', u.profile_image
+        ) as user
+      FROM doctor_profiles dp
+      JOIN users u ON dp.user_id = u.id
+      WHERE dp.id = ANY($1)
+    `;
+    
+    const result = await pool.query(query, [ids]);
+    return result.rows;
+  }
 }
 
 export const dbStorage = new DbStorage();

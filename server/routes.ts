@@ -1,6 +1,8 @@
-import { createHmac, randomUUID } from "crypto";
+import { createHmac, randomInt, randomUUID } from "crypto";
 import type { Express, NextFunction, Request, Response } from "express";
+import fs from "fs";
 import { type Server } from "http";
+import path from "path";
 import { pool } from "./db";
 import { storage } from "./storage";
 import { sendApplicationEmail, sendPasswordResetOtpEmail } from "./util/email";
@@ -32,7 +34,6 @@ import rateLimit from "express-rate-limit";
 import type { File as MulterFile } from "multer";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import path from "path";
 import { z } from "zod";
 import { upload } from "../config/cloudinary";
 
@@ -98,11 +99,21 @@ interface RegistrationSession {
   uploadCount: number;
 }
 
+const uploadDir = path.join(process.cwd(), "uploads");
+
 const emailToSession = new Map<string, string>();
 
 const registrationSessions = new Map<string, RegistrationSession>();
 const SESSION_EXPIRY_MS = 2 * 60 * 60 * 1000;
 const MAX_UPLOADS_PER_SESSION = 5;
+const tokenBlacklist = new Map<string, number>();
+
+export const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict" as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 function createRegistrationSession(email: string): string {
   const existingToken = emailToSession.get(email.toLowerCase());
@@ -166,6 +177,15 @@ setInterval(
   },
   15 * 60 * 1000,
 );
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, exp] of tokenBlacklist.entries()) {
+    if (now > exp) {
+      tokenBlacklist.delete(token);
+    }
+  }
+}, 60 * 60 * 1000);
 
 const sessionCreationLimits = new Map<
   string,
@@ -340,12 +360,16 @@ function authMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const token = req.cookies?.token; 
+
+  if (!token) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const token = authHeader.split(" ")[1];
+  if (tokenBlacklist.has(token)) {
+    return res.status(401).json({ error: "Token has been revoked. Please login again." });
+  }
+
   const user = verifyToken(token);
 
   if (!user) {
@@ -594,7 +618,7 @@ export async function registerRoutes(
         });
 
         const { password: _, ...userWithoutPassword } = user;
-        res.json({ user: userWithoutPassword, token });
+        res.cookie("token", token, cookieOptions).json({ user: userWithoutPassword, token });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
@@ -673,7 +697,31 @@ export async function registerRoutes(
             path: ["consultationFee"],
           });
       }
-    });
+    }
+  );
+
+  app.post(
+    "/api/auth/logout",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const token = req.cookies?.token;
+
+        if (token) {
+          const payload = decodeToken(token);
+          const exp = payload?.exp ? payload.exp : Date.now() + 7 * 24 * 60 * 60 * 1000;
+
+          tokenBlacklist.set(token, exp);
+        }
+
+        res.clearCookie("token", { httpOnly: true, sameSite: "strict" });
+
+        res.json({ success: true, message: "Logged out successfully" });
+      } catch (error) {
+        res.status(500).json({ error: "Logout failed" });
+      }
+    }
+  );
 
   app.post(
     "/api/auth/complete-registration",
@@ -751,7 +799,7 @@ export async function registerRoutes(
         });
         const { password: _, ...userWithoutPassword } = updatedUser;
 
-        res.json({ user: userWithoutPassword, token });
+        res.cookie("token", token, cookieOptions).json({ user: userWithoutPassword, token });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
@@ -791,7 +839,7 @@ export async function registerRoutes(
         });
 
         const { password: _, ...userWithoutPassword } = user;
-        res.json({ user: userWithoutPassword, token });
+        res.cookie("token", token, cookieOptions).json({ user: userWithoutPassword, token });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
@@ -1643,30 +1691,6 @@ export async function registerRoutes(
     },
   );
 
-  app.post(
-    "/api/doctor/specializations",
-    authMiddleware,
-    roleMiddleware(UserRole.DOCTOR),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
-        if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
-
-        const { name, description } = req.body;
-        if (!name?.trim()) return res.status(400).json({ error: "Specialization name is required." });
-
-        const spec = await storage.createSpecialization({ name: name.trim(), description: description?.trim() || "" });
-
-        const newIds = [...(profile.specializationIds || []), spec.id];
-        await storage.updateDoctorProfile(profile.id, { specializationIds: newIds } as any);
-
-        res.status(201).json(spec);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to create specialization" });
-      }
-    },
-  );
-
   app.delete(
     "/api/doctor/hospitals/:hospitalId",
     authMiddleware,
@@ -1844,7 +1868,7 @@ export async function registerRoutes(
             message:
               "The doctor is ready for you. Please proceed to the consultation room.",
             type: "appointment",
-            isRead: false,
+            isRead: false, // Make sure isRead is passed
             relatedId: updated.id,
           });
         }
@@ -1905,6 +1929,7 @@ export async function registerRoutes(
           dependentAge: bookingData.dependentAge,
           dependentGender: bookingData.dependentGender,
           dependentContact: bookingData.dependentContact,
+          isCalled: false,
           status: AppointmentStatus.PENDING,
         };
 
@@ -1924,7 +1949,6 @@ export async function registerRoutes(
           consultationFee = doctor.homeVisitFee;
         }
 
-        // Get platform settings for fee calculations
         const platformSettings = await storage.getPlatformSettings();
         const bookingCharges = platformSettings.bookingCharges;
         const tax = Math.round(
@@ -1949,7 +1973,7 @@ export async function registerRoutes(
           status:
             bookingData.paymentMethod === PaymentMethod.ONLINE
               ? PaymentStatus.PENDING
-              : PaymentStatus.PENDING,
+              : PaymentStatus.UNPAID,
           method: bookingData.paymentMethod,
         };
 
@@ -1958,18 +1982,8 @@ export async function registerRoutes(
         const doctorUser = await storage.getUser(doctor.userId);
         const doctorName = doctorUser?.fullName || "your doctor";
         const months = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
         ];
         const [, bmo, bdy] = slot.date.split("-");
         const formattedBookingDate = `${parseInt(bdy)} ${months[parseInt(bmo) - 1]}`;
@@ -2086,39 +2100,35 @@ export async function registerRoutes(
     roleMiddleware(UserRole.DOCTOR),
     async (req: AuthenticatedRequest, res: Response) => {
       try {
+        const existingAppointment = await storage.getAppointment(req.params.id);
+        if (!existingAppointment) {
+          return res.status(404).json({ error: "Appointment not found" });
+        }
+
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+
+        if (!profile || existingAppointment.doctorId !== profile.id) {
+          return res.status(403).json({ error: "Forbidden: You can only confirm your own appointments." });
+        }
+
         const appointment = await storage.updateAppointment(req.params.id, {
           status: AppointmentStatus.CONFIRMED,
         });
 
         if (appointment) {
-          const doctorProfile = await storage.getDoctorProfile(
-            appointment.doctorId,
-          );
-          const doctorUser = doctorProfile
-            ? await storage.getUser(doctorProfile.userId)
-            : null;
+          const doctorUser = await storage.getUser(profile.userId);
           const doctorName = doctorUser?.fullName || "your doctor";
           const [yr, mo, dy] = appointment.appointmentDate.split("-");
           const months = [
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "May",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Oct",
-            "Nov",
-            "Dec",
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
           ];
           const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
 
           await storage.createNotification({
             userId: appointment.patientId,
             title: "Appointment Confirmed",
-            message: `Dr. ${doctorName} has confirmed your appointment on ${formattedDate}.`,
+            message: `Your appointment with Dr. ${doctorName} for ${formattedDate} at ${appointment.appointmentTime} has been confirmed.`,
             type: "appointment",
             isRead: false,
             relatedId: appointment.id,
@@ -2249,93 +2259,6 @@ export async function registerRoutes(
   );
 
   app.patch(
-    "/api/appointments/:id/complete",
-    authMiddleware,
-    roleMiddleware(UserRole.DOCTOR),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { consultationNotes } = req.body;
-        const appointment = await storage.updateAppointment(req.params.id, {
-          status: AppointmentStatus.COMPLETED,
-          consultationNotes,
-        });
-
-        const payment = await storage.getPaymentByAppointment(req.params.id);
-        if (payment) {
-          await storage.updatePayment(payment.id, {
-            status: PaymentStatus.COMPLETED,
-          });
-        }
-
-        if (appointment) {
-          const doctorProfile = await storage.getDoctorProfile(
-            appointment.doctorId,
-          );
-          const doctorUser = doctorProfile
-            ? await storage.getUser(doctorProfile.userId)
-            : null;
-          const doctorName = doctorUser?.fullName || "your doctor";
-
-          await storage.createNotification({
-            userId: appointment.patientId,
-            title: "Appointment Completed",
-            message: `Your appointment with Dr. ${doctorName} has been completed. Please leave a review!`,
-            type: "appointment",
-            isRead: false,
-            relatedId: appointment.id,
-          });
-
-          if (payment) {
-            const months = [
-              "Jan",
-              "Feb",
-              "Mar",
-              "Apr",
-              "May",
-              "Jun",
-              "Jul",
-              "Aug",
-              "Sep",
-              "Oct",
-              "Nov",
-              "Dec",
-            ];
-            const [, mo, dy] = appointment.appointmentDate.split("-");
-            const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
-            const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
-
-            // Patient payment notification
-            await storage.createNotification({
-              userId: appointment.patientId,
-              title: "Payment successful",
-              message: `${formattedAmount} was successfully charged for your consultation on ${formattedDate}. Receipt has been emailed.`,
-              type: "payment",
-              isRead: false,
-              relatedId: payment.id,
-            });
-
-            // Doctor payment received notification
-            if (doctorProfile) {
-              await storage.createNotification({
-                userId: doctorProfile.userId,
-                title: "Payment received from patient",
-                message: `${formattedAmount} has been received for the consultation on ${formattedDate}. This will be included in your next payout.`,
-                type: "payment",
-                isRead: false,
-                relatedId: payment.id,
-              });
-            }
-          }
-        }
-
-        res.json(appointment);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to complete appointment" });
-      }
-    },
-  );
-
-  app.patch(
     "/api/appointments/:id/cancel",
     authMiddleware,
     async (req: AuthenticatedRequest, res: Response) => {
@@ -2359,24 +2282,14 @@ export async function registerRoutes(
           const doctorName = doctorUser?.fullName || "your doctor";
           const patientName = patientUser?.fullName || "A patient";
           const months = [
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "May",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Oct",
-            "Nov",
-            "Dec",
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
           ];
           const [, mo, dy] = existing.appointmentDate.split("-");
           const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
           const formattedTime = existing.appointmentTime;
 
-          // Notify patient — includes "Rebook Appointment" button
+          // Notify patient
           await storage.createNotification({
             userId: existing.patientId,
             title: "Appointment cancelled",
@@ -2386,7 +2299,7 @@ export async function registerRoutes(
             relatedId: appointment.id,
           });
 
-          // Notify doctor — no button (title uses "Cancellation" not "cancelled")
+          // Notify doctor
           if (doctorProfile) {
             await storage.createNotification({
               userId: doctorProfile.userId,
@@ -2460,44 +2373,6 @@ export async function registerRoutes(
         res.json(updated);
       } catch (error) {
         res.status(500).json({ error: "Failed to update payment status" });
-      }
-    },
-  );
-
-  app.post(
-    "/api/appointments/:id/prescription",
-    authMiddleware,
-    roleMiddleware(UserRole.DOCTOR),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const appointment = await storage.getAppointment(req.params.id);
-        if (!appointment) {
-          return res.status(404).json({ error: "Appointment not found" });
-        }
-
-        const data = insertPrescriptionSchema.parse({
-          ...req.body,
-          appointmentId: appointment.id,
-          patientId: appointment.patientId,
-          doctorId: appointment.doctorId,
-        });
-
-        const prescription = await storage.createPrescription(data);
-
-        await storage.createNotification({
-          userId: appointment.patientId,
-          title: "New Prescription",
-          message: "Your doctor has created a new prescription for you",
-          type: "appointment",
-          relatedId: prescription.id,
-        });
-
-        res.status(201).json(prescription);
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          return res.status(400).json({ error: error.errors });
-        }
-        res.status(500).json({ error: "Failed to create prescription" });
       }
     },
   );
@@ -2594,42 +2469,6 @@ export async function registerRoutes(
   );
 
   app.patch(
-    "/api/doctor/appointments/:id/call",
-    authMiddleware,
-    roleMiddleware(UserRole.DOCTOR),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const appointment = await storage.getAppointment(req.params.id);
-        if (!appointment) {
-          return res.status(404).json({ error: "Appointment not found" });
-        }
-
-        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
-        if (!profile || appointment.doctorId !== profile.id) {
-          return res.status(403).json({ error: "Forbidden" });
-        }
-
-        const updated = await storage.markAppointmentAsCalled(req.params.id);
-
-        if (updated) {
-          await storage.createNotification({
-            userId: updated.patientId,
-            title: "You're Being Called",
-            message:
-              "The doctor is ready for you. Please proceed to the consultation room.",
-            type: "appointment",
-            relatedId: updated.id,
-          });
-        }
-
-        res.json(updated);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to mark appointment as called" });
-      }
-    },
-  );
-
-  app.patch(
     "/api/doctor/appointments/:id/no-show",
     authMiddleware,
     roleMiddleware(UserRole.DOCTOR),
@@ -2651,109 +2490,6 @@ export async function registerRoutes(
         res
           .status(500)
           .json({ error: "Failed to mark appointment as no-show" });
-      }
-    },
-  );
-
-  app.post(
-    "/api/appointments",
-    authMiddleware,
-    roleMiddleware(UserRole.PATIENT),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const bookingData = bookingSchema.parse(req.body);
-
-        const slot = await storage.getAppointmentSlot(bookingData.slotId);
-        if (!slot || slot.isBooked || slot.isBlocked) {
-          return res.status(400).json({ error: "Slot not available" });
-        }
-
-        const doctor = await storage.getDoctorProfile(bookingData.doctorId);
-        if (!doctor || doctor.status !== DoctorStatus.VERIFIED) {
-          return res.status(400).json({ error: "Doctor not available" });
-        }
-
-        const appointmentData = {
-          patientId: req.user!.id,
-          doctorId: bookingData.doctorId,
-          slotId: bookingData.slotId,
-          hospitalId: bookingData.hospitalId,
-          appointmentDate: slot.date,
-          appointmentTime: slot.startTime,
-          consultationType: bookingData.consultationType,
-          symptoms: bookingData.symptoms,
-          isForDependent: bookingData.isForDependent,
-          dependentName: bookingData.dependentName,
-          dependentAge: bookingData.dependentAge,
-          dependentGender: bookingData.dependentGender,
-          dependentContact: bookingData.dependentContact,
-          status: AppointmentStatus.PENDING,
-        };
-
-        const appointment = await storage.createAppointment(appointmentData);
-        await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: true });
-
-        let consultationFee = doctor.consultationFee;
-        if (
-          bookingData.consultationType === "online" &&
-          doctor.onlineConsultationFee
-        ) {
-          consultationFee = doctor.onlineConsultationFee;
-        } else if (
-          bookingData.consultationType === "home_visit" &&
-          doctor.homeVisitFee
-        ) {
-          consultationFee = doctor.homeVisitFee;
-        }
-
-        // Get platform settings for fee calculations
-        const platformSettings = await storage.getPlatformSettings();
-        const bookingCharges = platformSettings.bookingCharges;
-        const tax = Math.round(
-          consultationFee * (platformSettings.taxRate / 100),
-        );
-        const platformCommission = Math.round(
-          consultationFee * (platformSettings.platformCommissionRate / 100),
-        );
-        const doctorEarnings = consultationFee - platformCommission;
-        const totalAmount = consultationFee + bookingCharges + tax;
-
-        const paymentData = {
-          appointmentId: appointment.id,
-          patientId: req.user!.id,
-          doctorId: bookingData.doctorId,
-          consultationFee,
-          bookingCharges,
-          tax,
-          platformCommission,
-          doctorEarnings,
-          totalAmount,
-          status:
-            bookingData.paymentMethod === PaymentMethod.ONLINE
-              ? PaymentStatus.PENDING
-              : PaymentStatus.PENDING,
-          method: bookingData.paymentMethod,
-        };
-
-        await storage.createPayment(paymentData);
-
-        await storage.createNotification({
-          userId: req.user!.id,
-          title: "Appointment Booked",
-          message: `Your appointment with ${doctor.registrationNumber} has been booked for ${slot.date} at ${slot.startTime}`,
-          type: "appointment",
-          relatedId: appointment.id,
-        });
-
-        const fullAppointment = await storage.getAppointmentWithDetails(
-          appointment.id,
-        );
-        res.status(201).json(fullAppointment);
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          return res.status(400).json({ error: error.errors });
-        }
-        res.status(500).json({ error: "Failed to book appointment" });
       }
     },
   );
@@ -2818,33 +2554,6 @@ export async function registerRoutes(
   );
 
   app.patch(
-    "/api/appointments/:id/confirm",
-    authMiddleware,
-    roleMiddleware(UserRole.DOCTOR),
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const appointment = await storage.updateAppointment(req.params.id, {
-          status: AppointmentStatus.CONFIRMED,
-        });
-
-        if (appointment) {
-          await storage.createNotification({
-            userId: appointment.patientId,
-            title: "Appointment Confirmed",
-            message: `Your appointment for ${appointment.appointmentDate} at ${appointment.appointmentTime} has been confirmed`,
-            type: "appointment",
-            relatedId: appointment.id,
-          });
-        }
-
-        res.json(appointment);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to confirm appointment" });
-      }
-    },
-  );
-
-  app.patch(
     "/api/appointments/:id/complete",
     authMiddleware,
     roleMiddleware(UserRole.DOCTOR),
@@ -2864,36 +2573,59 @@ export async function registerRoutes(
         }
 
         if (appointment) {
+          const doctorProfile = await storage.getDoctorProfile(
+            appointment.doctorId,
+          );
+          const doctorUser = doctorProfile
+            ? await storage.getUser(doctorProfile.userId)
+            : null;
+          const doctorName = doctorUser?.fullName || "your doctor";
+
           await storage.createNotification({
             userId: appointment.patientId,
-            title: "Appointment Completed",
-            message: `Your appointment has been completed. Please leave a review!`,
+            title: "Appointment Completed", // Fixed Title
+            message: `Your appointment with Dr. ${doctorName} has been completed. Please leave a review!`, // Friendly message
             type: "appointment",
+            isRead: false,
             relatedId: appointment.id,
           });
+
+          if (payment) {
+            const months = [
+              "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            ];
+            const [, mo, dy] = appointment.appointmentDate.split("-");
+            const formattedDate = `${parseInt(dy)} ${months[parseInt(mo) - 1]}`;
+            const formattedAmount = `LKR ${payment.totalAmount.toLocaleString("en-LK")}`;
+
+            // Patient payment notification
+            await storage.createNotification({
+              userId: appointment.patientId,
+              title: "Payment successful",
+              message: `${formattedAmount} was successfully charged for your consultation on ${formattedDate}. Receipt has been emailed.`,
+              type: "payment",
+              isRead: false,
+              relatedId: payment.id,
+            });
+
+            // Doctor payment received notification
+            if (doctorProfile) {
+              await storage.createNotification({
+                userId: doctorProfile.userId,
+                title: "Payment received from patient",
+                message: `${formattedAmount} has been received for the consultation on ${formattedDate}. This will be included in your next payout.`,
+                type: "payment",
+                isRead: false,
+                relatedId: payment.id,
+              });
+            }
+          }
         }
 
         res.json(appointment);
       } catch (error) {
         res.status(500).json({ error: "Failed to complete appointment" });
-      }
-    },
-  );
-
-  app.patch(
-    "/api/appointments/:id/cancel",
-    authMiddleware,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { reason } = req.body;
-        const appointment = await storage.cancelAppointment(
-          req.params.id,
-          reason,
-          req.user!.role,
-        );
-        res.json(appointment);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to cancel appointment" });
       }
     },
   );
@@ -2924,6 +2656,7 @@ export async function registerRoutes(
           message: "Your doctor has created a new prescription for you",
           type: "appointment",
           relatedId: prescription.id,
+          isRead: false,
         });
 
         res.status(201).json(prescription);
@@ -3059,24 +2792,36 @@ export async function registerRoutes(
           refundPendingCount
         };
 
-        // --- My Doctors (Unique doctors the patient has visited/booked) ---
-        const uniqueDoctorIds = [...new Set(allAppointments.map(a => a.doctorId))];
-        const myDoctors = [];
-        for (const docId of uniqueDoctorIds.slice(0, 4)) {
-           const doc = await storage.getDoctorWithDetails(docId);
-           if (doc) myDoctors.push(doc);
-        }
+        const myDoctorIds = [...new Set(allAppointments.map(a => a.doctorId))].slice(0, 4);
+        
+        const recentPayments = allPayments.slice(0, 4);
+        const recentPaymentDoctorIds = recentPayments
+          .map(p => allAppointments.find(a => a.id === p.appointmentId)?.doctorId)
+          .filter(Boolean) as string[];
+
+        // 
+        const allNeededDoctorIds = [...new Set([...myDoctorIds, ...recentPaymentDoctorIds])];
+
+        const doctorsList = allNeededDoctorIds.length > 0 
+          ? await storage.getDoctorsWithDetailsByIds(allNeededDoctorIds) 
+          : [];
+
+        const doctorMap = new Map(doctorsList.map(doc => [doc.id, doc]));
+
+        // --- My Doctors ---
+        const myDoctors = myDoctorIds.map(id => doctorMap.get(id)).filter(Boolean);
 
         // --- Recent Transactions ---
-        const recentTransactions = await Promise.all(allPayments.slice(0, 4).map(async (p) => {
+        const recentTransactions = recentPayments.map(p => {
            const appointment = allAppointments.find(a => a.id === p.appointmentId);
-           const doctor = appointment ? await storage.getDoctorWithDetails(appointment.doctorId) : null;
+           const doctor = appointment ? doctorMap.get(appointment.doctorId) : null;
+           
            return {
              ...p,
              doctorName: doctor?.user?.fullName || "Doctor",
              date: p.createdAt
            };
-        }));
+        });
 
         res.json({
           stats,
@@ -3459,7 +3204,6 @@ export async function registerRoutes(
     try {
       const settings = await storage.getPlatformSettings();
       const payload = {
-        platformCommissionRate: Number(settings.platformCommissionRate ?? 0),
         bookingCharges: Number(settings.bookingCharges ?? 0),
         taxRate: Number(settings.taxRate ?? 0),
       };
@@ -3781,6 +3525,13 @@ export async function registerRoutes(
     async (req: AuthenticatedRequest, res: Response) => {
       try {
         const { currentPassword, newPassword } = req.body;
+        const passwordValidation = validatePasswordStrength(newPassword);
+        if (!passwordValidation.valid) {
+          return res.status(400).json({
+            error: "Password does not meet security requirements",
+            details: passwordValidation.errors,
+          });
+        }
         const user = await storage.getUser(req.user!.id);
         if (!user || !(await verifyPassword(currentPassword, user.password))) {
           return res
@@ -4034,7 +3785,7 @@ export async function registerRoutes(
         return res.json({ message: "If that email is registered, an OTP has been sent." });
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otp = randomInt(100000, 999999).toString();
       const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
       await storage.setPasswordResetOtp(user.id, otp, expiry);
@@ -4078,7 +3829,7 @@ export async function registerRoutes(
   // 1. Send OTP to Email
   app.post("/api/users/send-password-otp", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+      const otp = randomInt(100000, 999999).toString();
       const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
       await storage.setPasswordResetOtp(req.user!.id, otp, expiry);
@@ -4103,6 +3854,14 @@ export async function registerRoutes(
     async (req: AuthenticatedRequest, res: Response) => {
       try {
         const { otp, newPassword } = req.body;
+
+        const passwordValidation = validatePasswordStrength(newPassword);
+        if (!passwordValidation.valid) {
+          return res.status(400).json({
+            error: "Password does not meet security requirements",
+            details: passwordValidation.errors,
+          });
+        }
 
         const isValid = await storage.verifyPasswordResetOtp(req.user!.id, otp);
         if (!isValid) {
