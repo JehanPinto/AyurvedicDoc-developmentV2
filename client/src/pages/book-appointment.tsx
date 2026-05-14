@@ -81,7 +81,6 @@ const bookingSchema = z.object({
 type BookingInput = z.infer<typeof bookingSchema>;
 
 interface BookingSettings {
-  platformCommissionRate: number;
   bookingCharges: number;
   taxRate: number;
 }

@@ -1,6 +1,8 @@
-import { createHmac, randomUUID } from "crypto";
+import { createHmac, randomInt, randomUUID } from "crypto";
 import type { Express, NextFunction, Request, Response } from "express";
+import fs from "fs";
 import { type Server } from "http";
+import path from "path";
 import { pool } from "./db";
 import { storage } from "./storage";
 import { sendApplicationEmail, sendPasswordResetOtpEmail } from "./util/email";
@@ -32,7 +34,6 @@ import rateLimit from "express-rate-limit";
 import type { File as MulterFile } from "multer";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import path from "path";
 import { z } from "zod";
 import { upload } from "../config/cloudinary";
 
@@ -97,6 +98,8 @@ interface RegistrationSession {
   uploadedFiles: string[];
   uploadCount: number;
 }
+
+const uploadDir = path.join(process.cwd(), "uploads");
 
 const emailToSession = new Map<string, string>();
 
@@ -3201,7 +3204,6 @@ export async function registerRoutes(
     try {
       const settings = await storage.getPlatformSettings();
       const payload = {
-        platformCommissionRate: Number(settings.platformCommissionRate ?? 0),
         bookingCharges: Number(settings.bookingCharges ?? 0),
         taxRate: Number(settings.taxRate ?? 0),
       };
@@ -3776,7 +3778,7 @@ export async function registerRoutes(
         return res.json({ message: "If that email is registered, an OTP has been sent." });
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otp = randomInt(100000, 999999).toString();
       const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
       await storage.setPasswordResetOtp(user.id, otp, expiry);
@@ -3820,7 +3822,7 @@ export async function registerRoutes(
   // 1. Send OTP to Email
   app.post("/api/users/send-password-otp", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+      const otp = randomInt(100000, 999999).toString();
       const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
       await storage.setPasswordResetOtp(req.user!.id, otp, expiry);
