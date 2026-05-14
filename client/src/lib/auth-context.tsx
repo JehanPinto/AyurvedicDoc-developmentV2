@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import type { User } from "@shared/schema";
+import { apiRequest } from "./queryClient";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (user: User, token: string) => void;
+  login: (user: User, token?: string) => void;
   logout: () => void;
   updateUser: (user: User) => void;
 }
@@ -16,30 +17,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    
-    if (storedUser) {
+    async function validateSession() {
       try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        localStorage.removeItem("user");
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        setUser(null);
+      } finally {
+        setIsLoading(false);
       }
     }
-    setIsLoading(false);
+
+    validateSession();
   }, []);
 
-  const login = (user: User, token: string) => {
-    localStorage.setItem("user", JSON.stringify(user));
-    setUser(user);
+  const login = (userData: User, _token?: string) => {
+    setUser(userData);
   };
 
-  const logout = () => {
-    localStorage.removeItem("user");
+  const logout = async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+    } catch(e) {
+      console.error("Logout failed", e);
+    }
     setUser(null);
+    window.location.href = "/login";
   };
 
   const updateUser = (updatedUser: User) => {
-    localStorage.setItem("user", JSON.stringify(updatedUser));
     setUser(updatedUser);
   };
 

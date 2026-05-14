@@ -41,6 +41,7 @@ export const PaymentStatus = {
   COMPLETED: "completed",
   REFUNDED: "refunded",
   FAILED: "failed",
+  UNPAID: "unpaid",
 } as const;
 
 export const PaymentMethod = {
@@ -741,6 +742,7 @@ export const insertPaymentSchema = z.object({
       PaymentStatus.COMPLETED,
       PaymentStatus.REFUNDED,
       PaymentStatus.FAILED,
+      PaymentStatus.UNPAID,
     ])
     .default(PaymentStatus.PENDING),
   method: z.enum([PaymentMethod.ONLINE, PaymentMethod.AT_CLINIC]),

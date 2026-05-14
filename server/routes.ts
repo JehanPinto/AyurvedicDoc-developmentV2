@@ -1962,7 +1962,7 @@ export async function registerRoutes(
           status:
             bookingData.paymentMethod === PaymentMethod.ONLINE
               ? PaymentStatus.PENDING
-              : PaymentStatus.PENDING,
+              : PaymentStatus.UNPAID,
           method: bookingData.paymentMethod,
         };
 

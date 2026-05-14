@@ -1934,7 +1934,6 @@ export class DbStorage implements IStorage {
   async getDoctorsWithDetailsByIds(ids: string[]) {
     if (ids.length === 0) return [];
     
-    // 🟢 ANY($1) පාවිච්චි කරලා Array එකක තියෙන IDs ඔක්කොම එකපාර ගන්නවා
     const query = `
       SELECT 
         dp.*, 
