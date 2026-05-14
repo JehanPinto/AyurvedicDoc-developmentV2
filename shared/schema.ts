@@ -3,11 +3,14 @@ import {
   boolean,
   integer,
   jsonb,
+  pgEnum,
   pgTable,
   real,
   text,
   timestamp,
   varchar,
+  date,
+  time,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -39,6 +42,7 @@ export const PaymentStatus = {
   COMPLETED: "completed",
   REFUNDED: "refunded",
   FAILED: "failed",
+  UNPAID: "unpaid",
 } as const;
 
 export const PaymentMethod = {
@@ -135,6 +139,8 @@ export const hospitals = pgTable("hospitals", {
   longitude: real("longitude"),
   parkingAvailable: boolean("parking_available").default(false),
   directions: text("directions"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const doctorProfiles = pgTable("doctor_profiles", {
@@ -209,9 +215,9 @@ export const appointmentSlots = pgTable("appointment_slots", {
     .references(() => doctorProfiles.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
   clinicLocation: text("clinic_location"),
-  date: varchar("date", { length: 10 }).notNull(),
-  startTime: varchar("start_time", { length: 5 }).notNull(),
-  endTime: varchar("end_time", { length: 5 }).notNull(),
+  date: date("date").notNull(),
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time").notNull(),
   consultationType: varchar("consultation_type", { length: 20 }).notNull(),
   isBooked: boolean("is_booked").default(false),
   isBlocked: boolean("is_blocked").default(false),
@@ -232,8 +238,8 @@ export const appointments = pgTable("appointments", {
     .notNull()
     .references(() => appointmentSlots.id),
   hospitalId: varchar("hospital_id", { length: 50 }),
-  appointmentDate: varchar("appointment_date", { length: 10 }).notNull(),
-  appointmentTime: varchar("appointment_time", { length: 5 }).notNull(),
+  appointmentDate: date("appointment_date").notNull(),
+  appointmentTime: time("appointment_time").notNull(),
   consultationType: varchar("consultation_type", { length: 20 }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
   symptoms: text("symptoms").notNull(),
@@ -330,6 +336,14 @@ export const reviews = pgTable("reviews", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "appointment",
+  "payment",
+  "reminder",
+  "system",
+  "verification",
+]);
+
 export const notifications = pgTable("notifications", {
   id: varchar("id", { length: 50 })
     .primaryKey()
@@ -339,7 +353,7 @@ export const notifications = pgTable("notifications", {
     .references(() => users.id),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
-  type: varchar("type", { length: 20 }).notNull(),
+  type: notificationTypeEnum("type").notNull(),
   isRead: boolean("is_read").default(false),
   relatedId: varchar("related_id", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -354,7 +368,7 @@ export const blogSubmissions = pgTable("blog_submissions", {
   category: varchar("category", { length: 50 }).notNull(),
   featuredImage: text("featured_image"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
-  submittedById: varchar("submitted_by_id", { length: 50 }).notNull(),
+  submittedById: varchar("submitted_by_id", { length: 50 }).notNull().references(() => users.id, { onDelete: "cascade" }),
   submittedByName: varchar("submitted_by_name", { length: 255 }).notNull(),
   submittedByEmail: varchar("submitted_by_email", { length: 255 }).notNull(),
   rejectionReason: text("rejection_reason"),
@@ -423,6 +437,8 @@ export const insertSpecializationSchemaDb = createInsertSchema(
 
 export const insertHospitalSchemaDb = createInsertSchema(hospitals).omit({
   id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const insertDoctorProfileSchemaDb = createInsertSchema(
@@ -491,10 +507,16 @@ export const insertPlatformSettingsSchemaDb = createInsertSchema(
 
 export const insertUserSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Password must contain at least one special character"),
   fullName: z.string().min(2, "Full name is required"),
   phone: z.string().regex(/^07[0-9]{8}$/, "Please enter a valid Sri Lankan mobile number (07XXXXXXXX)"),
-  role: z.enum([UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN]),
+  role: z.enum([UserRole.PATIENT, UserRole.DOCTOR]),
   nic: z.string().optional(),
   gender: z.enum([Gender.MALE, Gender.FEMALE, Gender.OTHER]).optional(),
   dateOfBirth: z.string().optional(),
@@ -521,7 +543,11 @@ export interface User extends InsertUser {
   id: string;
   createdAt: string;
   updatedAt: string;
+  resetPasswordOtp?: string | null;
+  resetPasswordOtpExpiry?: string | null;
 }
+
+export type SafeUser = Omit<User, "password" | "resetPasswordOtp" | "resetPasswordOtpExpiry">;
 
 export const insertSpecializationSchema = z.object({
   name: z.string().min(2, "Specialization name required"),
@@ -605,12 +631,13 @@ export interface DoctorProfile extends InsertDoctorProfile {
   totalReviews: number;
   totalAppointments: number;
   currentQueueNumber: number;
+  rejectionReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface DoctorWithDetails extends DoctorProfile {
-  user: User;
+  user: SafeUser;
   specializations: Specialization[];
   hospitals: Hospital[];
 }
@@ -714,7 +741,7 @@ export interface Appointment extends InsertAppointment {
 }
 
 export interface AppointmentWithDetails extends Appointment {
-  patient: User;
+  patient: SafeUser;
   doctor: DoctorWithDetails;
   slot: AppointmentSlot;
   hospital?: Hospital;
@@ -739,6 +766,7 @@ export const insertPaymentSchema = z.object({
       PaymentStatus.COMPLETED,
       PaymentStatus.REFUNDED,
       PaymentStatus.FAILED,
+      PaymentStatus.UNPAID,
     ])
     .default(PaymentStatus.PENDING),
   method: z.enum([PaymentMethod.ONLINE, PaymentMethod.AT_CLINIC]),
@@ -804,7 +832,7 @@ export interface Review extends InsertReview {
 }
 
 export interface ReviewWithPatient extends Review {
-  patient: User;
+  patient: SafeUser;
 }
 
 export interface ReviewWithDoctor extends Review {
@@ -992,6 +1020,23 @@ export const bookingSchema = z.object({
     .enum([Gender.MALE, Gender.FEMALE, Gender.OTHER])
     .optional(),
   dependentContact: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.isForDependent) {
+    if (!data.dependentName || data.dependentName.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dependent name is required when booking for a dependent",
+        path: ["dependentName"],
+      });
+    }
+    if (data.dependentAge === undefined || data.dependentAge === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dependent age is required when booking for a dependent",
+        path: ["dependentAge"],
+      });
+    }
+  }
 });
 
 export type BookingInput = z.infer<typeof bookingSchema>;
@@ -1089,7 +1134,8 @@ export const blogs = pgTable("blogs", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   category: varchar("category", { length: 100 }),
-  featuredImage: text("featured_image"),
+  image: text("image"),
+  authorId: varchar("author_id", { length: 50 }).references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

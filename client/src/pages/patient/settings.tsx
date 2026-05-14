@@ -144,6 +144,8 @@ export default function PatientSettings() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  console.log("User data in settings page:", user); // Debugging line
+
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {

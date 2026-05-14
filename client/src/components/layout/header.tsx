@@ -22,6 +22,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@shared/schema";
 
@@ -37,9 +38,15 @@ export function Header() {
   const [location, setLocation] = useLocation();
   const { user, logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
-    setLocation("/");
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+    } catch (error) {
+      console.error("Server logout failed:", error);
+    } finally {
+      logout();
+      setLocation("/");
+    }
   };
 
   const getInitials = (name: string) => {

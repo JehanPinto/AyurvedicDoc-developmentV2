@@ -39,6 +39,7 @@ import {
   type ReviewWithDoctor,
   type ReviewWithPatient,
   type Specialization,
+  type SafeUser,
   type User,
   UserRole,
 } from "@shared/schema";
@@ -197,7 +198,7 @@ export interface IStorage {
 
   getDoctorPatients(doctorId: string): Promise<
     {
-      patient: User;
+      patient: SafeUser;
       lastVisit: string;
       totalVisits: number;
       appointments: AppointmentWithDetails[];

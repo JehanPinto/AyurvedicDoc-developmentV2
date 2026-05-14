@@ -1,14 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem("token");
-  const headers: HeadersInit = {};
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     // If unauthorized, clear token and redirect to login
@@ -28,9 +19,7 @@ export async function apiRequest<T = unknown>(
   url: string,
   data?: unknown | undefined,
 ): Promise<T> {
-  const headers: HeadersInit = {
-    ...getAuthHeaders(),
-  };
+  const headers: HeadersInit = {};
   if (data) {
     headers["Content-Type"] = "application/json";
   }
@@ -59,7 +48,6 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const res = await fetch(queryKey[0] as string, {
       credentials: "include",
-      headers: getAuthHeaders(),
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
