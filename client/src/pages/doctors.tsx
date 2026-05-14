@@ -146,8 +146,8 @@ export default function DoctorsPage() {
     : "py-8 md:py-10 bg-gradient-to-b from-primary/5 to-background border-b";
   const contentWrapperClasses = `container mx-auto px-4 ${isPatientRoute ? "pb-8" : "py-6 md:py-8"}`;
 
-  return (
-    <PublicLayout>
+  const pageContent = (
+    <>
       <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
 
@@ -240,6 +240,8 @@ export default function DoctorsPage() {
       >
         <ArrowUp className="h-5 w-5" />
       </button>
-    </PublicLayout>
+    </>
   );
+
+  return isPatientRoute ? pageContent : <PublicLayout>{pageContent}</PublicLayout>;
 }

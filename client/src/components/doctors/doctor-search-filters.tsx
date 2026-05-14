@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter, X, MapPin, Star, SlidersHorizontal, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,21 +89,32 @@ export function DoctorSearchFilters({
 }: DoctorSearchFiltersProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [inputValue, setInputValue] = useState(searchQuery);
+  const [localSpecialization, setLocalSpecialization] = useState(selectedSpecialization);
+  const [localCity, setLocalCity] = useState(selectedCity);
+  const [localSortBy, setLocalSortBy] = useState(sortBy);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  useEffect(() => { setIsMounted(true); }, []);
+  useEffect(() => { setInputValue(searchQuery); }, [searchQuery]);
+  useEffect(() => { setLocalSpecialization(selectedSpecialization); }, [selectedSpecialization]);
+  useEffect(() => { setLocalCity(selectedCity); }, [selectedCity]);
+  useEffect(() => { setLocalSortBy(sortBy); }, [sortBy]);
 
-  const toggleLanguage = useCallback(
-    (language: string) => {
-      if (selectedLanguages.includes(language)) {
-        onLanguagesChange(selectedLanguages.filter((l) => l !== language));
-      } else {
-        onLanguagesChange([...selectedLanguages, language]);
-      }
-    },
-    [selectedLanguages, onLanguagesChange]
-  );
+  function handleSearch() {
+    onSearchChange(inputValue);
+    onSpecializationChange(localSpecialization);
+    onCityChange(localCity);
+    onSortByChange(localSortBy);
+    setIsFilterOpen(false);
+  }
+
+  function toggleLanguage(language: string) {
+    if (selectedLanguages.includes(language)) {
+      onLanguagesChange(selectedLanguages.filter((l) => l !== language));
+    } else {
+      onLanguagesChange([...selectedLanguages, language]);
+    }
+  }
 
   const formatPrice = (value: number) => {
     return new Intl.NumberFormat("en-LK", {
@@ -117,37 +128,34 @@ export function DoctorSearchFilters({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      
-      {/* --- MAIN TOOLBAR ---
-        Mobile/Tablet: Shows only Search + Filter Button
-        Desktop (lg+): Shows Search + Quick Dropdowns + Filter Button
-      */}
-      <div className="flex items-center gap-3 w-full bg-card/40 backdrop-blur-xl border border-border/50 p-2 rounded-[2rem] shadow-sm">
-        
-        {/* Search Bar (Takes remaining space) */}
-        <div className="relative flex items-center flex-1 h-12 bg-background hover:bg-muted/30 focus-within:bg-background transition-colors border border-border/60 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 rounded-full px-5 overflow-hidden">
-          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+
+      {/* --- MAIN TOOLBAR --- */}
+      <div className="flex items-center gap-3 w-full bg-card border border-primary/40 p-2 rounded-[2rem] shadow-sm">
+
+        {/* Search Input */}
+        <div className="relative flex items-center flex-1 h-12 bg-muted/40 rounded-full px-5 overflow-hidden">
           <input
             placeholder="Search doctors by name..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="flex-1 bg-transparent border-none outline-none px-3 text-sm md:text-base text-foreground placeholder:text-muted-foreground w-full"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            className="flex-1 bg-transparent border-none outline-none text-sm md:text-base text-foreground placeholder:text-muted-foreground w-full"
             data-testid="input-search-doctors"
           />
-          {searchQuery && (
-            <button 
-              onClick={() => onSearchChange("")} 
-              className="p-1 rounded-full hover:bg-muted transition-colors focus:outline-none"
+          {inputValue && (
+            <button
+              onClick={() => { setInputValue(""); onSearchChange(""); }}
+              className="p-1 rounded-full hover:bg-muted transition-colors focus:outline-none shrink-0"
             >
               <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
             </button>
           )}
         </div>
 
-        {/* Desktop Quick Dropdowns (Hidden on screens smaller than 'lg') */}
+        {/* Desktop Quick Dropdowns (hidden on screens smaller than lg) */}
         <div className="hidden lg:flex items-center gap-3 shrink-0">
-          
-          <Select value={selectedSpecialization} onValueChange={onSpecializationChange}>
+
+          <Select value={localSpecialization} onValueChange={setLocalSpecialization}>
             <SelectTrigger className="h-12 rounded-full border-border/60 bg-background hover:bg-muted/30 text-sm font-medium w-[200px] shadow-none">
               <Stethoscope className="h-4 w-4 text-muted-foreground mr-2" />
               <SelectValue placeholder="Specializations" />
@@ -160,7 +168,7 @@ export function DoctorSearchFilters({
             </SelectContent>
           </Select>
 
-          <Select value={selectedCity} onValueChange={onCityChange}>
+          <Select value={localCity} onValueChange={setLocalCity}>
             <SelectTrigger className="h-12 rounded-full border-border/60 bg-background hover:bg-muted/30 text-sm font-medium w-[160px] shadow-none">
               <MapPin className="h-4 w-4 text-muted-foreground mr-2" />
               <SelectValue placeholder="City" />
@@ -173,7 +181,7 @@ export function DoctorSearchFilters({
             </SelectContent>
           </Select>
 
-          <Select value={sortBy} onValueChange={onSortByChange}>
+          <Select value={localSortBy} onValueChange={setLocalSortBy}>
             <SelectTrigger className="h-12 rounded-full border-border/60 bg-background hover:bg-muted/30 text-sm font-medium w-[180px] shadow-none">
               <SlidersHorizontal className="h-4 w-4 text-muted-foreground mr-2" />
               <SelectValue placeholder="Sort By" />
@@ -192,8 +200,8 @@ export function DoctorSearchFilters({
             <Button
               variant={activeFilterCount > 0 ? "default" : "outline"}
               className={`h-12 rounded-full px-5 md:px-6 shrink-0 shadow-none transition-all ${
-                activeFilterCount > 0 
-                  ? "bg-primary text-primary-foreground" 
+                activeFilterCount > 0
+                  ? "bg-primary text-primary-foreground"
                   : "bg-background border-border/60 hover:bg-muted/50"
               }`}
             >
@@ -206,16 +214,16 @@ export function DoctorSearchFilters({
               )}
             </Button>
           </SheetTrigger>
-          
+
           <SheetContent className="w-[95vw] sm:max-w-[450px] p-0 flex flex-col border-l-border/30">
-            
+
             <SheetHeader className="p-6 border-b border-border/40 shrink-0">
               <div className="flex items-center justify-between">
                 <SheetTitle className="text-xl font-bold font-heading">Advanced Filters</SheetTitle>
                 {activeFilterCount > 0 && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={onClearFilters}
                     className="text-muted-foreground hover:text-destructive h-8 px-2"
                   >
@@ -225,14 +233,13 @@ export function DoctorSearchFilters({
               </div>
             </SheetHeader>
 
-            {/* Scrollable Content Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin">
-              
-              {/* Mobile Only: Show Quick Filters inside the sheet if screen is < lg */}
+
+              {/* Mobile Only: Quick Filters inside sheet */}
               <div className="block lg:hidden space-y-6 pb-6 border-b border-border/40">
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Specialization</Label>
-                  <Select value={selectedSpecialization} onValueChange={onSpecializationChange}>
+                  <Select value={localSpecialization} onValueChange={setLocalSpecialization}>
                     <SelectTrigger className="w-full h-12 rounded-xl bg-muted/30">
                       <SelectValue placeholder="All Specializations" />
                     </SelectTrigger>
@@ -247,7 +254,7 @@ export function DoctorSearchFilters({
 
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Location</Label>
-                  <Select value={selectedCity} onValueChange={onCityChange}>
+                  <Select value={localCity} onValueChange={setLocalCity}>
                     <SelectTrigger className="w-full h-12 rounded-xl bg-muted/30">
                       <SelectValue placeholder="All Cities" />
                     </SelectTrigger>
@@ -262,7 +269,7 @@ export function DoctorSearchFilters({
 
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Sort By</Label>
-                  <Select value={sortBy} onValueChange={onSortByChange}>
+                  <Select value={localSortBy} onValueChange={setLocalSortBy}>
                     <SelectTrigger className="w-full h-12 rounded-xl bg-muted/30">
                       <SelectValue placeholder="Sort Options" />
                     </SelectTrigger>
@@ -284,8 +291,8 @@ export function DoctorSearchFilters({
                       key={type.value}
                       variant={selectedConsultationType === type.value ? "default" : "outline"}
                       className={`cursor-pointer px-4 py-2 text-sm transition-all rounded-full border ${
-                        selectedConsultationType === type.value 
-                          ? "bg-primary text-primary-foreground shadow-md border-primary" 
+                        selectedConsultationType === type.value
+                          ? "bg-primary text-primary-foreground shadow-md border-primary"
                           : "hover:bg-primary/10 border-border/50 bg-background text-foreground"
                       }`}
                       onClick={() => onConsultationTypeChange(
@@ -303,11 +310,11 @@ export function DoctorSearchFilters({
                 <Label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Languages</Label>
                 <div className="grid grid-cols-2 gap-3">
                   {LANGUAGES.map((lang) => (
-                    <div 
-                      key={lang.value} 
+                    <div
+                      key={lang.value}
                       className={`flex items-center space-x-3 p-3 rounded-xl border transition-colors cursor-pointer ${
-                        selectedLanguages.includes(lang.value) 
-                          ? "bg-primary/5 border-primary/40" 
+                        selectedLanguages.includes(lang.value)
+                          ? "bg-primary/5 border-primary/40"
                           : "bg-muted/30 border-border/30 hover:border-border"
                       }`}
                       onClick={() => toggleLanguage(lang.value)}
@@ -366,11 +373,10 @@ export function DoctorSearchFilters({
 
             </div>
 
-            {/* Sticky Footer for Apply Button */}
             <SheetFooter className="p-6 border-t border-border/40 bg-background shrink-0 mt-auto">
-              <Button 
-                className="w-full h-12 text-base font-bold rounded-xl shadow-lg" 
-                onClick={() => setIsFilterOpen(false)}
+              <Button
+                className="w-full h-12 text-base font-bold rounded-xl shadow-lg"
+                onClick={handleSearch}
               >
                 Apply Filters
               </Button>
@@ -378,41 +384,51 @@ export function DoctorSearchFilters({
 
           </SheetContent>
         </Sheet>
+
+        {/* Green Search Button */}
+        <Button
+          type="button"
+          onClick={handleSearch}
+          className="h-12 w-12 rounded-xl bg-primary hover:bg-primary/90 shrink-0 flex items-center justify-center transition-colors cursor-pointer relative z-10 p-0"
+        >
+          <Search className="h-5 w-5 text-white" />
+        </Button>
+
       </div>
 
       {/* --- ACTIVE FILTERS ROW --- */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-2 animate-in fade-in duration-300">
           <span className="text-sm font-medium text-muted-foreground mr-1">Active:</span>
-          
+
           {selectedSpecialization !== "all" && (
             <Badge variant="secondary" className="px-3 py-1.5 gap-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 rounded-full">
               {specializations.find((s) => s.id === selectedSpecialization)?.name}
               <X className="h-3.5 w-3.5 cursor-pointer hover:text-destructive transition-colors" onClick={() => onSpecializationChange("all")} />
             </Badge>
           )}
-          
+
           {selectedCity !== "all" && (
             <Badge variant="secondary" className="px-3 py-1.5 gap-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 rounded-full">
               {selectedCity}
               <X className="h-3.5 w-3.5 cursor-pointer hover:text-destructive transition-colors" onClick={() => onCityChange("all")} />
             </Badge>
           )}
-          
+
           {selectedConsultationType !== "all" && (
             <Badge variant="secondary" className="px-3 py-1.5 gap-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 rounded-full">
               {CONSULTATION_TYPES.find((c) => c.value === selectedConsultationType)?.label}
               <X className="h-3.5 w-3.5 cursor-pointer hover:text-destructive transition-colors" onClick={() => onConsultationTypeChange("all")} />
             </Badge>
           )}
-          
+
           {selectedLanguages.map((lang) => (
             <Badge key={lang} variant="secondary" className="px-3 py-1.5 gap-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 rounded-full">
               {LANGUAGES.find((l) => l.value === lang)?.label}
               <X className="h-3.5 w-3.5 cursor-pointer hover:text-destructive transition-colors" onClick={() => toggleLanguage(lang)} />
             </Badge>
           ))}
-          
+
           {minRating > 0 && (
             <Badge variant="secondary" className="px-3 py-1.5 gap-1.5 bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20 rounded-full">
               <Star className="h-3 w-3 fill-current" />
@@ -421,10 +437,10 @@ export function DoctorSearchFilters({
             </Badge>
           )}
 
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={onClearFilters} 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearFilters}
             className="text-muted-foreground hover:text-destructive text-sm h-8 px-3 rounded-full hover:bg-destructive/10 ml-auto sm:ml-0"
           >
             Clear all

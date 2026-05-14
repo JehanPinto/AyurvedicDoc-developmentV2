@@ -435,8 +435,6 @@ export const insertSpecializationSchemaDb = createInsertSchema(
 
 export const insertHospitalSchemaDb = createInsertSchema(hospitals).omit({
   id: true,
-  createdAt: true,
-  updatedAt: true,
 });
 
 export const insertDoctorProfileSchemaDb = createInsertSchema(
