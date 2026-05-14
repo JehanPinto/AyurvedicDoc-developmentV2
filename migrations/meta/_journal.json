@@ -15,6 +15,13 @@
       "when": 1765823425550,
       "tag": "0001_happy_rhodey",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765825000000,
+      "tag": "0002_add_hospital_timestamps",
+      "breakpoints": true
     }
   ]
 }
