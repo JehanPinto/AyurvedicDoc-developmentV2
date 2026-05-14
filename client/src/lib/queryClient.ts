@@ -1,16 +1,32 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-async function throwIfResNotOk(res: Response) {
+interface RequestOptions {
+  skip401Redirect?: boolean;
+}
+
+function extractErrorMessage(text: string, status: number): string {
+  if (!text) return `Request failed with status ${status}`;
+
+  try {
+    const parsed = JSON.parse(text) as { error?: string; message?: string };
+    return parsed.error || parsed.message || text;
+  } catch {
+    return text;
+  }
+}
+
+async function throwIfResNotOk(res: Response, options?: RequestOptions) {
   if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+
     // If unauthorized, clear token and redirect to login
-    if (res.status === 401) {
-      localStorage.removeItem("token"); 
-      window.location.href = "/login"; 
+    if (res.status === 401 && !options?.skip401Redirect) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
       throw new Error("Session expired. Please login again.");
     }
-    // Try to get error message from response body, fallback to status text
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+
+    throw new Error(extractErrorMessage(text, res.status));
   }
 }
 
@@ -18,6 +34,7 @@ export async function apiRequest<T = unknown>(
   method: string,
   url: string,
   data?: unknown | undefined,
+  options?: RequestOptions,
 ): Promise<T> {
   const headers: HeadersInit = {};
   if (data) {
@@ -31,7 +48,7 @@ export async function apiRequest<T = unknown>(
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  await throwIfResNotOk(res, options);
   
   const contentType = res.headers.get("content-type");
   if (contentType && contentType.includes("application/json")) {

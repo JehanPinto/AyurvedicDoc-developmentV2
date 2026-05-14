@@ -38,7 +38,9 @@ export default function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginInput) => {
-      const response = await apiRequest("POST", "/api/auth/login", data);
+      const response = await apiRequest("POST", "/api/auth/login", data, {
+        skip401Redirect: true,
+      });
       return response;
     },
     onSuccess: (data: { user: any; token: string }) => {
@@ -173,7 +175,7 @@ export default function LoginPage() {
                   />
 
                   <Link href="/forgot-password">
-                    <Button variant="link" className="px-0 h-auto text-sm">
+                    <Button type="button" variant="link" className="px-0 h-auto text-sm">
                       Forgot password?
                     </Button>
                   </Link>

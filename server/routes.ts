@@ -360,7 +360,12 @@ function authMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const token = req.cookies?.token; 
+  const cookieToken = req.cookies?.token;
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : undefined;
+  const token = cookieToken || bearerToken;
 
   if (!token) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -960,7 +965,7 @@ export async function registerRoutes(
         const userJson = encodeURIComponent(
           JSON.stringify(userWithoutPassword),
         );
-
+        res.cookie("token", token, cookieOptions);
         res.redirect(
           `/auth/callback?status=ok&token=${token}&user=${userJson}`,
         );
@@ -1094,6 +1099,7 @@ export async function registerRoutes(
           const userJson = encodeURIComponent(
             JSON.stringify(userWithoutPassword),
           );
+          res.cookie("token", token, cookieOptions);
           res.redirect(
             `/auth/callback?status=ok&token=${token}&user=${userJson}`,
           );
