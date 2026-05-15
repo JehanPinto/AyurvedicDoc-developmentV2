@@ -39,15 +39,16 @@ export default function AboutPage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
         
-        <div className="container mx-auto px-4 py-16 md:py-24 relative">
+        <div className="container mx-auto px-4 py-8 md:py-10 lg:pt-14 relative">
           <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight mb-6">
-              About{" "}
-              <span className="text-primary">AyurvedicDoctor</span>
+            
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight mb-4">
+              About <span className="text-primary">Ayurvedic Doctor</span>
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
               Bridging ancient Ayurvedic wisdom with modern healthcare accessibility. 
+              <br />
               We connect patients with verified Ayurvedic practitioners across Sri Lanka.
             </p>
           </div>
@@ -55,15 +56,17 @@ export default function AboutPage() {
       </section>
 
       {/* Mission & Vision */}
-      <section className="py-16 md:py-24">
+      <section className="mb-10">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 gap-12">
-            <Card className="border-primary/20">
-              <CardContent className="p-8">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-6">
-                  <Target className="h-7 w-7 text-primary" />
+            <Card className="border-primary/20 bg-primary/20 dark:bg-card">
+              <CardContent className="p-8 flex flex-col items-center text-center">
+                <div className="flex items-center gap-5">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full border border-primary/50 mb-6">
+                    <Target className="h-7 w-7 text-primary" />
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-heading font-bold mb-4">Our Mission</h2>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-heading font-bold mb-4">Our Mission</h2>
                 <p className="text-muted-foreground leading-relaxed">
                   To make quality Ayurvedic healthcare accessible to every Sri Lankan by connecting 
                   them with verified practitioners through a seamless digital platform. We believe 
@@ -73,12 +76,14 @@ export default function AboutPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-primary/20">
-              <CardContent className="p-8">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-6">
-                  <Award className="h-7 w-7 text-primary" />
+            <Card className="border-primary/20 bg-primary/20 dark:bg-card">
+              <CardContent className="p-8 flex flex-col items-center text-center">
+                <div className="flex items-center gap-5">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full border border-primary/50 mb-6">
+                    <Award className="h-7 w-7 text-primary" />
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-heading font-bold mb-4">Our Vision</h2>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-heading font-bold mb-4">Our Vision</h2>
                 <p className="text-muted-foreground leading-relaxed">
                   To become Sri Lanka's most trusted platform for Ayurvedic healthcare, where 
                   patients can find the right practitioner for their needs and doctors can grow 
@@ -92,7 +97,7 @@ export default function AboutPage() {
       </section>
 
       {/* Our Story */}
-      <section className="py-16 md:py-24 bg-card">
+      <section className="py-10 bg-primary/20 dark:bg-card">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">Our Story</h2>
@@ -124,7 +129,7 @@ export default function AboutPage() {
       </section>
 
       {/* Values */}
-      <section className="py-16 md:py-24">
+      <section className="py-10">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
@@ -137,9 +142,9 @@ export default function AboutPage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {values.map((value) => (
-              <Card key={value.title} className="text-center">
+              <Card key={value.title} className="text-center dark:bg-card border-primary/50 bg-primary/20">
                 <CardContent className="p-6">
-                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-4">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full border border-primary/50 mb-4">
                     <value.icon className="h-7 w-7 text-primary" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">{value.title}</h3>
@@ -152,7 +157,7 @@ export default function AboutPage() {
       </section>
 
       {/* Stats */}
-      <section className="py-16 md:py-24 bg-[#C38322] text-primary-foreground">
+      <section className="py-10 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
