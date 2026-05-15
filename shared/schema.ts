@@ -386,6 +386,30 @@ export const insertBlogSubmissionSchema = createInsertSchema(
 export type BlogSubmission = typeof blogSubmissions.$inferSelect;
 export type InsertBlogSubmission = z.infer<typeof insertBlogSubmissionSchema>;
 
+export const doctorCancellationCharges = pgTable("doctor_cancellation_charges", {
+  id: varchar("id", { length: 50 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  doctorId: varchar("doctor_id", { length: 50 })
+    .notNull()
+    .references(() => doctorProfiles.id),
+  appointmentId: varchar("appointment_id", { length: 50 })
+    .notNull()
+    .references(() => appointments.id),
+  consultationFee: integer("consultation_fee").notNull(),
+  amountOwed: integer("amount_owed").notNull(),
+  settled: boolean("settled").default(false),
+  settledAt: timestamp("settled_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertDoctorCancellationChargeSchemaDb = createInsertSchema(
+  doctorCancellationCharges,
+).omit({ id: true, createdAt: true });
+
+export type DoctorCancellationCharge = typeof doctorCancellationCharges.$inferSelect;
+export type InsertDoctorCancellationCharge = z.infer<typeof insertDoctorCancellationChargeSchemaDb>;
+
 export const platformSettings = pgTable("platform_settings", {
   id: varchar("id", { length: 50 })
     .primaryKey()

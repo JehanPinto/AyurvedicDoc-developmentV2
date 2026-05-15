@@ -215,6 +215,17 @@ export interface IStorage {
     thisMonthEarnings: number;
     lastMonthEarnings: number;
   }>;
+  createDoctorCancellationCharge(data: {
+    doctorId: string;
+    appointmentId: string;
+    consultationFee: number;
+    amountOwed: number;
+  }): Promise<void>;
+  getDoctorUnsettledCharges(doctorId: string): Promise<{
+    count: number;
+    totalOwed: number;
+  }>;
+  settleDoctorCharges(doctorId: string): Promise<void>;
   respondToReview(
     reviewId: string,
     response: string,
