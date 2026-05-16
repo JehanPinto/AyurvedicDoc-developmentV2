@@ -1,8 +1,14 @@
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import cookieParser from "cookie-parser";
 
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+// Load .env file only if it exists (for development)
+// In production (Railway), env vars are set via the platform
+const envPath = path.join(process.cwd(), ".env");
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
 
 import express, { NextFunction, type Request, Response } from "express";
 import { createServer } from "http";
