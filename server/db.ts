@@ -2,11 +2,16 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
 import { config as loadEnv } from "dotenv";
+import fs from "fs";
+import path from "path";
 
 // Load environment variables for both Node 18 (dotenv) and Node 20+ (loadEnvFile)
-if (typeof (process as any).loadEnvFile === "function") {
+// Only load .env file if it exists (for development)
+// In production, env vars are provided by the platform
+const envPath = path.join(process.cwd(), ".env");
+if (typeof (process as any).loadEnvFile === "function" && fs.existsSync(envPath)) {
   (process as any).loadEnvFile();
-} else {
+} else if (fs.existsSync(envPath)) {
   loadEnv();
 }
 
