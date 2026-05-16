@@ -20,6 +20,9 @@ import { serveStatic } from "./static";
 const app = express();
 const httpServer = createServer(app);
 
+// Trust proxy headers for Railway (converts http to https)
+app.set('trust proxy', 1);
+
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
