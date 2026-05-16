@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { 
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
   DollarSign,
   TrendingUp,
   TrendingDown,
@@ -9,6 +9,7 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   Download,
   Filter,
   ArrowUpRight,
@@ -49,15 +50,30 @@ interface EarningsSummary {
 interface EarningsData {
   summary: EarningsSummary;
   payments: (Payment & { appointment?: AppointmentWithDetails })[];
+  cancellationCharges: { count: number; totalOwed: number };
 }
 
 export default function DoctorEarnings() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPeriod, setFilterPeriod] = useState<string>("all");
+  const [showSettleConfirm, setShowSettleConfirm] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery<EarningsData>({
     queryKey: ["/api/doctor/earnings"],
     staleTime: 2 * 60 * 1000,
+  });
+
+  const settleMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/doctor/earnings/settle", { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to settle");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/doctor/earnings"] });
+      setShowSettleConfirm(false);
+    },
   });
 
   const formatFee = (fee: number) => {
@@ -78,6 +94,7 @@ export default function DoctorEarnings() {
   };
 
   const payments = data?.payments || [];
+  const cancellationCharges = data?.cancellationCharges || { count: 0, totalOwed: 0 };
 
   const monthlyGrowth = summary.lastMonthEarnings > 0
     ? ((summary.thisMonthEarnings - summary.lastMonthEarnings) / summary.lastMonthEarnings) * 100
@@ -136,6 +153,56 @@ export default function DoctorEarnings() {
           <Download className="h-4 w-4 mr-2" />
           Export Report
         </Button>
+      </div>
+
+      <div className={`flex items-start gap-4 rounded-xl border p-4 ${
+        cancellationCharges.totalOwed > 0
+          ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20"
+          : "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20"
+      }`}>
+        <AlertTriangle className={`h-5 w-5 mt-0.5 shrink-0 ${cancellationCharges.totalOwed > 0 ? "text-red-500" : "text-green-500"}`} />
+        <div className="flex-1 min-w-0">
+          <p className={`font-semibold ${cancellationCharges.totalOwed > 0 ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"}`}>
+            Owed to System Admin
+          </p>
+          <p className={`text-sm mt-0.5 ${cancellationCharges.totalOwed > 0 ? "text-red-600 dark:text-red-500" : "text-green-600 dark:text-green-500"}`}>
+            {cancellationCharges.count > 0
+              ? `When you cancel an appointment, the booking charge and tax are billed back to you. ${cancellationCharges.count} cancellation${cancellationCharges.count > 1 ? "s" : ""} this period — patients fully refunded.`
+              : "No outstanding cancellation charges. All patients have been settled."}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className={`font-bold ${cancellationCharges.totalOwed > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+            {formatFee(cancellationCharges.totalOwed)}
+          </span>
+          {cancellationCharges.totalOwed > 0 && !showSettleConfirm && (
+            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => setShowSettleConfirm(true)}>
+              Settle now
+            </Button>
+          )}
+          {showSettleConfirm && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-700 font-medium">Deduct {formatFee(cancellationCharges.totalOwed)} from earnings?</span>
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white h-7 px-2 text-xs"
+                onClick={() => settleMutation.mutate()}
+                disabled={settleMutation.isPending}
+              >
+                {settleMutation.isPending ? "Settling…" : "Confirm"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                onClick={() => setShowSettleConfirm(false)}
+                disabled={settleMutation.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -260,7 +327,6 @@ export default function DoctorEarnings() {
                     <TableHead>Consultation</TableHead>
                     <TableHead>Total Amount</TableHead>
                     <TableHead>Your Earnings</TableHead>
-                    <TableHead>Method</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -290,14 +356,6 @@ export default function DoctorEarnings() {
                       </TableCell>
                       <TableCell className="font-semibold text-green-600">
                         {formatFee(payment.doctorEarnings)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <CreditCard className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm capitalize">
-                            {payment.method?.replace("_", " ") || "Unknown"}
-                          </span>
-                        </div>
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={payment.status} type="payment" />
@@ -342,6 +400,12 @@ export default function DoctorEarnings() {
                   -{formatFee(payments.reduce((sum, p) => sum + (p.platformCommission || 0), 0))}
                 </span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Tax (4%)</span>
+                <span className="font-medium text-red-500">
+                  -{formatFee(payments.reduce((sum, p) => sum + p.consultationFee, 0) * 0.04)}
+                </span>
+              </div>
               <hr />
               <div className="flex justify-between font-semibold">
                 <span>Net Earnings</span>
@@ -354,32 +418,35 @@ export default function DoctorEarnings() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5" />
               Payment Methods
             </CardTitle>
+            <span className="text-xs text-muted-foreground font-normal">1 method</span>
           </CardHeader>
           <CardContent className="space-y-3">
-            {["online", "pay_at_clinic", "bank_transfer"].map((method) => {
-              const count = payments.filter(p => p.method === method).length;
-              const amount = payments
-                .filter(p => p.method === method)
+            {(() => {
+              const onlineCount = payments.filter(p => p.method === "online").length;
+              const onlineAmount = payments
+                .filter(p => p.method === "online")
                 .reduce((sum, p) => sum + p.doctorEarnings, 0);
-              
               return (
-                <div key={method} className="flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-lg border-2 border-green-400 bg-green-50 dark:bg-green-950/20 px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm capitalize">{method.replace("_", " ")}</span>
+                    <CreditCard className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-700 dark:text-green-400">Online</span>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">{formatFee(amount)}</p>
-                    <p className="text-xs text-muted-foreground">{count} payments</p>
+                    <p className="font-semibold text-green-700 dark:text-green-400">{formatFee(onlineAmount)}</p>
+                    <p className="text-xs text-green-600 dark:text-green-500">{onlineCount} payments</p>
                   </div>
                 </div>
               );
-            })}
+            })()}
+            <p className="text-xs text-muted-foreground pt-1">
+              All consultations this month were processed through online payments.
+            </p>
           </CardContent>
         </Card>
       </div>

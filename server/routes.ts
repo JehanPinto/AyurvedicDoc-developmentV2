@@ -2281,6 +2281,20 @@ export async function registerRoutes(
           const doctorProfile = await storage.getDoctorProfile(
             existing.doctorId,
           );
+
+          // When the doctor cancels, record the charge they owe (platform commission 10% + tax 4%)
+          if (req.user!.role === UserRole.DOCTOR && doctorProfile) {
+            const payment = await storage.getPaymentByAppointment(existing.id);
+            const fee = payment?.consultationFee ?? doctorProfile.consultationFee;
+            const amountOwed = Math.round(fee * 0.14);
+            await storage.createDoctorCancellationCharge({
+              doctorId: doctorProfile.id,
+              appointmentId: existing.id,
+              consultationFee: fee,
+              amountOwed,
+            });
+          }
+
           const doctorUser = doctorProfile
             ? await storage.getUser(doctorProfile.userId)
             : null;
@@ -2464,12 +2478,39 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Doctor profile not found" });
         }
 
-        const summary = await storage.getDoctorEarningsSummary(profile.id);
-        const payments = await storage.getDoctorPayments(profile.id);
+        const [summary, payments, unsettled] = await Promise.all([
+          storage.getDoctorEarningsSummary(profile.id),
+          storage.getDoctorPayments(profile.id),
+          storage.getDoctorUnsettledCharges(profile.id),
+        ]);
 
-        res.json({ summary, payments });
+        res.json({ summary, payments, cancellationCharges: unsettled });
       } catch (error) {
         res.status(500).json({ error: "Failed to get earnings" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/doctor/earnings/settle",
+    authMiddleware,
+    roleMiddleware(UserRole.DOCTOR),
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const profile = await storage.getDoctorProfileByUserId(req.user!.id);
+        if (!profile) {
+          return res.status(404).json({ error: "Doctor profile not found" });
+        }
+
+        const unsettled = await storage.getDoctorUnsettledCharges(profile.id);
+        if (unsettled.totalOwed === 0) {
+          return res.json({ settled: true, amountDeducted: 0 });
+        }
+
+        await storage.settleDoctorCharges(profile.id);
+        res.json({ settled: true, amountDeducted: unsettled.totalOwed });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to settle charges" });
       }
     },
   );
