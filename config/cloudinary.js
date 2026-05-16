@@ -1,12 +1,10 @@
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 
 // Load .env file before doing anything else (only if it exists)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const envPath = path.resolve(__dirname, "../.env");
+// Don't use import.meta.url as it's not available in CommonJS builds
+const envPath = path.join(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
 }
