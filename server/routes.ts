@@ -1911,13 +1911,16 @@ export async function registerRoutes(
       try {
         const bookingData = bookingSchema.parse(req.body);
 
-        const slot = await storage.getAppointmentSlot(bookingData.slotId);
-        if (!slot || slot.isBooked || slot.isBlocked) {
+        // Atomically claim the slot — prevents double-booking under concurrent requests
+        const slot = await storage.bookSlotAtomic(bookingData.slotId);
+        if (!slot) {
           return res.status(400).json({ error: "Slot not available" });
         }
 
         const doctor = await storage.getDoctorProfile(bookingData.doctorId);
         if (!doctor || doctor.status !== DoctorStatus.VERIFIED) {
+          // Release the slot back since we can't proceed
+          await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: false });
           return res.status(400).json({ error: "Doctor not available" });
         }
 
@@ -1940,7 +1943,6 @@ export async function registerRoutes(
         };
 
         const appointment = await storage.createAppointment(appointmentData);
-        await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: true });
 
         let consultationFee = doctor.consultationFee;
         if (
@@ -2271,6 +2273,17 @@ export async function registerRoutes(
       try {
         const { reason } = req.body;
         const existing = await storage.getAppointment(req.params.id);
+
+        if (!existing) {
+          return res.status(404).json({ error: "Appointment not found" });
+        }
+        const cancellableStatuses = [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED];
+        if (!cancellableStatuses.includes(existing.status as AppointmentStatus)) {
+          return res.status(400).json({
+            error: `Cannot cancel an appointment with status: ${existing.status}`,
+          });
+        }
+
         const appointment = await storage.cancelAppointment(
           req.params.id,
           reason,
