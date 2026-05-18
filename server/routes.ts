@@ -36,6 +36,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { z } from "zod";
 import { upload } from "../config/cloudinary";
+import jwt from "jsonwebtoken";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): {
@@ -266,67 +267,26 @@ type JwtPayload = {
   exp?: number;
 };
 
-function generateToken(
-  payload: object,
-  ttlMs = 7 * 24 * 60 * 60 * 1000,
-): string {
-  const header = Buffer.from(
-    JSON.stringify({ alg: "HS256", typ: "JWT" }),
-  ).toString("base64url");
-  
-  const body = Buffer.from(
-    JSON.stringify({ ...payload, exp: Date.now() + ttlMs }),
-  ).toString("base64url");
-  
-  const signature = createHmac("sha256", JWT_SECRET)
-    .update(`${header}.${body}`)
-    .digest("base64url");
-    
-  return `${header}.${body}.${signature}`;
+function generateToken(payload: object, ttlMs = 7 * 24 * 60 * 60 * 1000): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: Math.floor(ttlMs / 1000) });
 }
 
-function decodeToken(token: string): JwtPayload | null {
+function verifyToken(token: string): { id: string; email: string; role: string; fullName: string } | null {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-
-    const [header, body, signature] = parts;
-    
-    const expectedSignature = createHmac("sha256", JWT_SECRET)
-      .update(`${header}.${body}`)
-      .digest("base64url");
-      
-    if (signature !== expectedSignature) {
-      console.error("🔴 Security Alert: Invalid Token Signature detected!");
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    if (!decoded || !decoded.id || !decoded.email || !decoded.role || !decoded.fullName) {
       return null;
     }
-
-    const payload = JSON.parse(Buffer.from(body, "base64url").toString());
-    if (payload.exp < Date.now()) return null;
-    return payload;
-  } catch {
+    return {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role as string,
+      fullName: decoded.fullName as string,
+    };
+  } catch (error) {
+    console.error("Security Alert: Invalid Token Signature detected!", error);
     return null;
   }
-}
-
-function verifyToken(
-  token: string,
-): { id: string; email: string; role: string; fullName: string } | null {
-  const payload = decodeToken(token);
-  if (
-    !payload ||
-    !payload.id ||
-    !payload.email ||
-    !payload.role ||
-    !payload.fullName
-  )
-    return null;
-  return {
-    id: payload.id,
-    email: payload.email,
-    role: payload.role,
-    fullName: payload.fullName,
-  };
 }
 
 function generateRegistrationToken(
@@ -339,9 +299,13 @@ function generateRegistrationToken(
 }
 
 function verifyRegistrationToken(token: string): JwtPayload | null {
-  const payload = decodeToken(token);
-  if (!payload || payload.purpose !== "complete-registration") return null;
-  return payload;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    if (decoded.purpose !== "complete-registration") return null;
+    return decoded;
+  } catch {
+    return null;
+  }
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -713,14 +677,12 @@ export async function registerRoutes(
         const token = req.cookies?.token;
 
         if (token) {
-          const payload = decodeToken(token);
-          const exp = payload?.exp ? payload.exp : Date.now() + 7 * 24 * 60 * 60 * 1000;
-
+          const decoded = jwt.decode(token) as JwtPayload;
+          const exp = decoded?.exp ? decoded.exp * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000;
           tokenBlacklist.set(token, exp);
         }
 
         res.clearCookie("token", { httpOnly: true, sameSite: "strict" });
-
         res.json({ success: true, message: "Logged out successfully" });
       } catch (error) {
         res.status(500).json({ error: "Logout failed" });
@@ -1646,6 +1608,7 @@ export async function registerRoutes(
     },
   );
 
+  // Allow doctors to update their profile (except for fields that require admin approval)
   app.put(
     "/api/doctor/profile",
     authMiddleware,
@@ -1657,9 +1620,19 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Doctor profile not found" });
         }
 
-        const updated = await storage.updateDoctorProfile(profile.id, req.body);
+        const safeUpdateData = insertDoctorProfileSchema.partial().omit({
+          userId: true,
+          status: true,
+          rejectionReason: true,
+          verificationDocuments: true,
+        }).parse(req.body);
+
+        const updated = await storage.updateDoctorProfile(profile.id, safeUpdateData);
         res.json(updated);
       } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Validation failed", details: error.errors });
+        }
         res.status(500).json({ error: "Failed to update profile" });
       }
     },
@@ -3845,12 +3818,20 @@ export async function registerRoutes(
     }
   });
 
-  // Forgot Password: Verify OTP and reset password (unauthenticated)
+  // Add password strength validation to unauthenticated password reset route
   app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
     try {
       const { email, otp, newPassword } = req.body;
       if (!email || !otp || !newPassword) {
         return res.status(400).json({ error: "Email, OTP, and new password are required" });
+      }
+
+      const passwordValidation = validatePasswordStrength(newPassword);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({
+          error: "Password does not meet security requirements",
+          details: passwordValidation.errors,
+        });
       }
 
       const user = await storage.getUserByEmail(email.toLowerCase().trim());
