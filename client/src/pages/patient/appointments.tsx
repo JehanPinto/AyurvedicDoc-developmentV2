@@ -201,6 +201,8 @@ export default function PatientAppointmentsPage() {
   const getActionText = (appointment: AppointmentWithDetails) => {
     const name = appointment.doctor?.user?.fullName?.replace(/^Dr\.?\s*/i, "") || "Doctor";
     switch (appointment.status) {
+      case AppointmentStatus.PENDING:
+        return `Waiting for Dr. ${name} to approve your appointment`;
       case AppointmentStatus.CONFIRMED:
         return `Dr. ${name} approved appointment`;
       case AppointmentStatus.CANCELLED:
