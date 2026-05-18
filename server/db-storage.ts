@@ -8,6 +8,7 @@ import {
   blogSubmissions,
   blogs,
   careers,
+  doctorCancellationCharges,
   doctorProfiles,
   doctorSchedules,
   hospitals,
@@ -2065,10 +2066,10 @@ export class DbStorage implements IStorage {
 
   async getDoctorsWithDetailsByIds(ids: string[]) {
     if (ids.length === 0) return [];
-    
+
     const query = `
-      SELECT 
-        dp.*, 
+      SELECT
+        dp.*,
         json_build_object(
           'fullName', u.full_name,
           'profileImage', u.profile_image
@@ -2077,9 +2078,52 @@ export class DbStorage implements IStorage {
       JOIN users u ON dp.user_id = u.id
       WHERE dp.id = ANY($1)
     `;
-    
+
     const result = await pool.query(query, [ids]);
     return result.rows;
+  }
+
+  async createDoctorCancellationCharge(data: {
+    doctorId: string;
+    appointmentId: string;
+    consultationFee: number;
+    amountOwed: number;
+  }): Promise<void> {
+    await db.insert(doctorCancellationCharges).values({
+      doctorId: data.doctorId,
+      appointmentId: data.appointmentId,
+      consultationFee: data.consultationFee,
+      amountOwed: data.amountOwed,
+      settled: false,
+    });
+  }
+
+  async getDoctorUnsettledCharges(doctorId: string): Promise<{ count: number; totalOwed: number }> {
+    const rows = await db
+      .select()
+      .from(doctorCancellationCharges)
+      .where(
+        and(
+          eq(doctorCancellationCharges.doctorId, doctorId),
+          eq(doctorCancellationCharges.settled, false),
+        ),
+      );
+    return {
+      count: rows.length,
+      totalOwed: rows.reduce((sum, r) => sum + r.amountOwed, 0),
+    };
+  }
+
+  async settleDoctorCharges(doctorId: string): Promise<void> {
+    await db
+      .update(doctorCancellationCharges)
+      .set({ settled: true, settledAt: new Date() })
+      .where(
+        and(
+          eq(doctorCancellationCharges.doctorId, doctorId),
+          eq(doctorCancellationCharges.settled, false),
+        ),
+      );
   }
 }
 
