@@ -231,29 +231,28 @@ export default function PatientAppointmentsPage() {
 
     return (
       <div
-        className="rounded-xl border border-green-200 overflow-hidden"
+        className="rounded-xl border border-green-200 dark:border-green-900 overflow-hidden"
         data-testid={`card-appointment-${appointment.id}`}
       >
         {/* Date header */}
-        <div className="bg-green-50 px-4 py-2 border-b border-green-100">
+        <div className="bg-green-50 dark:bg-green-950/30 px-4 py-2 border-b border-green-100 dark:border-green-900">
           <span className="text-sm font-semibold text-foreground">
             {format(parseISO(appointment.appointmentDate), "EEE, MMM d")}
           </span>
         </div>
 
         {/* Row */}
-        <div className={`flex items-center gap-4 px-4 py-3 bg-white border-l-4 ${
+        <div className={`flex items-center gap-4 px-4 py-3 bg-white dark:bg-card border-l-4 ${
           isCancelled ? "border-l-red-400" :
-          isCompleted ? "border-l-primary" :
           "border-l-primary"
         }`}>
 
           {/* LEFT — icon + time + badge + action text */}
           <div className="flex items-start gap-3 w-56 shrink-0">
             <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
-              isOnline ? "bg-purple-100 text-purple-600" :
-              isHomeVisit ? "bg-blue-100 text-blue-600" :
-              "bg-amber-100 text-amber-700"
+              isOnline ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300" :
+              isHomeVisit ? "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300" :
+              "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
             }`}>
               {isOnline ? <Video className="h-4 w-4" /> :
                isHomeVisit ? <MapPin className="h-4 w-4" /> :
@@ -263,9 +262,9 @@ export default function PatientAppointmentsPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium whitespace-nowrap">{timeRange}</span>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
-                  isOnline ? "bg-purple-100 text-purple-700" :
-                  isHomeVisit ? "bg-blue-100 text-blue-700" :
-                  "bg-pink-100 text-pink-700"
+                  isOnline ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" :
+                  isHomeVisit ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" :
+                  "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300"
                 }`}>
                   {isOnline ? "Online" : isHomeVisit ? "Home Visit" : "In Person"}
                 </span>
@@ -278,7 +277,7 @@ export default function PatientAppointmentsPage() {
 
           {/* MIDDLE — consultation link / place */}
           <div className="flex items-center gap-2 flex-1 justify-center">
-            <span className={`text-sm font-medium whitespace-nowrap ${isCancelled ? "text-muted-foreground" : "text-primary"}`}>
+            <span className={`text-sm font-medium whitespace-nowrap ${isCancelled ? "text-muted-foreground" : "text-primary dark:text-primary"}`}>
               {isOnline ? "Consultation Link :" : "Consultation Place :"}
             </span>
             {isOnline ? (
@@ -287,7 +286,7 @@ export default function PatientAppointmentsPage() {
                 className={`inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
                   isCancelled
                     ? "bg-muted text-muted-foreground cursor-default"
-                    : "bg-green-100 hover:bg-green-200 text-green-700"
+                    : "bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400"
                 }`}
               >
                 <Video className="h-3.5 w-3.5" />
@@ -299,7 +298,7 @@ export default function PatientAppointmentsPage() {
                 className={`inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
                   isCancelled
                     ? "bg-muted text-muted-foreground cursor-default"
-                    : "bg-green-100 hover:bg-green-200 text-green-700"
+                    : "bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400"
                 }`}
               >
                 <Map className="h-3.5 w-3.5" />
