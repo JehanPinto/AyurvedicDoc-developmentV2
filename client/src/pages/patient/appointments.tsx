@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format, parseISO, isAfter, isBefore } from "date-fns";
 import {
@@ -16,8 +17,10 @@ import {
   Phone,
   MapPin,
   ChevronRight,
+  Map,
+  Star,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -53,6 +56,7 @@ import type { AppointmentWithDetails } from "@shared/schema";
 import { AppointmentStatus, ConsultationType } from "@shared/schema";
 
 export default function PatientAppointmentsPage() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -186,127 +190,157 @@ export default function PatientAppointmentsPage() {
     );
   }
 
-  const AppointmentCard = ({ appointment }: { appointment: AppointmentWithDetails }) => (
-    <Card 
-      className="hover-elevate cursor-pointer"
-      onClick={() => {
-        setSelectedAppointment(appointment);
-        setDetailsDialogOpen(true);
-      }}
-      data-testid={`card-appointment-${appointment.id}`}
-    >
-      <CardContent className="p-4">
-        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <Avatar className="h-12 w-12 shrink-0">
-            <AvatarImage src={appointment.doctor?.user?.profileImage || ""} />
-            <AvatarFallback>
-              {getInitials(appointment.doctor?.user?.fullName || "")}
-            </AvatarFallback>
-          </Avatar>
+  const formatSlotTime = (time: string) => {
+    const [h, m] = time.split(":");
+    const hour = parseInt(h);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${m} ${ampm}`;
+  };
 
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between mb-2">
-              <h3 className="font-semibold truncate">
-                {appointment.doctor?.user?.fullName || "Doctor"}
-              </h3>
-              <StatusBadge status={appointment.status} type="appointment" />
+  const getActionText = (appointment: AppointmentWithDetails) => {
+    const name = appointment.doctor?.user?.fullName?.replace(/^Dr\.?\s*/i, "") || "Doctor";
+    switch (appointment.status) {
+      case AppointmentStatus.CONFIRMED:
+        return `Dr. ${name} approved appointment`;
+      case AppointmentStatus.CANCELLED:
+        return appointment.cancelledBy === "doctor"
+          ? `Dr. ${name} canceled appointment`
+          : "You canceled appointment";
+      case AppointmentStatus.COMPLETED:
+        return `Dr. ${name} completed appointment`;
+      case "no_show":
+        return "Marked as no-show";
+      default:
+        return "";
+    }
+  };
+
+  const AppointmentCard = ({ appointment }: { appointment: AppointmentWithDetails }) => {
+    const isOnline = appointment.consultationType === ConsultationType.ONLINE;
+    const isHomeVisit = appointment.consultationType === ConsultationType.HOME_VISIT;
+    const isCancelled = ["cancelled", "no_show"].includes(appointment.status);
+    const isCompleted = appointment.status === AppointmentStatus.COMPLETED;
+    const actionText = getActionText(appointment);
+
+    const startTime = appointment.slot?.startTime
+      ? formatSlotTime(appointment.slot.startTime)
+      : formatSlotTime(appointment.appointmentTime);
+    const endTime = appointment.slot?.endTime ? formatSlotTime(appointment.slot.endTime) : null;
+    const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
+
+    return (
+      <div
+        className="rounded-xl border border-green-200 dark:border-green-900 overflow-hidden"
+        data-testid={`card-appointment-${appointment.id}`}
+      >
+        {/* Date header */}
+        <div className="bg-green-50 dark:bg-green-950/30 px-4 py-2 border-b border-green-100 dark:border-green-900">
+          <span className="text-sm font-semibold text-foreground">
+            {format(parseISO(appointment.appointmentDate), "EEE, MMM d")}
+          </span>
+        </div>
+
+        {/* Row */}
+        <div className={`flex items-center gap-4 px-4 py-3 bg-white dark:bg-card border-l-4 ${
+          isCancelled ? "border-l-red-400" :
+          "border-l-primary"
+        }`}>
+
+          {/* LEFT — icon + time + badge + action text */}
+          <div className="flex items-start gap-3 w-56 shrink-0">
+            <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
+              isOnline ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300" :
+              isHomeVisit ? "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300" :
+              "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+            }`}>
+              {isOnline ? <Video className="h-4 w-4" /> :
+               isHomeVisit ? <MapPin className="h-4 w-4" /> :
+               <Building2 className="h-4 w-4" />}
             </div>
-
-            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
-                <span>{format(parseISO(appointment.appointmentDate), "MMM d, yyyy")}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium whitespace-nowrap">{timeRange}</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
+                  isOnline ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" :
+                  isHomeVisit ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" :
+                  "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300"
+                }`}>
+                  {isOnline ? "Online" : isHomeVisit ? "Home Visit" : "In Person"}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                <span>{appointment.appointmentTime}</span>
-              </div>
-              <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1">
-                {getConsultationIcon(appointment.consultationType)}
-                <span>{getConsultationLabel(appointment.consultationType)}</span>
-              </div>
-              {appointment.hospital && (
-                <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1 truncate">
-                  <Building2 className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{appointment.hospital.name}</span>
-                </div>
+              {actionText && (
+                <p className="text-xs text-muted-foreground mt-0.5">{actionText}</p>
               )}
             </div>
+          </div>
 
-            {appointment.queueNumber && appointment.status === AppointmentStatus.CONFIRMED && (
-              <Badge variant="secondary" className="mb-2">
-                Queue #{appointment.queueNumber}
-              </Badge>
+          {/* MIDDLE — consultation link / place */}
+          <div className="flex items-center gap-2 flex-1 justify-center">
+            <span className={`text-sm font-medium whitespace-nowrap ${isCancelled ? "text-muted-foreground" : "text-primary dark:text-primary"}`}>
+              {isOnline ? "Consultation Link :" : "Consultation Place :"}
+            </span>
+            {isOnline ? (
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                  isCancelled
+                    ? "bg-muted text-muted-foreground cursor-default"
+                    : "bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400"
+                }`}
+              >
+                <Video className="h-3.5 w-3.5" />
+                View in Browser
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                  isCancelled
+                    ? "bg-muted text-muted-foreground cursor-default"
+                    : "bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400"
+                }`}
+              >
+                <Map className="h-3.5 w-3.5" />
+                View on Map
+              </button>
             )}
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                {appointment.symptoms?.substring(0, 50)}
-                {appointment.symptoms && appointment.symptoms.length > 50 ? "..." : ""}
-              </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </div>
           </div>
 
-          <div className="sm:hidden flex justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" data-testid={`button-menu-${appointment.id}`}>
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedAppointment(appointment);
-                  setDetailsDialogOpen(true);
-                }}>
-                  View Details
-                </DropdownMenuItem>
-                {canCancel(appointment) && (
-                  <DropdownMenuItem 
-                    className="text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedAppointment(appointment);
-                      setCancelDialogOpen(true);
-                    }}
-                  >
-                    Cancel Appointment
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {/* RIGHT — status + cancel / feedback */}
+          <div className="flex items-center gap-2 shrink-0">
+            <StatusBadge status={appointment.status} type="appointment" />
 
-          <div className="hidden sm:flex flex-col gap-2">
             {canCancel(appointment) && (
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="text-destructive hover:text-destructive"
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedAppointment(appointment);
                   setCancelDialogOpen(true);
                 }}
+                className="text-red-500 hover:text-red-600 transition-colors"
                 data-testid={`button-cancel-${appointment.id}`}
               >
-                Cancel
-              </Button>
+                <XCircle className="h-6 w-6" />
+              </button>
             )}
-            {appointment.status === AppointmentStatus.CONFIRMED && 
-             appointment.consultationType === ConsultationType.ONLINE && (
-              <Button size="sm" data-testid={`button-join-${appointment.id}`}>
-                <Video className="h-4 w-4 mr-1" />
-                Join Call
-              </Button>
+
+            {isCompleted && (
+              <button
+                type="button"
+                onClick={() => setLocation("/patient/reviews")}
+                className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Star className="h-3.5 w-3.5" />
+                Give Feedback
+              </button>
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
+      </div>
+    );
+  };
 
   const EmptyState = ({ message }: { message: string }) => (
     <Card>
