@@ -396,6 +396,59 @@ function roleMiddleware(...roles: string[]) {
   };
 }
 
+// Sanitize doctor profile for public viewing (guests and patients)
+function sanitizeForPublic(doctor: DoctorWithDetails): any {
+  return {
+    id: doctor.id,
+    userId: doctor.userId,
+    user: {
+      id: doctor.user.id,
+      fullName: doctor.user.fullName,
+      profileImage: doctor.user.profileImage,
+      gender: doctor.user.gender,
+      // Excluded: email, phone, address, city, dateOfBirth
+    },
+    registrationNumber: doctor.registrationNumber,
+    qualifications: doctor.qualifications,
+    biography: doctor.biography,
+    status: doctor.status,
+    specializations: doctor.specializations,
+    languagesSpoken: doctor.languagesSpoken,
+    consultationTypes: doctor.consultationTypes,
+    hospitals: doctor.hospitals
+      .map(h => ({
+        id: h.id,
+        name: h.name,
+        address: h.address,
+        city: h.city,
+        latitude: h.latitude,
+        longitude: h.longitude,
+        parkingAvailable: h.parkingAvailable,
+        directions: h.directions,
+        // Excluded: contactNumber, email
+      })),
+    clinic_locations: doctor.clinic_locations,
+    averageRating: doctor.averageRating,
+    totalReviews: doctor.totalReviews,
+    totalAppointments: doctor.totalAppointments,
+    isAvailable: doctor.isAvailable,
+    maxAdvanceBookingDays: doctor.maxAdvanceBookingDays,
+    minBookingNoticeHours: doctor.minBookingNoticeHours,
+    slotDurationMinutes: doctor.slotDurationMinutes,
+    bufferTimeMinutes: doctor.bufferTimeMinutes,
+    consultationFee: doctor.consultationFee,
+    onlineConsultationFee: doctor.onlineConsultationFee,
+    homeVisitFee: doctor.homeVisitFee,
+    // Excluded: verificationDocuments, bankName, bankAccountNumber, bankBranch,
+    // user.email, user.phone, user.address, user.city, createdAt, updatedAt, currentQueueNumber
+  };
+}
+
+// Sanitize array of doctors for public viewing
+function sanitizeDocsForPublic(doctors: DoctorWithDetails[]): any[] {
+  return doctors.map(sanitizeForPublic);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express,
@@ -1510,8 +1563,19 @@ export async function registerRoutes(
     },
   );
 
-  app.get("/api/doctors", async (req: Request, res: Response) => {
+  app.get("/api/doctors", async (req: AuthenticatedRequest, res: Response) => {
     try {
+      // Extract token from cookies or Authorization header
+      const cookieToken = req.cookies?.token;
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : undefined;
+      const token = cookieToken || bearerToken;
+
+      // Verify token if present
+      const user = token ? verifyToken(token) : null;
+
       const filters: any = { status: DoctorStatus.VERIFIED };
 
       if (req.query.specializationId)
@@ -1523,27 +1587,63 @@ export async function registerRoutes(
         filters.consultationType = req.query.consultationType as string;
 
       const doctors = await storage.getAllDoctors(filters);
-      res.json(doctors);
+
+      // For admins, return full details
+      if (user?.role === UserRole.ADMIN) {
+        return res.json(doctors);
+      }
+
+      // For everyone else (guest or patient), return sanitized profiles
+      res.json(sanitizeDocsForPublic(doctors));
     } catch (error) {
       res.status(500).json({ error: "Failed to get doctors" });
     }
   });
 
-  app.get("/api/doctors/featured", async (_req: Request, res: Response) => {
+  app.get("/api/doctors/featured", async (req: AuthenticatedRequest, res: Response) => {
     try {
+      // Extract token from cookies or Authorization header
+      const cookieToken = req.cookies?.token;
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : undefined;
+      const token = cookieToken || bearerToken;
+
+      // Verify token if present
+      const user = token ? verifyToken(token) : null;
+
       const doctors = await storage.getVerifiedDoctors();
       const featured = doctors
         .sort((a, b) => b.averageRating - a.averageRating)
         .slice(0, 6);
-      res.json(featured);
+
+      // For admins, return full details
+      if (user?.role === UserRole.ADMIN) {
+        return res.json(featured);
+      }
+
+      // For everyone else (guest or patient), return sanitized profiles
+      res.json(sanitizeDocsForPublic(featured));
     } catch (error) {
       res.status(500).json({ error: "Failed to get featured doctors" });
     }
   });
 
   // Home page search endpoint - optimized for quick lookups with minimal filters
-  app.get("/api/doctors/search", async (req: Request, res: Response) => {
+  app.get("/api/doctors/search", async (req: AuthenticatedRequest, res: Response) => {
     try {
+      // Extract token from cookies or Authorization header
+      const cookieToken = req.cookies?.token;
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : undefined;
+      const token = cookieToken || bearerToken;
+
+      // Verify token if present
+      const user = token ? verifyToken(token) : null;
+
       const query = req.query.q?.toString().toLowerCase();
 
       if (!query || query.length < 2) {
@@ -1569,20 +1669,49 @@ export async function registerRoutes(
         )
         .slice(0, 5);
 
-      res.json(searchResults);
+      // For admins, return full details
+      if (user?.role === UserRole.ADMIN) {
+        return res.json(searchResults);
+      }
+
+      // For everyone else (guest or patient), return sanitized profiles
+      res.json(sanitizeDocsForPublic(searchResults));
     } catch (error) {
       console.error("Search API Error:", error);
       res.status(500).json({ error: "Failed to search doctors" });
     }
   });
 
-  app.get("/api/doctors/:id", async (req: Request, res: Response) => {
+  app.get("/api/doctors/:id", async (req: AuthenticatedRequest, res: Response) => {
     try {
+      // Extract token from cookies or Authorization header
+      const cookieToken = req.cookies?.token;
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : undefined;
+      const token = cookieToken || bearerToken;
+
+      // Verify token if present
+      const user = token ? verifyToken(token) : null;
+
       const doctor = await storage.getDoctorWithDetails(req.params.id);
       if (!doctor) {
         return res.status(404).json({ error: "Doctor not found" });
       }
-      res.json(doctor);
+
+      // Allow full details if:
+      // 1. Doctor is viewing their own profile
+      // 2. User is an admin
+      if (
+        (user?.id === doctor.userId && user?.role === UserRole.DOCTOR) ||
+        user?.role === UserRole.ADMIN
+      ) {
+        return res.json(doctor);
+      }
+
+      // For everyone else (guest or patient), return sanitized profile
+      res.json(sanitizeForPublic(doctor));
     } catch (error) {
       res.status(500).json({ error: "Failed to get doctor" });
     }
