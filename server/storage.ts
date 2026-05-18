@@ -111,6 +111,7 @@ export interface IStorage {
   deleteDoctorSchedule(id: string): Promise<boolean>;
 
   getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined>;
+  bookSlotAtomic(slotId: string): Promise<AppointmentSlot | null>;
   getAvailableSlots(doctorId: string, date: string): Promise<AppointmentSlot[]>;
   getDoctorSlots(
     doctorId: string,

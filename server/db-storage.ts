@@ -583,6 +583,24 @@ export class DbStorage implements IStorage {
     return result[0] as AppointmentSlot | undefined;
   }
 
+  async bookSlotAtomic(slotId: string): Promise<AppointmentSlot | null> {
+    // Atomically set isBooked=true only if the slot is currently free and not blocked.
+    // If two concurrent requests race, only one UPDATE will match the WHERE clause
+    // and get a row back — the other gets an empty result and is rejected.
+    const result = await db
+      .update(appointmentSlots)
+      .set({ isBooked: true })
+      .where(
+        and(
+          eq(appointmentSlots.id, slotId),
+          eq(appointmentSlots.isBooked, false),
+          eq(appointmentSlots.isBlocked, false),
+        ),
+      )
+      .returning();
+    return (result[0] as AppointmentSlot) ?? null;
+  }
+
   async getAvailableSlots(
     doctorId: string,
     date: string,
