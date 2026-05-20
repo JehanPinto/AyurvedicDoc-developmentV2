@@ -42,8 +42,10 @@ export default function PatientDashboard() {
 
   // 🟢 Receipt HTML Generation for New Tab / Print
   const generateReceiptHTML = (tx: any) => {
-    const dateStr = format(new Date(tx.date), "MMM d, yyyy");
-    const receiptNo = `INV-${new Date(tx.date).getFullYear()}-${tx.id.substring(0, 4).toUpperCase()}`;
+    const txDate = tx.date || tx.createdAt || new Date();
+    const dateStr = format(new Date(txDate), "MMM d, yyyy");
+    const receiptNo = `INV-${new Date(txDate).getFullYear()}-${(tx.id || "0000").toString().substring(0, 4).toUpperCase()}`;
+    const docName = tx.doctorName || tx.doctor?.user?.fullName || "Doctor";
     
     return `
       <html>
@@ -158,7 +160,7 @@ export default function PatientDashboard() {
   return (
     <div className="space-y-6">
       
-      {/* 🟢 Header Section */}
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground tracking-tight">
@@ -175,11 +177,13 @@ export default function PatientDashboard() {
         </Link>
       </div>
 
-      {/* 🟢 Stats Cards (Responsive & Dark Mode Supported) */}
+      {/* Stats Cards (Responsive & Dark Mode Supported) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+        <Card className="border-primary/50 shadow-sm rounded-2xl bg-transparent">
           <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><Calendar className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="rounded-full sm:left-3 text-primary/50 border border-primary/50 bg-primary/10 p-2">
+              <Calendar className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
             <div className="flex items-baseline gap-1 mt-2 z-10">
               <span className="text-3xl sm:text-4xl font-extrabold text-foreground">{stats?.upcomingAppointments || 0}</span>
               <span className="text-xs sm:text-sm font-medium text-muted-foreground">bookings</span>
@@ -188,9 +192,11 @@ export default function PatientDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+        <Card className="border-primary/50 shadow-sm rounded-2xl bg-transparent">
           <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><CheckCircle2 className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="rounded-full sm:left-3 text-primary/50 border border-primary/50 bg-primary/10 p-2">
+              <CheckCircle2 className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
             <div className="flex items-baseline gap-1 mt-2 z-10">
               <span className="text-3xl sm:text-4xl font-extrabold text-foreground">{stats?.completedAppointments || 0}</span>
               <span className="text-xs sm:text-sm font-medium text-muted-foreground">sessions</span>
@@ -199,9 +205,11 @@ export default function PatientDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+        <Card className="border-primary/50 shadow-sm rounded-2xl bg-transparent">
           <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><CreditCard className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="text-primary/50 border border-primary/50 bg-primary/10 p-2 rounded-full">
+              <CreditCard className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
             <div className="flex items-baseline gap-1 mt-2 z-10">
               <span className="text-2xl sm:text-3xl font-extrabold text-foreground">LKR {(stats?.totalPaidAmount || 0).toLocaleString()}</span>
             </div>
@@ -209,9 +217,11 @@ export default function PatientDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-100 dark:border-emerald-900/30 shadow-sm rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 transition-colors">
+        <Card className="border-primary/50 shadow-sm rounded-2xl bg-transparent">
           <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-emerald-500 opacity-20"><FileClock className="w-8 h-8 sm:w-12 sm:h-12" /></div>
+            <div className="text-primary/50 border border-primary/50 bg-primary/10 p-2 rounded-full">
+              <FileClock className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
             <div className="flex items-baseline gap-1 mt-2 z-10">
               <span className="text-3xl sm:text-4xl font-extrabold text-foreground">{stats?.refundPendingCount || 0}</span>
               <span className="text-xs sm:text-sm font-medium text-muted-foreground">Pending</span>
@@ -221,7 +231,7 @@ export default function PatientDashboard() {
         </Card>
       </div>
 
-      {/* 🟢 Main Content Area */}
+      {/* Main Content Area */}
       <div className="grid lg:grid-cols-3 gap-6">
         
         {/* Left Column: Upcoming Appointments */}
@@ -342,12 +352,12 @@ export default function PatientDashboard() {
                       
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="flex flex-col items-end">
-                          <span className="font-bold">LKR {tx.totalAmount}</span>
+                          <span className="font-bold">{formatFee(tx.totalAmount || 0)}</span>
                           <Badge className={`${badgeClass} shadow-none px-1.5 py-0 text-[9px] sm:text-[10px] font-semibold capitalize`}>
-                            {tx.status}
+                            {tx.status || "unknown"}
                           </Badge>
                         </div>
-                        {/* 🟢 Click to open Receipt Modal */}
+                        {/* Click to open Receipt Modal */}
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -370,7 +380,7 @@ export default function PatientDashboard() {
       </div>
 
       {/* ======================================================== */}
-      {/* 🧾 OFFICIAL RECEIPT MODAL */}
+      {/* OFFICIAL RECEIPT MODAL */}
       {/* ======================================================== */}
       <Dialog open={!!selectedTx} onOpenChange={(open) => !open && setSelectedTx(null)}>
         <DialogContent className="max-w-3xl p-0 overflow-hidden bg-[#f9fafb] dark:bg-zinc-950 border-0 shadow-2xl rounded-xl">
@@ -398,7 +408,7 @@ export default function PatientDashboard() {
               {/* Scrollable Receipt Area */}
               <div className="overflow-y-auto p-4 sm:p-8 bg-[#f9fafb] dark:bg-muted-foreground/5">
                 
-                {/* 📄 The Receipt Paper */}
+                {/* The Receipt Paper */}
                 <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 shadow-md border border-border/50 rounded-none sm:rounded-lg overflow-hidden">
                   
                   {/* Receipt Header */}
