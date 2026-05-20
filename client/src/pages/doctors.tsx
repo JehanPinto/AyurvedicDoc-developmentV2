@@ -70,8 +70,8 @@ export default function DoctorsPage() {
     }
     
     if (selectedSpecialization !== "all") {
-      filtered = filtered.filter(d => 
-        d.specializationIds?.includes(selectedSpecialization)
+      filtered = filtered.filter(d =>
+        d.specializations?.some(s => s.id === selectedSpecialization)
       );
     }
     
