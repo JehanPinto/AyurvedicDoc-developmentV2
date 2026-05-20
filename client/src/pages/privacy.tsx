@@ -71,9 +71,8 @@ function InformationContent() {
         <h4 className="font-semibold text-base text-foreground mb-2">Payment Information</h4>
         <p>
           We collect billing address and transaction references for paid consultations. All payment
-          card data is processed exclusively by our PCI-DSS Level 1 certified payment partner
-          (Razorpay). Vaidya never stores your full card number, CVV, or banking credentials on our
-          servers.
+          card data is processed exclusively by our certified payment partner (PayHere). Ayurpath
+          never stores your full card number, CVV, or banking credentials on our servers.
         </p>
       </div>
     </div>
@@ -110,9 +109,9 @@ function SharingContent() {
       <BulletList
         items={[
           <><strong>Your Doctor:</strong> Medical and appointment information is shared with your selected practitioner to provide care.</>,
-          <><strong>Payment Processors:</strong> Billing data is shared with Razorpay solely to process your transactions securely.</>,
-          <><strong>Cloud Infrastructure:</strong> Data is stored on AWS Mumbai (ap-south-1) under strict data processing agreements.</>,
-          <><strong>Legal Compliance:</strong> We may disclose information if required by Indian law or valid court order.</>,
+          <><strong>Payment Processors:</strong> Billing data is shared with PayHere solely to process your transactions securely.</>,
+          <><strong>Cloud Infrastructure:</strong> Data is stored on Neon's secure cloud infrastructure under strict data processing agreements.</>,
+          <><strong>Legal Compliance:</strong> We may disclose information if required by Sri Lankan law or a valid court order.</>,
         ]}
       />
       <p>
@@ -134,7 +133,7 @@ function CookiesContent() {
       <BulletList
         items={[
           <><strong>Essential Cookies:</strong> Required for authentication and core functionality. Cannot be disabled.</>,
-          <><strong>Analytics Cookies:</strong> Used via privacy-first tools (Plausible Analytics) — fully anonymized, no personal data shared.</>,
+          <><strong>Analytics Cookies:</strong> Used to understand how our platform is used in aggregate — fully anonymized, no personal data shared.</>,
           <><strong>Preference Cookies:</strong> Store your language, region, and accessibility settings.</>,
         ]}
       />
@@ -156,10 +155,10 @@ function SecurityContent() {
     <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
       <div className="bg-primary/10 rounded-xl p-5 border border-primary/20">
         <p className="text-foreground">
-          Your health data is protected by AES-256 encryption at rest and TLS 1.3 for all data in
-          transit. Our infrastructure is hosted on secure, cloud-based servers compliant with
-          international security standards and the Personal Data Protection Act, No. 9 of 2022 of Sri
-          Lanka.
+          Your health data is stored on secure, cloud-based servers with encryption at rest and
+          protected during transit using industry-standard TLS protocols. Our infrastructure is
+          compliant with international security standards and the Personal Data Protection Act,
+          No. 9 of 2022 of Sri Lanka.
         </p>
       </div>
       <p>
@@ -167,10 +166,13 @@ function SecurityContent() {
       </p>
       <BulletList
         items={[
-          <><strong>Advanced Encryption:</strong> We utilize AES-256 field-level encryption for all medical records and consultation notes, ensuring that data is unreadable even in the database.</>,
-          <><strong>Secure Transmission:</strong> TLS 1.3 is enforced for all data in transit between your device and our servers, protecting your information from interception.</>,
-          <><strong>Access Control:</strong> Multi-factor authentication (MFA) is available for all patient accounts, and we strictly enforce Role-Based Access Control (RBAC)—ensuring only you, your assigned doctor, and authorized clinical staff can access your records.</>,
-          <><strong>Proactive Monitoring:</strong> We conduct regular vulnerability assessments and continuous monitoring to stay ahead of emerging digital threats.</>,
+          <><strong>Password Security:</strong> All account passwords are secured using industry-standard hashing before storage. Passwords are never stored or transmitted in plain text.</>,
+          <><strong>Secure Transmission:</strong> All data exchanged between your device and our servers is protected using industry-standard encryption protocols, along with additional HTTP security headers to guard against common web vulnerabilities.</>,
+          <><strong>Access Control:</strong> Our platform enforces strict role-based access controls — patients, doctors, and administrators can only access the data and actions permitted for their role. Authenticated sessions expire automatically after 7 days.</>,
+          <><strong>Brute-Force Protection:</strong> Login and registration endpoints are rate-limited to protect your account against automated and repeated unauthorised access attempts.</>,
+          <><strong>OTP Verification:</strong> Password reset requests require a one-time passcode sent to your registered email address. Each code is valid for 10 minutes only and cannot be reused.</>,
+          <><strong>Data Minimisation:</strong> Sensitive personal details such as your email address, phone number, and home address are never exposed in public-facing responses — only the minimum data required is shared.</>,
+          <><strong>Cloud Infrastructure:</strong> Our platform is hosted on secure, managed cloud infrastructure that provides encryption at rest, automated backups, and continuous availability monitoring.</>,
         ]}
       />
     </div>
@@ -181,7 +183,7 @@ function YourRightsContent() {
   return (
     <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
       <p>
-        Under the Digital Personal Data Protection Act 2023 and applicable Indian law, you have the
+        Under the Personal Data Protection Act, No. 9 of 2022 of Sri Lanka, you have the
         following rights regarding your personal data:
       </p>
       <BulletList
