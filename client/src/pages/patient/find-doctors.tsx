@@ -4,17 +4,15 @@ import { useLocation } from "wouter";
 import { Users, ArrowUp } from "lucide-react";
 import { DoctorCard } from "@/components/doctors/doctor-card";
 import { DoctorSearchFilters } from "@/components/doctors/doctor-search-filters";
-import { LoadingCard, LoadingPage } from "@/components/ui/loading-spinner";
-import { PublicLayout } from "@/components/layout/public-layout";
-import type { DoctorWithDetails, Specialization, Hospital } from "@shared/schema";
+import { LoadingCard } from "@/components/ui/loading-spinner";
+import type { DoctorWithDetails, Specialization } from "@shared/schema";
+import { useAuth } from "@/lib/auth-context";
 
 const cities = ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Matara"];
 
-export default function DoctorsPage() {
+export default function FindDoctors() {
+  const { user } = useAuth();
   const [location] = useLocation();
-  const params = new URLSearchParams(location.split("?")[1] || "");
-  const isPatientRoute = location.startsWith("/patient");
-  
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState(() => {
@@ -26,7 +24,6 @@ export default function DoctorsPage() {
     const params = new URLSearchParams(window.location.search);
     return params.get("specialization") || "all";
   });
-
 
   const [selectedCity, setSelectedCity] = useState("all");
   const [selectedConsultationType, setSelectedConsultationType] = useState("all");
@@ -138,31 +135,21 @@ export default function DoctorsPage() {
     setSearchQuery("");
   };
 
-  const headingClasses = isPatientRoute
-    ? "text-2xl md:text-3xl font-heading font-bold"
-    : "text-2xl md:text-3xl lg:text-4xl font-heading font-bold";
-  const headingWrapperClasses = isPatientRoute
-    ? "mb-6"
-    : "py-8 md:py-10 bg-gradient-to-b from-primary/5 to-background border-b";
-  const contentWrapperClasses = `container mx-auto px-4 ${isPatientRoute ? "pb-8" : "py-6 md:py-8"}`;
+  return (
+    <div className="space-y-6">
 
-  const pageContent = (
-    <>
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground tracking-tight">
+                    Find Your Ayurvedic Doctor
+                </h1>
+                <p className="text-muted-foreground text-sm sm:text-base mt-1">
+                    Easily find doctors, manage your bookings and payment history.
+                </p>
+            </div>
+        </div>
 
-        <div className="container mx-auto px-4 py-8 md:py-10 lg:py-14 text-center">
-
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight">
-            Find{" "}
-            <span className="text-primary">Ayurvedic Doctors</span>
-          </h1>
-            
-          <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Discover trusted practitioners for your healthcare needs
-          </p>      
-
-          <div className="max-w-8xl mx-auto text-left">
+        <div className="max-w-7xl mx-auto text-left">
             <DoctorSearchFilters
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
@@ -185,11 +172,9 @@ export default function DoctorsPage() {
               onClearFilters={clearFilters}
               activeFilterCount={activeFilterCount}
             />
-          </div>
         </div>
-      </section>
 
-      <div className={`container mx-auto px-4 pb-8`}>
+        <div className={`container mx-auto px-4 pb-8`}>
         <div className="mt-6 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Showing <span className="font-medium text-foreground">{filteredDoctors.length}</span> doctors
@@ -213,7 +198,7 @@ export default function DoctorsPage() {
             </p>
           </div>
         ) : filteredDoctors.length > 0 ? (
-          <div className="mt-6 grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="mt-6 grid md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
             {filteredDoctors.map((doctor) => (
               <DoctorCard key={doctor.id} doctor={doctor} />
             ))}
@@ -240,8 +225,6 @@ export default function DoctorsPage() {
       >
         <ArrowUp className="h-5 w-5" />
       </button>
-    </>
+    </div>
   );
-
-  return isPatientRoute ? pageContent : <PublicLayout>{pageContent}</PublicLayout>;
 }
