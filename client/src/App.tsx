@@ -43,6 +43,7 @@ import AdminPatientsPage from "@/pages/admin/patients";
 import AdminAppointmentsPage from "@/pages/admin/appointments";
 import AdminSpecializationsPage from "@/pages/admin/specializations";
 import AdminPaymentsPage from "@/pages/admin/payments";
+import AdminPayoutsPage from "@/pages/admin/payouts";
 import AdminSettingsPage from "@/pages/admin/settings";
 import AdminBlogsPage from "@/pages/admin/blogs";
 import AdminBlogViewPage from "@/pages/admin/blog-view";
@@ -188,6 +189,7 @@ function Router() {
               <Route path="/admin/appointments" component={AdminAppointmentsPage} />
               <Route path="/admin/specializations" component={AdminSpecializationsPage} />
               <Route path="/admin/payments" component={AdminPaymentsPage} />
+              <Route path="/admin/payouts" component={AdminPayoutsPage} />
               <Route path="/admin/careers" component={AdminCareersPage} />
               <Route path="/admin/blogs" component={AdminBlogsPage} />
               <Route path="/admin/settings" component={AdminSettingsPage} />

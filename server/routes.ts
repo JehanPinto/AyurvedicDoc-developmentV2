@@ -3561,6 +3561,104 @@ export async function registerRoutes(
     } catch { res.status(500).json({ error: "Failed to delete tax entry" }); }
   });
 
+  // Payout Dashboard
+  app.get(
+    "/api/admin/payouts",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (_req: Request, res: Response) => {
+      try {
+        const [settings, taxEntries, doctors] = await Promise.all([
+          storage.getPlatformSettings(),
+          storage.getTaxEntries(),
+          storage.getVerifiedDoctors(),
+        ]);
+
+        const commissionRate = settings.platformCommissionRate / 100;
+        const totalTaxRate = taxEntries.reduce((sum, t) => sum + t.rate, 0) / 100;
+
+        const now = new Date();
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+        // Last Friday of current month
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const daysBack = (lastDay.getDay() + 2) % 7;
+        const lastFriday = new Date(lastDay);
+        lastFriday.setDate(lastDay.getDate() - daysBack);
+
+        const doctorPayouts = [];
+
+        for (const doctor of doctors) {
+          const [paymentsResult, apptResult, chargesResult] = await Promise.all([
+            pool.query(
+              `SELECT consultation_fee, platform_commission, doctor_earnings
+               FROM payments WHERE doctor_id = $1 AND status = 'completed'
+               AND created_at >= $2 AND created_at < $3`,
+              [doctor.id, thisMonthStart, nextMonthStart]
+            ),
+            pool.query(
+              `SELECT status, cancelled_by FROM appointments
+               WHERE doctor_id = $1 AND created_at >= $2 AND created_at < $3`,
+              [doctor.id, thisMonthStart, nextMonthStart]
+            ),
+            pool.query(
+              `SELECT amount_owed FROM doctor_cancellation_charges
+               WHERE doctor_id = $1 AND settled = false`,
+              [doctor.id]
+            ),
+          ]);
+
+          const earnAmount = paymentsResult.rows.reduce((sum: number, p: any) => sum + (p.consultation_fee || 0), 0);
+          const platformFees = Math.round(earnAmount * commissionRate);
+          const totalAppts = apptResult.rows.length;
+          const completedAppts = apptResult.rows.filter((a: any) => a.status === "completed").length;
+          const cancellationRate = totalAppts > 0 ? Math.round(((totalAppts - completedAppts) / totalAppts) * 100) : 0;
+          const cancellationFees = chargesResult.rows.reduce((sum: number, c: any) => sum + (c.amount_owed || 0), 0);
+          const applicableTax = Math.round(earnAmount * totalTaxRate);
+          const payoutAmount = Math.max(0, earnAmount - platformFees - cancellationFees - applicableTax);
+
+          doctorPayouts.push({
+            doctorId: doctor.id,
+            doctorName: doctor.user.fullName,
+            earnAmount,
+            completedSessions: completedAppts,
+            totalSessions: totalAppts,
+            platformFees,
+            cancellationRate,
+            cancellationFees,
+            applicableTax,
+            payoutAmount,
+          });
+        }
+
+        const pendingPayouts = doctorPayouts.filter(d => d.payoutAmount > 0);
+
+        const lastMonthResult = await pool.query(
+          `SELECT COALESCE(SUM(doctor_earnings), 0) as total, COUNT(*) as count
+           FROM payments WHERE status = 'completed'
+           AND created_at >= $1 AND created_at < $2`,
+          [lastMonthStart, thisMonthStart]
+        );
+
+        res.json({
+          doctors: doctorPayouts,
+          stats: {
+            pendingPayoutsCount: pendingPayouts.length,
+            totalOutstanding: pendingPayouts.reduce((sum, d) => sum + d.payoutAmount, 0),
+            completedLastMonthAmount: parseInt(lastMonthResult.rows[0]?.total || "0"),
+            completedLastMonthCount: parseInt(lastMonthResult.rows[0]?.count || "0"),
+            nextPayoutDate: lastFriday.toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error("Failed to get payout data:", error);
+        res.status(500).json({ error: "Failed to get payout data" });
+      }
+    }
+  );
+
   app.put(
     "/api/admin/specializations/:id",
     authMiddleware,
