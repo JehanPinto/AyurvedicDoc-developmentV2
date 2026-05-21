@@ -80,6 +80,7 @@ export default function AdminSettingsPage() {
     platformCommissionRate: "10",
     bookingCharges: "100",
     taxRate: "4",
+    cancellationFee: "300",
     maxAdvanceBookingDays: "30",
     minBookingNoticeHours: "2",
     defaultSlotDuration: "30",
@@ -100,6 +101,16 @@ export default function AdminSettingsPage() {
 
   const [newTaxTitle, setNewTaxTitle] = useState("");
   const [newTaxRate, setNewTaxRate] = useState("");
+  const [newTaxApplicableTo, setNewTaxApplicableTo] = useState("");
+
+  const [systemTaxes, setSystemTaxes] = useState([
+    { id: "vat", title: "VAT", rate: 18, description: "Value-added tax on consultation fees", applicableTo: "doctors", enabled: true },
+    { id: "withholding", title: "Withholding tax", rate: 5, description: "Deducted from doctor payouts", applicableTo: "doctors", enabled: true },
+    { id: "stamp", title: "Stamp duty", rate: 1, description: "Applied to booking confirmations", applicableTo: "patients", enabled: false },
+  ]);
+
+  const toggleSystemTax = (id: string) =>
+    setSystemTaxes((prev) => prev.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t)));
 
   const { data: serverSettings, isLoading, isError } = useQuery<PlatformSettings>({
     queryKey: ["/api/admin/settings"],
@@ -129,7 +140,13 @@ export default function AdminSettingsPage() {
         allowClinicPayments: serverSettings.allowClinicPayments,
         defaultLanguage: serverSettings.defaultLanguage,
         maintenanceMode: serverSettings.maintenanceMode,
+        cancellationFee: String(serverSettings.cancellationFee ?? 300),
       }));
+      setSystemTaxes((prev) =>
+        prev.map((t) =>
+          t.id === "stamp" ? { ...t, enabled: serverSettings.stampDutyEnabled ?? false } : t
+        )
+      );
     }
   }, [serverSettings]);
 
@@ -189,6 +206,8 @@ export default function AdminSettingsPage() {
       allowClinicPayments: settings.allowClinicPayments,
       defaultLanguage: settings.defaultLanguage,
       maintenanceMode: settings.maintenanceMode,
+      cancellationFee: parseInt(settings.cancellationFee) || 300,
+      stampDutyEnabled: systemTaxes.find((t) => t.id === "stamp")?.enabled ?? false,
     });
   };
 
@@ -276,6 +295,17 @@ export default function AdminSettingsPage() {
                 max={50}
                 testId="input-tax"
               />
+              <SpinnerBox
+                label="Cancellation fees (LKR)"
+                value={settings.cancellationFee}
+                unit="LKR"
+                description="Fixed fee per consultation"
+                onChange={(v) => update("cancellationFee", v)}
+                min={0}
+                max={10000}
+                step={50}
+                testId="input-cancellation-fee"
+              />
             </div>
 
             <Separator />
@@ -313,6 +343,18 @@ export default function AdminSettingsPage() {
                     data-testid="input-new-tax-rate"
                   />
                 </div>
+                <div className="w-40 space-y-1.5">
+                  <Label className="text-xs font-medium">To whom</Label>
+                  <select
+                    value={newTaxApplicableTo}
+                    onChange={(e) => setNewTaxApplicableTo(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-primary/30 bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                  >
+                    <option value="">Select</option>
+                    <option value="doctors">Doctors</option>
+                    <option value="patients">Patients</option>
+                  </select>
+                </div>
                 <Button
                   onClick={handleAddTax}
                   disabled={addTaxMutation.isPending}
@@ -327,21 +369,60 @@ export default function AdminSettingsPage() {
                 </Button>
               </div>
 
-              {!taxLoading && taxEntries.length > 0 && (
-                <div className="space-y-2">
-                  {taxEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-primary/5 border border-primary/20"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium">{entry.title}</span>
-                        <span className="text-xs text-muted-foreground">{entry.rate}%</span>
+              {/* Recently Added Taxes */}
+              <div className="pt-1">
+                <h3 className="text-sm font-semibold text-foreground mb-1">Recently Added Taxes</h3>
+                <div className="divide-y divide-border">
+                  {systemTaxes.map((tax) => (
+                    <div key={tax.id} className="flex items-center py-3">
+                      {/* Left: name + enabled badge + description */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-foreground">
+                            {tax.title} ({tax.rate}%)
+                          </span>
+                          {tax.enabled && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full border border-green-200">
+                              <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                              Enabled
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{tax.description}</p>
+                      </div>
+                      {/* Center: badge in true middle — equal thirds layout */}
+                      <div className="flex-1 flex justify-center">
+                        <span className={`px-4 py-1 rounded-md text-sm font-medium ${
+                          tax.applicableTo === "doctors"
+                            ? "bg-purple-100 text-purple-700 border border-purple-200"
+                            : "bg-pink-100 text-pink-600 border border-pink-200"
+                        }`}>
+                          {tax.applicableTo === "doctors" ? "Doctors" : "Patients"}
+                        </span>
+                      </div>
+                      {/* Right: toggle pushed to end in its own flex-1 column */}
+                      <div className="flex-1 flex justify-end">
+                        <Switch
+                          checked={tax.enabled}
+                          onCheckedChange={() => toggleSystemTax(tax.id)}
+                          data-testid={`switch-tax-${tax.id}`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* User-added dynamic taxes */}
+                  {!taxLoading && taxEntries.map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between py-3 gap-4">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-semibold text-foreground">
+                          {entry.title} ({entry.rate}%)
+                        </span>
                       </div>
                       <button
                         onClick={() => deleteTaxMutation.mutate(entry.id)}
                         disabled={deleteTaxMutation.isPending}
-                        className="text-destructive hover:text-destructive/70 transition-colors"
+                        className="text-destructive hover:text-destructive/70 transition-colors shrink-0"
                         data-testid={`button-delete-tax-${entry.id}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -349,7 +430,7 @@ export default function AdminSettingsPage() {
                     </div>
                   ))}
                 </div>
-              )}
+              </div>
             </div>
 
             <Separator />

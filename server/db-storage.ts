@@ -1778,6 +1778,8 @@ export class DbStorage implements IStorage {
         allowClinicPayments: result[0].allowClinicPayments ?? false,
         defaultLanguage: result[0].defaultLanguage ?? "english",
         maintenanceMode: result[0].maintenanceMode ?? false,
+        cancellationFee: result[0].cancellationFee ?? 300,
+        stampDutyEnabled: result[0].stampDutyEnabled ?? false,
         updatedAt: toISOString(result[0].updatedAt),
       };
     }
@@ -1801,6 +1803,8 @@ export class DbStorage implements IStorage {
       allowClinicPayments: false,
       defaultLanguage: "english",
       maintenanceMode: false,
+      cancellationFee: 300,
+      stampDutyEnabled: false,
     };
 
     const inserted = await db
@@ -1843,6 +1847,8 @@ export class DbStorage implements IStorage {
       allowClinicPayments: result[0].allowClinicPayments ?? false,
       defaultLanguage: result[0].defaultLanguage ?? "english",
       maintenanceMode: result[0].maintenanceMode ?? false,
+      cancellationFee: result[0].cancellationFee ?? 300,
+      stampDutyEnabled: result[0].stampDutyEnabled ?? false,
       updatedAt: toISOString(result[0].updatedAt),
     };
   }

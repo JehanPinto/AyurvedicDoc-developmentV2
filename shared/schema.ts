@@ -440,6 +440,8 @@ export const platformSettings = pgTable("platform_settings", {
     "english",
   ),
   maintenanceMode: boolean("maintenance_mode").default(false),
+  cancellationFee: integer("cancellation_fee").notNull().default(300),
+  stampDutyEnabled: boolean("stamp_duty_enabled").default(false),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -899,6 +901,8 @@ export const insertPlatformSettingsSchema = z.object({
   allowClinicPayments: z.boolean().default(false),
   defaultLanguage: z.string().default("english"),
   maintenanceMode: z.boolean().default(false),
+  cancellationFee: z.number().min(0).default(300),
+  stampDutyEnabled: z.boolean().default(false),
 });
 
 export type InsertPlatformSettings = z.infer<

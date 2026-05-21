@@ -2066,9 +2066,10 @@ export async function registerRoutes(
 
         const platformSettings = await storage.getPlatformSettings();
         const bookingCharges = platformSettings.bookingCharges;
-        const tax = Math.round(
-          consultationFee * (platformSettings.taxRate / 100),
-        );
+        const stampDuty = platformSettings.stampDutyEnabled
+          ? Math.round(consultationFee * 0.01)
+          : 0;
+        const tax = Math.round(consultationFee * (platformSettings.taxRate / 100)) + stampDuty;
         const platformCommission = Math.round(
           consultationFee * (platformSettings.platformCommissionRate / 100),
         );
@@ -2403,11 +2404,12 @@ export async function registerRoutes(
             existing.doctorId,
           );
 
-          // When the doctor cancels, record the charge they owe (platform commission 10% + tax 4%)
+          // When the doctor cancels, charge the flat cancellation fee from platform settings
           if (req.user!.role === UserRole.DOCTOR && doctorProfile) {
+            const platformSettings = await storage.getPlatformSettings();
+            const amountOwed = platformSettings.cancellationFee;
             const payment = await storage.getPaymentByAppointment(existing.id);
             const fee = payment?.consultationFee ?? doctorProfile.consultationFee;
-            const amountOwed = Math.round(fee * 0.14);
             await storage.createDoctorCancellationCharge({
               doctorId: doctorProfile.id,
               appointmentId: existing.id,
@@ -3384,6 +3386,7 @@ export async function registerRoutes(
       const payload = {
         bookingCharges: Number(settings.bookingCharges ?? 0),
         taxRate: Number(settings.taxRate ?? 0),
+        stampDutyEnabled: settings.stampDutyEnabled ?? false,
       };
 
       console.log("Returning booking settings:", payload);

@@ -83,6 +83,7 @@ type BookingInput = z.infer<typeof bookingSchema>;
 interface BookingSettings {
   bookingCharges: number;
   taxRate: number;
+  stampDutyEnabled: boolean;
 }
 
 // ─── Shared progress bar (same component as doctor-profile) ───────────────────
@@ -281,13 +282,15 @@ export default function BookAppointmentPage() {
 
   const bookingCharges = bookingSettings?.bookingCharges ?? 100;
   const taxRate = bookingSettings?.taxRate ?? 4;
+  const stampDutyEnabled = bookingSettings?.stampDutyEnabled ?? false;
+  const stampDutyAmount = stampDutyEnabled ? Math.round(consultationFee * 0.01) : 0;
   const tax = Math.round(consultationFee * (taxRate / 100));
   const customTaxAmounts = customTaxes.map((t) => ({
     ...t,
     amount: Math.round(consultationFee * (t.rate / 100)),
   }));
   const customTaxTotal = customTaxAmounts.reduce((sum, t) => sum + t.amount, 0);
-  const totalAmount = consultationFee + bookingCharges + tax + customTaxTotal;
+  const totalAmount = consultationFee + bookingCharges + tax + stampDutyAmount + customTaxTotal;
 
   const stepIndex = step === "details" ? 1 : step === "payment" ? 2 : 3;
 
@@ -498,6 +501,12 @@ export default function BookAppointmentPage() {
           <span className="text-muted-foreground">Tax ({taxRate}%)</span>
           <span>{formatFee(tax)}</span>
         </div>
+        {stampDutyEnabled && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Stamp Duty (1%)</span>
+            <span>{formatFee(stampDutyAmount)}</span>
+          </div>
+        )}
         {customTaxAmounts.map((t) => (
           <div key={t.id} className="flex justify-between text-sm">
             <span className="text-muted-foreground">{t.title} ({t.rate}%)</span>
