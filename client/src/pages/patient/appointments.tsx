@@ -1,47 +1,21 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, isAfter, isBefore } from "date-fns";
 import {
   Calendar,
-  Clock,
-  Video,
-  Building2,
   Search,
   Filter,
-  X,
   AlertCircle,
-  CheckCircle,
-  XCircle,
-  MoreVertical,
-  Phone,
-  MapPin,
-  ChevronRight,
-  Map,
-  Star,
+  Video,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingPage } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -49,97 +23,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+
+// Update path to where your Modal component is located
+import { Modal } from "@/components/ui/modal"; 
+import { AppointmentCard } from "@/components/ui/appointment-card";
 import type { AppointmentWithDetails } from "@shared/schema";
-import { AppointmentStatus, ConsultationType } from "@shared/schema";
+import { ConsultationType, AppointmentStatus } from "@shared/schema";
 
 export default function PatientAppointmentsPage() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithDetails | null>(null);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   const { data: appointments = [], isLoading, isError } = useQuery<AppointmentWithDetails[]>({
     queryKey: ["/api/appointments"],
     staleTime: 60 * 1000,
   });
 
-  const cancelMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const response = await apiRequest("PATCH", `/api/appointments/${id}/cancel`, { reason });
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Appointment Cancelled",
-        description: "Your appointment has been cancelled successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/patient/dashboard"] });
-      setCancelDialogOpen(false);
-      setSelectedAppointment(null);
-      setCancelReason("");
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to cancel appointment. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const formatFee = (fee: number) => {
-    return new Intl.NumberFormat("en-LK", {
-      style: "currency",
-      currency: "LKR",
-      minimumFractionDigits: 0,
-    }).format(fee);
-  };
-
   const getInitials = (name: string) => {
     if (!name) return "DR";
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
-  const getConsultationIcon = (type: string) => {
-    switch (type) {
-      case ConsultationType.ONLINE:
-        return <Video className="h-4 w-4" />;
-      case ConsultationType.HOME_VISIT:
-        return <MapPin className="h-4 w-4" />;
-      default:
-        return <Building2 className="h-4 w-4" />;
-    }
-  };
-
-  const getConsultationLabel = (type: string) => {
-    switch (type) {
-      case ConsultationType.ONLINE:
-        return "Online";
-      case ConsultationType.HOME_VISIT:
-        return "Home Visit";
-      default:
-        return "In-Person";
-    }
-  };
-
-  const canCancel = (appointment: AppointmentWithDetails) => {
-    const cancelableStatuses = [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED];
-    if (!cancelableStatuses.includes(appointment.status as any)) return false;
-    
-    const appointmentDateTime = parseISO(`${appointment.appointmentDate}T${appointment.appointmentTime}`);
-    const now = new Date();
-    const hoursUntilAppointment = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    return hoursUntilAppointment > 2;
   };
 
   const now = new Date();
@@ -176,408 +81,219 @@ export default function PatientAppointmentsPage() {
   const filteredUpcoming = filterAppointments(upcomingAppointments);
   const filteredPast = filterAppointments(pastAppointments);
 
-  if (isLoading) {
-    return <LoadingPage message="Loading appointments..." />;
-  }
+  if (isLoading) return <LoadingPage message="Loading appointments..." />;
 
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <AlertCircle className="h-12 w-12 text-destructive" />
-        <p className="text-muted-foreground">Failed to load appointments. Please try again.</p>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
+        <p className="text-muted-foreground font-medium">Failed to load appointments. Please try again.</p>
+        <Button onClick={() => window.location.reload()} variant="outline">Retry</Button>
       </div>
     );
   }
 
-  const formatSlotTime = (time: string) => {
-    const [h, m] = time.split(":");
-    const hour = parseInt(h);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${m} ${ampm}`;
-  };
-
-  const getActionText = (appointment: AppointmentWithDetails) => {
-    const name = appointment.doctor?.user?.fullName?.replace(/^Dr\.?\s*/i, "") || "Doctor";
-    switch (appointment.status) {
-      case AppointmentStatus.PENDING:
-        return `Waiting for Dr. ${name} to approve your appointment`;
-      case AppointmentStatus.CONFIRMED:
-        return `Dr. ${name} approved appointment`;
-      case AppointmentStatus.CANCELLED:
-        return appointment.cancelledBy === "doctor"
-          ? `Dr. ${name} canceled appointment`
-          : "You canceled appointment";
-      case AppointmentStatus.COMPLETED:
-        return `Dr. ${name} completed appointment`;
-      case "no_show":
-        return "Marked as no-show";
-      default:
-        return "";
-    }
-  };
-
-  const AppointmentCard = ({ appointment }: { appointment: AppointmentWithDetails }) => {
-    const isOnline = appointment.consultationType === ConsultationType.ONLINE;
-    const isHomeVisit = appointment.consultationType === ConsultationType.HOME_VISIT;
-    const isCancelled = ["cancelled", "no_show"].includes(appointment.status);
-    const isCompleted = appointment.status === AppointmentStatus.COMPLETED;
-    const actionText = getActionText(appointment);
-
-    const startTime = appointment.slot?.startTime
-      ? formatSlotTime(appointment.slot.startTime)
-      : formatSlotTime(appointment.appointmentTime);
-    const endTime = appointment.slot?.endTime ? formatSlotTime(appointment.slot.endTime) : null;
-    const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
-
-    return (
-      <div
-        className="rounded-xl border border-green-200 dark:border-green-900 overflow-hidden"
-        data-testid={`card-appointment-${appointment.id}`}
-      >
-        {/* Date header */}
-        <div className="bg-green-50 dark:bg-green-950/30 px-4 py-2 border-b border-green-100 dark:border-green-900">
-          <span className="text-sm font-semibold text-foreground">
-            {format(parseISO(appointment.appointmentDate), "EEE, MMM d")}
-          </span>
-        </div>
-
-        {/* Row */}
-        <div className={`flex items-center gap-4 px-4 py-3 bg-white dark:bg-card border-l-4 ${
-          isCancelled ? "border-l-red-400" :
-          "border-l-primary"
-        }`}>
-
-          {/* LEFT — icon + time + badge + action text */}
-          <div className="flex items-start gap-3 w-56 shrink-0">
-            <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
-              isOnline ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300" :
-              isHomeVisit ? "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300" :
-              "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-            }`}>
-              {isOnline ? <Video className="h-4 w-4" /> :
-               isHomeVisit ? <MapPin className="h-4 w-4" /> :
-               <Building2 className="h-4 w-4" />}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium whitespace-nowrap">{timeRange}</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
-                  isOnline ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" :
-                  isHomeVisit ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" :
-                  "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300"
-                }`}>
-                  {isOnline ? "Online" : isHomeVisit ? "Home Visit" : "In Person"}
-                </span>
-              </div>
-              {actionText && (
-                <p className="text-xs text-muted-foreground mt-0.5">{actionText}</p>
-              )}
-            </div>
-          </div>
-
-          {/* MIDDLE — consultation link / place */}
-          <div className="flex items-center gap-2 flex-1 justify-center">
-            <span className={`text-sm font-medium whitespace-nowrap ${isCancelled ? "text-muted-foreground" : "text-primary dark:text-primary"}`}>
-              {isOnline ? "Consultation Link :" : "Consultation Place :"}
-            </span>
-            {isOnline ? (
-              <button
-                type="button"
-                className={`inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                  isCancelled
-                    ? "bg-muted text-muted-foreground cursor-default"
-                    : "bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400"
-                }`}
-              >
-                <Video className="h-3.5 w-3.5" />
-                View in Browser
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={`inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                  isCancelled
-                    ? "bg-muted text-muted-foreground cursor-default"
-                    : "bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400"
-                }`}
-              >
-                <Map className="h-3.5 w-3.5" />
-                View on Map
-              </button>
-            )}
-          </div>
-
-          {/* RIGHT — status + cancel / feedback */}
-          <div className="flex items-center gap-2 shrink-0">
-            <StatusBadge status={appointment.status} type="appointment" />
-
-            {canCancel(appointment) && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedAppointment(appointment);
-                  setCancelDialogOpen(true);
-                }}
-                className="text-red-500 hover:text-red-600 transition-colors"
-                data-testid={`button-cancel-${appointment.id}`}
-              >
-                <XCircle className="h-6 w-6" />
-              </button>
-            )}
-
-            {isCompleted && (
-              <button
-                type="button"
-                onClick={() => setLocation("/patient/reviews")}
-                className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-              >
-                <Star className="h-3.5 w-3.5" />
-                Give Feedback
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const EmptyState = ({ message }: { message: string }) => (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center py-12">
-        <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground text-center">{message}</p>
+    <Card className="border-border bg-card shadow-sm rounded-2xl">
+      <CardContent className="flex flex-col items-center justify-center py-16">
+        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+          <Calendar className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <p className="text-muted-foreground text-center font-medium">{message}</p>
       </CardContent>
     </Card>
   );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-heading font-bold">My Appointments</h1>
-        <p className="text-muted-foreground">View and manage your appointments</p>
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+      
+      {/* Header Section */}
+      <div className="flex flex-col gap-1.5">
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-foreground tracking-tight">My Appointments</h1>
+        <p className="text-sm md:text-base text-muted-foreground font-medium">View and manage your appointments</p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      {/* Filters Section */}
+      <div className="flex flex-col sm:flex-row gap-3 md:gap-4 items-center bg-card p-3 md:p-4 rounded-2xl border border-border shadow-sm">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by doctor or hospital..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-            data-testid="input-search"
+            className="pl-10 bg-background border-border rounded-xl h-10 w-full"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[160px]" data-testid="select-status">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="confirmed">Confirmed</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-full sm:w-[160px]" data-testid="select-type">
-            <SelectValue placeholder="Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="in_person">In-Person</SelectItem>
-            <SelectItem value="online">Online</SelectItem>
-            <SelectItem value="home_visit">Home Visit</SelectItem>
-          </SelectContent>
-        </Select>
+        
+        <div className="flex gap-3 w-full sm:w-auto">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[150px] bg-background border-border rounded-xl h-10 font-semibold">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-border">
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-full sm:w-[150px] bg-background border-border rounded-xl h-10 font-semibold">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-border">
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="in_person">In-Person</SelectItem>
+              <SelectItem value="online">Online</SelectItem>
+              <SelectItem value="home_visit">Home Visit</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <Tabs defaultValue="upcoming" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-          <TabsTrigger value="upcoming" data-testid="tab-upcoming">
-            Upcoming ({upcomingAppointments.length})
+      {/* Tabs & List Section */}
+      <Tabs defaultValue="upcoming" className="w-full animate-in fade-in duration-500">
+        <TabsList className="grid w-full grid-cols-2 max-w-[400px] bg-muted/50 p-1.5 rounded-xl border border-border">
+          <TabsTrigger value="upcoming" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            Current ({upcomingAppointments.length})
           </TabsTrigger>
-          <TabsTrigger value="past" data-testid="tab-past">
+          <TabsTrigger value="past" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Past ({pastAppointments.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="upcoming" className="mt-6">
+        <TabsContent value="upcoming" className="mt-6 focus-visible:outline-none">
           {filteredUpcoming.length === 0 ? (
-            <EmptyState message="No upcoming appointments. Book a new appointment to get started." />
+            <EmptyState message="No current appointments found." />
           ) : (
             <div className="space-y-4">
               {filteredUpcoming.map((appointment) => (
-                <AppointmentCard key={appointment.id} appointment={appointment} />
+                <AppointmentCard 
+                  key={appointment.id} 
+                  appointment={appointment} 
+                  onFeedbackClick={() => setLocation("/patient/reviews")}
+                  onDetailsClick={setSelectedAppointment}
+                />
               ))}
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="past" className="mt-6">
+        <TabsContent value="past" className="mt-6 focus-visible:outline-none">
           {filteredPast.length === 0 ? (
             <EmptyState message="No past appointments found." />
           ) : (
             <div className="space-y-4">
               {filteredPast.map((appointment) => (
-                <AppointmentCard key={appointment.id} appointment={appointment} />
+                <AppointmentCard 
+                  key={appointment.id} 
+                  appointment={appointment} 
+                  onFeedbackClick={() => setLocation("/patient/reviews")}
+                  onDetailsClick={setSelectedAppointment}
+                />
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
 
-      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Appointment Details</DialogTitle>
-          </DialogHeader>
-          {selectedAppointment && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={selectedAppointment.doctor?.user?.profileImage || ""} />
-                  <AvatarFallback>
-                    {getInitials(selectedAppointment.doctor?.user?.fullName || "")}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-semibold text-lg">
-                    {selectedAppointment.doctor?.user?.fullName}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedAppointment.doctor?.qualifications}
-                  </p>
-                  <StatusBadge status={selectedAppointment.status} type="appointment" className="mt-1" />
-                </div>
-              </div>
-
-              <div className="grid gap-3 text-sm">
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="font-medium">
-                      {format(parseISO(selectedAppointment.appointmentDate), "EEEE, MMMM d, yyyy")}
-                    </p>
-                    <p className="text-muted-foreground">
-                      {selectedAppointment.appointmentTime}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  {getConsultationIcon(selectedAppointment.consultationType)}
-                  <div>
-                    <p className="font-medium">
-                      {getConsultationLabel(selectedAppointment.consultationType)}
-                    </p>
-                    {selectedAppointment.hospital && (
-                      <p className="text-muted-foreground">{selectedAppointment.hospital.name}</p>
-                    )}
-                  </div>
-                </div>
-
-                {selectedAppointment.queueNumber && (
-                  <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                    <span className="h-5 w-5 flex items-center justify-center text-xs font-bold bg-primary text-primary-foreground rounded-full">
-                      #
-                    </span>
-                    <div>
-                      <p className="font-medium">Queue Number</p>
-                      <p className="text-muted-foreground">{selectedAppointment.queueNumber}</p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="font-medium mb-1">Symptoms</p>
-                  <p className="text-muted-foreground">{selectedAppointment.symptoms}</p>
-                </div>
-
-                {selectedAppointment.consultationNotes && (
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="font-medium mb-1">Doctor's Notes</p>
-                    <p className="text-muted-foreground">{selectedAppointment.consultationNotes}</p>
-                  </div>
-                )}
-
-                {selectedAppointment.cancelReason && (
-                  <div className="p-3 bg-destructive/10 rounded-lg">
-                    <p className="font-medium mb-1 text-destructive">Cancellation Reason</p>
-                    <p className="text-muted-foreground">{selectedAppointment.cancelReason}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedAppointment && canCancel(selectedAppointment) && (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDetailsDialogOpen(false);
-                  setCancelDialogOpen(true);
-                }}
-                data-testid="button-cancel-dialog"
-              >
-                Cancel Appointment
-              </Button>
-            )}
+      {/* --- CUSTOM MODAL --- */}
+      <Modal
+        isOpen={!!selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+        title="Appointment Details"
+        description="View your full booking information"
+        icon={<Calendar className="w-5 h-5 text-primary" />}
+        footer={
+          <>
+            <Button variant="outline" className="rounded-full font-bold px-6 border-border" onClick={() => setSelectedAppointment(null)}>
+              Close
+            </Button>
             {selectedAppointment?.status === AppointmentStatus.CONFIRMED && 
              selectedAppointment?.consultationType === ConsultationType.ONLINE && (
-              <Button data-testid="button-join-dialog">
+              <Button className="rounded-full font-bold px-6 bg-primary text-primary-foreground hover:bg-primary/90">
                 <Video className="h-4 w-4 mr-2" />
                 Join Video Call
               </Button>
             )}
-            <Button variant="outline" onClick={() => setDetailsDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        {selectedAppointment && (
+          <div className="space-y-6">
+            
+            {/* Doctor Info Section */}
+            <div className="flex items-center gap-4 bg-muted/30 p-4 rounded-2xl border border-border">
+              <Avatar className="h-16 w-16 border-2 border-background shadow-sm">
+                <AvatarImage src={selectedAppointment.doctor?.user?.profileImage || ""} />
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
+                  {getInitials(selectedAppointment.doctor?.user?.fullName || "")}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-extrabold text-foreground text-lg">
+                  {selectedAppointment.doctor?.user?.fullName}
+                </h3>
+                <p className="text-sm font-medium text-muted-foreground">
+                  {selectedAppointment.doctor?.qualifications}
+                </p>
+                <div className="mt-2">
+                  <StatusBadge status={selectedAppointment.status} type="appointment" />
+                </div>
+              </div>
+            </div>
 
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Appointment</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to cancel this appointment? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Textarea
-              placeholder="Please provide a reason for cancellation..."
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              rows={3}
-              data-testid="input-cancel-reason"
-            />
+            {/* Details Grid */}
+            <div className="grid gap-3 text-sm">
+              <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-xl border border-border">
+                <div className="bg-background p-2 rounded-lg shadow-sm border border-border"><Calendar className="h-5 w-5 text-primary" /></div>
+                <div>
+                  <p className="font-bold text-foreground">
+                    {format(parseISO(selectedAppointment.appointmentDate), "EEEE, MMMM d, yyyy")}
+                  </p>
+                  <p className="font-semibold text-muted-foreground mt-0.5">
+                    {selectedAppointment.appointmentTime}
+                  </p>
+                </div>
+              </div>
+
+              {selectedAppointment.queueNumber && (
+                <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-xl border border-border">
+                  <div className="h-9 w-9 flex items-center justify-center font-black bg-primary text-primary-foreground rounded-lg shadow-sm">
+                    #
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground">Queue Number</p>
+                    <p className="font-semibold text-muted-foreground mt-0.5">{selectedAppointment.queueNumber}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 bg-muted/40 rounded-xl border border-border">
+                <p className="font-bold text-foreground mb-1.5">Symptoms</p>
+                <p className="font-medium text-muted-foreground leading-relaxed">{selectedAppointment.symptoms}</p>
+              </div>
+
+              {selectedAppointment.consultationNotes && (
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                  <p className="font-bold text-primary mb-1.5">Doctor's Notes</p>
+                  <p className="font-medium text-primary/80 leading-relaxed">{selectedAppointment.consultationNotes}</p>
+                </div>
+              )}
+
+              {selectedAppointment.cancelReason && (
+                <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
+                  <p className="font-bold text-destructive mb-1.5">Cancellation Reason</p>
+                  <p className="font-medium text-destructive/80 leading-relaxed">{selectedAppointment.cancelReason}</p>
+                </div>
+              )}
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
-              Keep Appointment
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (selectedAppointment) {
-                  cancelMutation.mutate({ id: selectedAppointment.id, reason: cancelReason });
-                }
-              }}
-              disabled={cancelMutation.isPending}
-              data-testid="button-confirm-cancel"
-            >
-              {cancelMutation.isPending ? "Cancelling..." : "Cancel Appointment"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </Modal>
+
     </div>
   );
 }

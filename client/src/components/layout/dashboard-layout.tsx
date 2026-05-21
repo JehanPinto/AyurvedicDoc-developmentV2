@@ -26,6 +26,7 @@ import {
   BookOpen,
   Shield,
   AlertTriangle,
+  icons,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -56,6 +57,7 @@ import { DoctorNotificationPanel } from "@/components/notifications/doctor-notif
 import { AdminNotificationPanel } from "@/components/notifications/admin-notification-panel";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@shared/schema";
+import { Label } from "recharts";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -90,6 +92,7 @@ const adminMainNavItems = [
 const adminManagementNavItems = [
   { icon: Activity, label: "Specializations", href: "/admin/specializations" },
   { icon: DollarSign, label: "Payments", href: "/admin/payments" },
+  { icon: AlertTriangle, label: "Refunds", href: "/admin/refunds" },
   { icon: BriefcaseBusiness, label: "Careers", href: "/admin/careers" },
   { icon: BookOpen, label: "Blogs", href: "/admin/blogs" },
 ];
