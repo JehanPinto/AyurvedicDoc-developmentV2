@@ -1,3 +1,4 @@
+// storage.ts
 import {
   type AdminDashboardStats,
   type Appointment,
@@ -42,6 +43,12 @@ import {
   type SafeUser,
   type User,
   UserRole,
+  type InsertRefund,
+  type Refund,
+  refunds,
+  InsertRefund,
+  payments,
+  payments,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -283,6 +290,9 @@ export interface IStorage {
     registrationNumber: string,
   ): Promise<DoctorProfile | undefined>;
   getPatientPayments(patientId: string): Promise<Payment[]>;
+  createRefundRequest(data: InsertRefund): Promise<Refund>;
+  getRefundRequests(): Promise<any[]>;
+  processRefund(refundId: string, status: string): Promise<any>;
 }
 
 export class MemStorage implements IStorage {
@@ -1168,7 +1178,28 @@ export class MemStorage implements IStorage {
       cancelledBy: cancelledBy as any,
     });
 
-    await this.updateAppointmentSlot(appointment.slotId, { isBooked: false });
+    if (updated) {
+      await db
+        .update(appointmentSlots)
+        .set({ isBooked: false })
+        .where(eq(appointmentSlots.id, updated.slotId));
+
+      // Create a Pending Refund Record automatically when cancelled
+      const payment = await this.getPaymentByAppointment(existing.id);
+      if (payment && payment.status === PaymentStatus.COMPLETED) {
+        const amountToRefund = payment.totalAmount - (payment.bookingCharges || 0) - (payment.tax || 0);
+        if (amountToRefund > 0) {
+          await this.createRefundRequest({
+            paymentId: payment.id,
+            appointmentId: existing.id,
+            patientId: existing.patientId,
+            amount: amountToRefund,
+            reason: reason || `Cancelled by ${cancelledBy}`,
+            status: "pending"
+          });
+        }
+      }
+    }
 
     return updated;
   }
@@ -1690,9 +1721,87 @@ export class MemStorage implements IStorage {
     user.resetPasswordOtpExpiry = undefined;
     return true;
   }
+
+  async createRefundRequest(data: InsertRefund): Promise<Refund> {
+    const result = await db.insert(refunds).values(data).returning();
+    return result[0] as Refund;
+  }
+
+  async getRefundRequests(): Promise<any[]> {
+    // 1. Get all cancelled appointments
+    const cancelledApts = await db
+      .select()
+      .from(appointments)
+      .where(eq(appointments.status, AppointmentStatus.CANCELLED));
+
+    if (cancelledApts.length === 0) return [];
+
+    const aptIds = cancelledApts.map((a) => a.id);
+
+    // 2. Get the corresponding payments for these appointments
+    const relatedPayments = await db
+      .select()
+      .from(payments)
+      .where(inArray(payments.appointmentId, aptIds));
+
+    // 3. Get the refund records
+    const allRefunds = await db
+      .select()
+      .from(refunds)
+      .where(inArray(refunds.appointmentId, aptIds));
+
+    const results = [];
+    
+    // Combine them with full patient/doctor details
+    for (const r of allRefunds) {
+      const app = await this.getAppointmentWithDetails(r.appointmentId);
+      const payment = relatedPayments.find(p => p.id === r.paymentId);
+      if (app && payment) {
+        results.push({ 
+          refund: r,
+          payment: {
+            ...payment,
+            createdAt: payment.createdAt ? new Date(payment.createdAt).toISOString() : new Date().toISOString(),
+            updatedAt: payment.updatedAt ? new Date(payment.updatedAt).toISOString() : new Date().toISOString(),
+          }, 
+          appointment: app 
+        });
+      }
+    }
+
+    // Sort by pending first, then by date
+    return results.sort((a, b) => {
+      if (a.refund.status === 'pending' && b.refund.status !== 'pending') return -1;
+      if (a.refund.status !== 'pending' && b.refund.status === 'pending') return 1;
+      return new Date(b.refund.createdAt).getTime() - new Date(a.refund.createdAt).getTime();
+    });
+  }
+
+  async processRefund(refundId: string, status: string): Promise<any> {
+    const result = await db.update(refunds)
+      .set({ status, processedAt: new Date(), updatedAt: new Date() })
+      .where(eq(refunds.id, refundId))
+      .returning();
+      
+    // If approved, update the original payment table too
+    if (result[0] && status === 'completed') {
+      await db.update(payments)
+        .set({ 
+          status: PaymentStatus.REFUNDED, 
+          refundAmount: result[0].amount, 
+          refundReason: result[0].reason, 
+          refundDate: new Date().toISOString().split('T')[0] 
+        })
+        .where(eq(payments.id, result[0].paymentId));
+    }
+    
+    return result[0];
+  }
 }
 
+import { db } from "./db";
 import { dbStorage } from "./db-storage";
+import { inArray } from "drizzle-orm";
 
 // Use database storage instead of in-memory storage
 export const storage = dbStorage;
