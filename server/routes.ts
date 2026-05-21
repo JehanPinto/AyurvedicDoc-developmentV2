@@ -3571,14 +3571,18 @@ export async function registerRoutes(
     roleMiddleware(UserRole.ADMIN),
     async (_req: Request, res: Response) => {
       try {
-        const [settings, taxEntries, doctors] = await Promise.all([
+        const [settings, doctors] = await Promise.all([
           storage.getPlatformSettings(),
-          storage.getTaxEntries(),
           storage.getVerifiedDoctors(),
         ]);
 
         const commissionRate = settings.platformCommissionRate / 100;
-        const totalTaxRate = taxEntries.reduce((sum, t) => sum + t.rate, 0) / 100;
+        const totalTaxRate =
+          (settings.vatEnabled ? 0.18 : 0) +
+          (settings.withholdingTaxEnabled ? 0.05 : 0);
+        const vatEnabled = settings.vatEnabled ?? true;
+        const withholdingTaxEnabled = settings.withholdingTaxEnabled ?? true;
+        const stampDutyEnabled = settings.stampDutyEnabled ?? false;
 
         const now = new Date();
         const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -3622,16 +3626,30 @@ export async function registerRoutes(
           const applicableTax = Math.round(earnAmount * totalTaxRate);
           const payoutAmount = Math.max(0, earnAmount - platformFees - cancellationFees - applicableTax);
 
+          const vatAmount = vatEnabled ? Math.round(earnAmount * 0.18) : 0;
+          const withholdingAmount = withholdingTaxEnabled ? Math.round(earnAmount * 0.05) : 0;
+          const stampDutyAmount = stampDutyEnabled ? Math.round(earnAmount * 0.01) : 0;
+
           doctorPayouts.push({
             doctorId: doctor.id,
             doctorName: doctor.user.fullName,
+            registrationNumber: doctor.registrationNumber,
+            bankName: doctor.bankName || null,
+            bankAccountNumber: doctor.bankAccountNumber || null,
             earnAmount,
             completedSessions: completedAppts,
             totalSessions: totalAppts,
             platformFees,
+            platformCommissionRate: settings.platformCommissionRate,
             cancellationRate,
             cancellationFees,
             applicableTax,
+            vatEnabled,
+            withholdingTaxEnabled,
+            stampDutyEnabled,
+            vatAmount,
+            withholdingAmount,
+            stampDutyAmount,
             payoutAmount,
           });
         }

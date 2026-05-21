@@ -143,9 +143,12 @@ export default function AdminSettingsPage() {
         cancellationFee: String(serverSettings.cancellationFee ?? 300),
       }));
       setSystemTaxes((prev) =>
-        prev.map((t) =>
-          t.id === "stamp" ? { ...t, enabled: serverSettings.stampDutyEnabled ?? false } : t
-        )
+        prev.map((t) => {
+          if (t.id === "vat") return { ...t, enabled: serverSettings.vatEnabled ?? true };
+          if (t.id === "withholding") return { ...t, enabled: serverSettings.withholdingTaxEnabled ?? true };
+          if (t.id === "stamp") return { ...t, enabled: serverSettings.stampDutyEnabled ?? false };
+          return t;
+        })
       );
     }
   }, [serverSettings]);
@@ -208,6 +211,8 @@ export default function AdminSettingsPage() {
       maintenanceMode: settings.maintenanceMode,
       cancellationFee: parseInt(settings.cancellationFee) || 300,
       stampDutyEnabled: systemTaxes.find((t) => t.id === "stamp")?.enabled ?? false,
+      vatEnabled: systemTaxes.find((t) => t.id === "vat")?.enabled ?? true,
+      withholdingTaxEnabled: systemTaxes.find((t) => t.id === "withholding")?.enabled ?? true,
     });
   };
 

@@ -1780,6 +1780,8 @@ export class DbStorage implements IStorage {
         maintenanceMode: result[0].maintenanceMode ?? false,
         cancellationFee: result[0].cancellationFee ?? 300,
         stampDutyEnabled: result[0].stampDutyEnabled ?? false,
+        vatEnabled: result[0].vatEnabled ?? true,
+        withholdingTaxEnabled: result[0].withholdingTaxEnabled ?? true,
         updatedAt: toISOString(result[0].updatedAt),
       };
     }
@@ -1805,6 +1807,8 @@ export class DbStorage implements IStorage {
       maintenanceMode: false,
       cancellationFee: 300,
       stampDutyEnabled: false,
+      vatEnabled: true,
+      withholdingTaxEnabled: true,
     };
 
     const inserted = await db
@@ -1849,6 +1853,8 @@ export class DbStorage implements IStorage {
       maintenanceMode: result[0].maintenanceMode ?? false,
       cancellationFee: result[0].cancellationFee ?? 300,
       stampDutyEnabled: result[0].stampDutyEnabled ?? false,
+      vatEnabled: result[0].vatEnabled ?? true,
+      withholdingTaxEnabled: result[0].withholdingTaxEnabled ?? true,
       updatedAt: toISOString(result[0].updatedAt),
     };
   }
