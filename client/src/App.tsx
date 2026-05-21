@@ -50,7 +50,6 @@ import NotFound from "@/pages/not-found";
 import EmailVerificationPage from "./pages/email-verification";
 import HelpDetailsPage from "./pages/help-details";
 import HelpCenterPage from "./pages/help-center";
-
 import CareerPage from "./pages/careers";
 import AdminCareersPage from "./pages/admin/careers";
 import PrivacyPolicyPage from "@/pages/privacy";
@@ -136,7 +135,6 @@ function Router() {
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
           <DashboardLayout>
             <Switch>
-              <Route path="/patient/doctors" component={DoctorsPage} />
               <Route path="/patient/appointments" component={PatientAppointmentsPage} />
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientReviewsPage} />
