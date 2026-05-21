@@ -131,7 +131,7 @@ function Router() {
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
           <DashboardLayout>
             <Switch>
-              <Route path="/patient/doctors" component={DoctorsPage} />
+              <Route path="/patient/find-doctors" component={FindDoctors} />
               <Route path="/patient/appointments" component={PatientAppointmentsPage} />
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientReviewsPage} />

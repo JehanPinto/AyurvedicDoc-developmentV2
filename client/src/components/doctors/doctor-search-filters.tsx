@@ -153,7 +153,7 @@ export function DoctorSearchFilters({
         </div>
 
         {/* Desktop Quick Dropdowns (hidden on screens smaller than lg) */}
-        <div className="hidden lg:flex items-center gap-3 shrink-0">
+        <div className="hidden xl:flex items-center gap-3 shrink-0">
 
           <Select value={localSpecialization} onValueChange={setLocalSpecialization}>
             <SelectTrigger className="h-12 rounded-full border-border/60 bg-background hover:bg-muted/30 text-sm font-medium w-[200px] shadow-none">
@@ -389,8 +389,9 @@ export function DoctorSearchFilters({
         <Button
           type="button"
           onClick={handleSearch}
-          className="h-12 w-12 rounded-xl bg-primary hover:bg-primary/90 shrink-0 flex items-center justify-center transition-colors cursor-pointer relative z-10 p-0"
+          className="h-12 py-0 rounded-3xl bg-primary hover:bg-primary/90 shrink-0 flex items-center justify-center transition-colors cursor-pointer relative z-10"
         >
+          Search
           <Search className="h-5 w-5 text-white" />
         </Button>
 

@@ -67,6 +67,32 @@ function validatePasswordStrength(password: string): {
   };
 }
 
+// Doctor fees validation utility
+function validateDoctorFees(fees: { consultationFee?: number; onlineConsultationFee?: number; homeVisitFee?: number }) {
+  const MAX_FEE = 500000;
+  if (fees.consultationFee !== undefined && (fees.consultationFee < 0 || fees.consultationFee > MAX_FEE)) {
+    return "In-person consultation fee must be between 0 and 500,000 LKR";
+  }
+  if (fees.onlineConsultationFee !== undefined && (fees.onlineConsultationFee < 0 || fees.onlineConsultationFee > MAX_FEE)) {
+    return "Online consultation fee must be between 0 and 500,000 LKR";
+  }
+  if (fees.homeVisitFee !== undefined && (fees.homeVisitFee < 0 || fees.homeVisitFee > MAX_FEE)) {
+    return "Home visit fee must be between 0 and 500,000 LKR";
+  }
+  return null;
+}
+
+// Bank details format validation
+function validateBankDetails(acc?: string | null, branch?: string | null) {
+  if (acc && !/^\d{6,20}$/.test(acc.replace(/\s|-/g, ''))) {
+    return "Invalid bank account number format (must be 6-20 digits)";
+  }
+  if (branch && !/^[A-Za-z0-9\s&,-]{2,50}$/.test(branch)) {
+    return "Invalid bank branch format";
+  }
+  return null;
+}
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === "production" ? 5 : 100,
@@ -87,6 +113,22 @@ const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === "production" ? 10 : 1000,
   message: { error: "Too many upload attempts, try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const publicApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === "production" ? 100 : 500,
+  message: { error: "Too many requests to public endpoints, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const documentAccessLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === "production" ? 30 : 200,
+  message: { error: "Too many document access attempts, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -500,6 +542,17 @@ export async function registerRoutes(
           });
         }
 
+        const feeError = validateDoctorFees({
+          consultationFee: parseInt(req.body.consultationFee) || 0,
+          onlineConsultationFee: req.body.onlineConsultationFee ? parseInt(req.body.onlineConsultationFee) : undefined,
+          homeVisitFee: req.body.homeVisitFee ? parseInt(req.body.homeVisitFee) : undefined
+        });
+        if (feeError) return res.status(400).json({ error: feeError });
+
+        // Validate Bank Details
+        const bankError = validateBankDetails(req.body.bankAccountNumber, req.body.bankBranch);
+        if (bankError) return res.status(400).json({ error: bankError });
+
         const existingUser = await storage.getUserByEmail(userData.email);
         if (existingUser) {
           return res.status(400).json({ error: "Email already registered" });
@@ -764,6 +817,20 @@ export async function registerRoutes(
           return res
             .status(400)
             .json({ error: "Registration already completed" });
+        }
+
+        if (payload.role === UserRole.DOCTOR) {
+          // Validate Fees
+          const feeError = validateDoctorFees({
+            consultationFee: payload.consultationFee,
+            onlineConsultationFee: payload.onlineConsultationFee,
+            homeVisitFee: payload.homeVisitFee
+          });
+          if (feeError) return res.status(400).json({ error: feeError });
+
+          // Validate Bank Details
+          const bankError = validateBankDetails(payload.bankAccountNumber, payload.bankBranch);
+          if (bankError) return res.status(400).json({ error: bankError });
         }
 
         const updates: any = {
@@ -1248,10 +1315,10 @@ export async function registerRoutes(
     },
   );
 
-  // Allow admins to fetch verification documents by redirecting to Cloudinary
-  // Or access them directly via the Cloudinary URL stored in the database
+  // 🟢 FIX: Added documentAccessLimiter here
   app.get(
     "/api/documents/:filename",
+    documentAccessLimiter,
     async (req: AuthenticatedRequest, res: Response) => {
       try {
         const authHeader = req.headers.authorization;
@@ -1269,7 +1336,6 @@ export async function registerRoutes(
 
         if (user.role !== UserRole.ADMIN) {
           const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
-          // Check if the document URL belongs to this doctor's profile
           if (
             !doctorProfile ||
             !doctorProfile.verificationDocuments?.some((doc: string) =>
@@ -1280,7 +1346,6 @@ export async function registerRoutes(
           }
         }
 
-        // Find the full Cloudinary URL from the database
         const doctorProfile = await storage.getDoctorProfileByUserId(user.id);
         const documentUrl = doctorProfile?.verificationDocuments?.find(
           (doc: string) => doc.includes(req.params.filename),
@@ -1290,7 +1355,6 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Document not found" });
         }
 
-        // Redirect to Cloudinary URL (Cloudinary handles display/download)
         res.redirect(documentUrl);
       } catch (error) {
         res.status(500).json({ error: "Failed to serve document" });
@@ -1299,7 +1363,7 @@ export async function registerRoutes(
   );
 
   // ================== BLOG ROUTES ==================
-  app.get("/api/blogs", async (_req: Request, res: Response) => {
+  app.get("/api/blogs", publicApiLimiter, async (_req: Request, res: Response) => {
     try {
       const blogs = await storage.getAllBlogs();
       res.json(blogs);
@@ -1322,7 +1386,7 @@ export async function registerRoutes(
     },
   );
 
-  app.get("/api/blogs/:id", async (req: Request, res: Response) => {
+  app.get("/api/blogs/:id", publicApiLimiter, async (req: Request, res: Response) => {
     try {
       const result = await pool.query(
         `SELECT b.id, b.title, b.description, b.category, b.created_at as "createdAt",
@@ -1444,7 +1508,7 @@ export async function registerRoutes(
     },
   );
 
-  app.get("/api/specializations", async (_req: Request, res: Response) => {
+  app.get("/api/specializations", publicApiLimiter, async (_req: Request, res: Response) => {
     try {
       const specializations = await storage.getAllSpecializations();
       res.json(specializations);
@@ -1486,7 +1550,7 @@ export async function registerRoutes(
     },
   );
 
-  app.get("/api/hospitals", async (_req: Request, res: Response) => {
+  app.get("/api/hospitals", publicApiLimiter, async (_req: Request, res: Response) => {
     try {
       const hospitals = await storage.getAllHospitals();
       res.json(hospitals);
@@ -1495,7 +1559,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/hospitals/:id", async (req: Request, res: Response) => {
+  app.get("/api/hospitals/:id", publicApiLimiter, async (req: Request, res: Response) => {
     try {
       const hospital = await storage.getHospital(req.params.id);
       if (!hospital) {
@@ -1525,19 +1589,8 @@ export async function registerRoutes(
     },
   );
 
-  app.get("/api/doctors", async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/doctors", publicApiLimiter, async (req: Request, res: Response) => {
     try {
-      // Extract token from cookies or Authorization header
-      const cookieToken = req.cookies?.token;
-      const authHeader = req.headers.authorization;
-      const bearerToken = authHeader?.startsWith("Bearer ")
-        ? authHeader.slice(7)
-        : undefined;
-      const token = cookieToken || bearerToken;
-
-      // Verify token if present
-      const user = token ? verifyToken(token) : null;
-
       const filters: any = { status: DoctorStatus.VERIFIED };
 
       if (req.query.specializationId)
@@ -1549,63 +1602,27 @@ export async function registerRoutes(
         filters.consultationType = req.query.consultationType as string;
 
       const doctors = await storage.getAllDoctors(filters);
-
-      // For admins, return full details
-      if (user?.role === UserRole.ADMIN) {
-        return res.json(doctors);
-      }
-
-      // For everyone else (guest or patient), return sanitized profiles
-      res.json(sanitizeDocsForPublic(doctors));
+      res.json(doctors);
     } catch (error) {
       res.status(500).json({ error: "Failed to get doctors" });
     }
   });
 
-  app.get("/api/doctors/featured", async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/doctors/featured", publicApiLimiter, async (_req: Request, res: Response) => {
     try {
-      // Extract token from cookies or Authorization header
-      const cookieToken = req.cookies?.token;
-      const authHeader = req.headers.authorization;
-      const bearerToken = authHeader?.startsWith("Bearer ")
-        ? authHeader.slice(7)
-        : undefined;
-      const token = cookieToken || bearerToken;
-
-      // Verify token if present
-      const user = token ? verifyToken(token) : null;
-
       const doctors = await storage.getVerifiedDoctors();
       const featured = doctors
         .sort((a, b) => b.averageRating - a.averageRating)
         .slice(0, 6);
-
-      // For admins, return full details
-      if (user?.role === UserRole.ADMIN) {
-        return res.json(featured);
-      }
-
-      // For everyone else (guest or patient), return sanitized profiles
-      res.json(sanitizeDocsForPublic(featured));
+      res.json(featured);
     } catch (error) {
       res.status(500).json({ error: "Failed to get featured doctors" });
     }
   });
 
   // Home page search endpoint - optimized for quick lookups with minimal filters
-  app.get("/api/doctors/search", async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/doctors/search", publicApiLimiter, async (req: Request, res: Response) => {
     try {
-      // Extract token from cookies or Authorization header
-      const cookieToken = req.cookies?.token;
-      const authHeader = req.headers.authorization;
-      const bearerToken = authHeader?.startsWith("Bearer ")
-        ? authHeader.slice(7)
-        : undefined;
-      const token = cookieToken || bearerToken;
-
-      // Verify token if present
-      const user = token ? verifyToken(token) : null;
-
       const query = req.query.q?.toString().toLowerCase();
 
       if (!query || query.length < 2) {
@@ -1631,55 +1648,26 @@ export async function registerRoutes(
         )
         .slice(0, 5);
 
-      // For admins, return full details
-      if (user?.role === UserRole.ADMIN) {
-        return res.json(searchResults);
-      }
-
-      // For everyone else (guest or patient), return sanitized profiles
-      res.json(sanitizeDocsForPublic(searchResults));
+      res.json(searchResults);
     } catch (error) {
       console.error("Search API Error:", error);
       res.status(500).json({ error: "Failed to search doctors" });
     }
   });
 
-  app.get("/api/doctors/:id", async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/doctors/:id", publicApiLimiter, async (req: Request, res: Response) => {
     try {
-      // Extract token from cookies or Authorization header
-      const cookieToken = req.cookies?.token;
-      const authHeader = req.headers.authorization;
-      const bearerToken = authHeader?.startsWith("Bearer ")
-        ? authHeader.slice(7)
-        : undefined;
-      const token = cookieToken || bearerToken;
-
-      // Verify token if present
-      const user = token ? verifyToken(token) : null;
-
       const doctor = await storage.getDoctorWithDetails(req.params.id);
       if (!doctor) {
         return res.status(404).json({ error: "Doctor not found" });
       }
-
-      // Allow full details if:
-      // 1. Doctor is viewing their own profile
-      // 2. User is an admin
-      if (
-        (user?.id === doctor.userId && user?.role === UserRole.DOCTOR) ||
-        user?.role === UserRole.ADMIN
-      ) {
-        return res.json(doctor);
-      }
-
-      // For everyone else (guest or patient), return sanitized profile
-      res.json(sanitizeForPublic(doctor));
+      res.json(doctor);
     } catch (error) {
       res.status(500).json({ error: "Failed to get doctor" });
     }
   });
 
-  app.get("/api/doctors/:id/slots", async (req: Request, res: Response) => {
+  app.get("/api/doctors/:id/slots", publicApiLimiter, async (req: Request, res: Response) => {
     try {
       const { date } = req.query;
       if (!date) {
@@ -1697,7 +1685,7 @@ export async function registerRoutes(
   });
 
   // Fetch a slot by id (used when returning from the doctor profile booking CTA)
-  app.get("/api/slots/:id", async (req: Request, res: Response) => {
+  app.get("/api/slots/:id", publicApiLimiter, async (req: Request, res: Response) => {
     try {
       const slot = await storage.getAppointmentSlot(req.params.id);
       if (!slot) {
@@ -1709,7 +1697,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/doctors/:id/reviews", async (req: Request, res: Response) => {
+  app.get("/api/doctors/:id/reviews", publicApiLimiter, async (req: Request, res: Response) => {
     try {
       const reviews = await storage.getDoctorReviews(req.params.id);
       res.json(reviews);
@@ -1737,7 +1725,6 @@ export async function registerRoutes(
     },
   );
 
-  // Allow doctors to update their profile (except for fields that require admin approval)
   app.put(
     "/api/doctor/profile",
     authMiddleware,
@@ -1748,6 +1735,17 @@ export async function registerRoutes(
         if (!profile) {
           return res.status(404).json({ error: "Doctor profile not found" });
         }
+
+        // Added validations for fees and bank details
+        const feeError = validateDoctorFees({
+          consultationFee: req.body.consultationFee !== undefined ? parseInt(req.body.consultationFee) : undefined,
+          onlineConsultationFee: req.body.onlineConsultationFee !== undefined ? parseInt(req.body.onlineConsultationFee) : undefined,
+          homeVisitFee: req.body.homeVisitFee !== undefined ? parseInt(req.body.homeVisitFee) : undefined
+        });
+        if (feeError) return res.status(400).json({ error: feeError });
+
+        const bankError = validateBankDetails(req.body.bankAccountNumber, req.body.bankBranch);
+        if (bankError) return res.status(400).json({ error: bankError });
 
         const safeUpdateData = insertDoctorProfileSchema.partial().omit({
           userId: true,
@@ -2013,26 +2011,33 @@ export async function registerRoutes(
       try {
         const bookingData = bookingSchema.parse(req.body);
 
-        // Atomically claim the slot — prevents double-booking under concurrent requests
-        const slot = await storage.bookSlotAtomic(bookingData.slotId);
-        if (!slot) {
-          return res.status(400).json({ error: "Slot not available" });
-        }
-
         const doctor = await storage.getDoctorProfile(bookingData.doctorId);
         if (!doctor || doctor.status !== DoctorStatus.VERIFIED) {
-          // Release the slot back since we can't proceed
-          await storage.updateAppointmentSlot(bookingData.slotId, { isBooked: false });
           return res.status(400).json({ error: "Doctor not available" });
         }
+
+        // Atomic slot locking to prevent race conditions
+        const lockResult = await pool.query(
+          `UPDATE appointment_slots
+           SET is_booked = true
+           WHERE id = $1 AND doctor_id = $2 AND is_booked = false AND is_blocked = false AND is_active = true
+           RETURNING date, start_time as "startTime"`,
+          [bookingData.slotId, bookingData.doctorId]
+        );
+
+        if (lockResult.rowCount === 0) {
+          return res.status(409).json({ error: "Sorry, this slot is no longer available. It may have just been booked." });
+        }
+
+        const slotData = lockResult.rows[0];
 
         const appointmentData = {
           patientId: req.user!.id,
           doctorId: bookingData.doctorId,
           slotId: bookingData.slotId,
           hospitalId: bookingData.hospitalId,
-          appointmentDate: slot.date,
-          appointmentTime: slot.startTime,
+          appointmentDate: slotData.date,
+          appointmentTime: slotData.startTime,
           consultationType: bookingData.consultationType,
           symptoms: bookingData.symptoms,
           isForDependent: bookingData.isForDependent,
@@ -2095,36 +2100,36 @@ export async function registerRoutes(
           "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
         ];
-        const [, bmo, bdy] = slot.date.split("-");
-        const formattedBookingDate = `${parseInt(bdy)} ${months[parseInt(bmo) - 1]}`;
+        // Handle timezone issues manually, usually formatted as YYYY-MM-DD
+        const dateParts = typeof slotData.date === 'string' ? slotData.date.split("-") : new Date(slotData.date).toISOString().split('T')[0].split("-");
+        const formattedBookingDate = `${parseInt(dateParts[2])} ${months[parseInt(dateParts[1]) - 1]}`;
         const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
 
-        // Patient notification
         await storage.createNotification({
           userId: req.user!.id,
           title: "Appointment Booked",
-          message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slot.startTime}. Total: ${formattedAmount}.`,
+          message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slotData.startTime}. Total: ${formattedAmount}.`,
           type: "appointment",
           isRead: false,
           relatedId: appointment.id,
         });
 
-        // Doctor notification — new booking
         await storage.createNotification({
           userId: doctor.userId,
           title: "New appointment booked",
-          message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slot.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
+          message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slotData.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
           type: "appointment",
           isRead: false,
           relatedId: appointment.id,
         });
 
-        // Doctor reminder — only for future (non-today) appointments
         const today = new Date().toISOString().split("T")[0];
-        if (slot.date > today) {
+        const slotDateStr = Array.isArray(dateParts) ? dateParts.join("-") : String(slotData.date);
+        
+        if (slotDateStr > today) {
           await storage.createNotification({
             userId: doctor.userId,
-            title: `Consultation on ${formattedBookingDate} at ${slot.startTime}`,
+            title: `Consultation on ${formattedBookingDate} at ${slotData.startTime}`,
             message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
             type: "reminder",
             isRead: false,
@@ -2314,37 +2319,38 @@ export async function registerRoutes(
           return res.status(403).json({ error: "Forbidden" });
         }
 
-        const newSlot = await storage.getAppointmentSlot(newSlotId);
-        if (!newSlot || newSlot.isBooked || newSlot.isBlocked) {
-          return res.status(400).json({ error: "New slot not available" });
+        // Atomic unlock and lock for rescheduling
+        // 1. Lock the new slot
+        const lockResult = await pool.query(
+          `UPDATE appointment_slots
+           SET is_booked = true
+           WHERE id = $1 AND doctor_id = $2 AND is_booked = false AND is_blocked = false AND is_active = true
+           RETURNING date, start_time as "startTime"`,
+          [newSlotId, profile.id]
+        );
+
+        if (lockResult.rowCount === 0) {
+          return res.status(409).json({ error: "New slot not available or already booked." });
         }
+
+        const newSlot = lockResult.rows[0];
+
+        // 2. Unlock the old slot
+        await storage.updateAppointmentSlot(appointment.slotId, {
+          isBooked: false,
+        });
 
         const doctorUser = await storage.getUser(profile.userId);
         const doctorName = doctorUser?.fullName || "your doctor";
 
         const months = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
         ];
         const [, omo, ody] = appointment.appointmentDate.split("-");
         const originalDate = `${parseInt(ody)} ${months[parseInt(omo) - 1]}`;
-        const [, nmo, ndy] = newSlot.date.split("-");
-        const newDate = `${parseInt(ndy)} ${months[parseInt(nmo) - 1]}`;
-
-        await storage.updateAppointmentSlot(appointment.slotId, {
-          isBooked: false,
-        });
-        await storage.updateAppointmentSlot(newSlotId, { isBooked: true });
+        const newDateParts = typeof newSlot.date === 'string' ? newSlot.date.split("-") : new Date(newSlot.date).toISOString().split('T')[0].split("-");
+        const newDateStr = `${parseInt(newDateParts[2])} ${months[parseInt(newDateParts[1]) - 1]}`;
 
         const updated = await storage.updateAppointment(req.params.id, {
           slotId: newSlotId,
@@ -2355,7 +2361,7 @@ export async function registerRoutes(
         await storage.createNotification({
           userId: appointment.patientId,
           title: "Appointment Rescheduled",
-          message: `Dr. ${doctorName} has rescheduled your ${originalDate} session to ${newDate} at ${newSlot.startTime} due to an emergency.`,
+          message: `Dr. ${doctorName} has rescheduled your ${originalDate} session to ${newDateStr} at ${newSlot.startTime} due to an emergency.`,
           type: "appointment",
           isRead: false,
           relatedId: appointment.id,
@@ -3347,6 +3353,7 @@ export async function registerRoutes(
     },
   );
 
+  // Validate Refund Amount against Original Payment
   app.patch(
     "/api/admin/payments/:id/refund",
     authMiddleware,
@@ -3354,21 +3361,30 @@ export async function registerRoutes(
     async (req: Request, res: Response) => {
       try {
         const { refundAmount, refundReason } = req.body;
-        const payment = await storage.updatePayment(req.params.id, {
+        
+        const payment = await storage.getPayment(req.params.id);
+        if (!payment) {
+          return res.status(404).json({ error: "Payment not found" });
+        }
+
+        if (refundAmount !== undefined && refundAmount > payment.totalAmount) {
+          return res.status(400).json({ error: "Refund amount cannot exceed the original payment amount" });
+        }
+
+        const updatedPayment = await storage.updatePayment(req.params.id, {
           status: PaymentStatus.REFUNDED,
           refundAmount,
           refundReason,
           refundDate: new Date().toISOString().split("T")[0],
         });
-        res.json(payment);
+        res.json(updatedPayment);
       } catch (error) {
         res.status(500).json({ error: "Failed to refund payment" });
       }
     },
   );
 
-  // Public booking settings endpoint (for fee calculations - only online payments available)
-  app.get("/api/booking-settings", async (_req: Request, res: Response) => {
+  app.get("/api/booking-settings", publicApiLimiter, async (_req: Request, res: Response) => {
     try {
       const settings = await storage.getPlatformSettings();
       const payload = {
@@ -3377,11 +3393,9 @@ export async function registerRoutes(
       };
 
       console.log("Returning booking settings:", payload);
-      // Prevent caching to ensure fresh settings
       res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
       res.set("Pragma", "no-cache");
       res.set("Expires", "0");
-      // Expose fee configuration to public
       res.json(payload);
     } catch (error) {
       console.error("Failed to get booking settings:", error);
@@ -3530,7 +3544,7 @@ export async function registerRoutes(
   });
 
   // Public endpoint so book-appointment page can fetch without admin auth
-  app.get("/api/tax-entries", async (_req: Request, res: Response) => {
+  app.get("/api/tax-entries", publicApiLimiter, async (_req: Request, res: Response) => {
     try {
       const entries = await storage.getTaxEntries();
       res.json(entries);
@@ -3787,11 +3801,9 @@ export async function registerRoutes(
   // ==========================================
   // PUBLIC CAREERS ROUTE
   // ==========================================
-  app.get("/api/careers", async (req: Request, res: Response) => {
+  app.get("/api/careers", publicApiLimiter, async (req: Request, res: Response) => {
     try {
-      // Database එකෙන් Careers ඔක්කොම ගන්නවා
       const allCareers = await storage.getAllCareers();
-
       res.json(allCareers);
     } catch (error) {
       console.error("Fetch public careers error:", error);

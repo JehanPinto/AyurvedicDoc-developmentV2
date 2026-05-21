@@ -57,8 +57,11 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
 
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="font-semibold text-lg truncate">
+                <div className="min-w-0 flex-1">
+                  <h3 
+                    className="font-semibold text-lg text-foreground truncate w-full" 
+                    title={doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
+                  >
                     {doctor.user.fullName.startsWith("Dr") ? doctor.user.fullName : `Dr. ${doctor.user.fullName}`}
                   </h3>
                   {primarySpecialization && (

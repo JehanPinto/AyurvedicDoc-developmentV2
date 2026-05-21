@@ -65,7 +65,7 @@ interface DashboardLayoutProps {
 
 const patientNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/patient" },
-  { icon: Stethoscope, label: "Find Doctors", href: "/patient/doctors" },
+   { icon: Stethoscope, label: "Find Doctors", href: "/patient/find-doctors" },
   { icon: Calendar, label: "My Appointments", href: "/patient/appointments" },
   { icon: Star, label: "My Reviews", href: "/patient/reviews" },
   { icon: Settings, label: "Settings", href: "/patient/settings" },
@@ -188,10 +188,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="flex h-screen w-full overflow-hidden bg-background">
         <Sidebar className="[&>[data-sidebar=sidebar]]:bg-[#c8ddd6] dark:[&>[data-sidebar=sidebar]]:bg-[#2a3d37]">
           <SidebarHeader className="border-b p-4">
-            <div className="flex items-center">
-              <img src="/logo-light.png" className="h-8 dark:hidden" alt="AyurPath" />
-              <img src="/logo-dark.png" className="h-8 hidden dark:block" alt="AyurPath" />
-            </div>
+            <Link href="/">
+              <div className="flex items-center cursor-pointer">
+                <img src="/logo-light.png" alt="AyurPath" className="h-8 w-auto dark:hidden" />
+                <img src="/logo-dark.png" alt="AyurPath" className="h-8 w-auto hidden dark:block" />
+              </div>
+            </Link>
           </SidebarHeader>
 
           <SidebarContent className="scrollbar-thin">
