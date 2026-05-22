@@ -2380,12 +2380,18 @@ export async function registerRoutes(
     authMiddleware,
     async (req: AuthenticatedRequest, res: Response) => {
       try {
+
+        if (req.user!.role === UserRole.PATIENT) {
+          return res.status(403).json({ error: "Patients are not allowed to cancel appointments directly." });
+        }
+
         const { reason } = req.body;
         const existing = await storage.getAppointment(req.params.id);
 
         if (!existing) {
           return res.status(404).json({ error: "Appointment not found" });
         }
+        
         const cancellableStatuses = [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED];
         if (!cancellableStatuses.includes(existing.status as AppointmentStatus)) {
           return res.status(400).json({
@@ -4223,6 +4229,36 @@ export async function registerRoutes(
         res.status(500).json({ error: "Failed to delete review" });
       }
     }
+  );
+
+  app.get(
+    "/api/admin/refund-requests",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const requests = await storage.getRefundRequests();
+        res.json(requests);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch refund requests" });
+      }
+    },
+  );
+
+  // PROCESS REFUND
+  app.patch(
+    "/api/admin/refunds/:id/process",
+    authMiddleware,
+    roleMiddleware(UserRole.ADMIN),
+    async (req: Request, res: Response) => {
+      try {
+        const { status } = req.body; // 'completed' or 'rejected'
+        const updatedRefund = await storage.processRefund(req.params.id, status);
+        res.json(updatedRefund);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to process refund" });
+      }
+    },
   );
 
   return httpServer;

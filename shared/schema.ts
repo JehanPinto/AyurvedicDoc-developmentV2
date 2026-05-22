@@ -1182,3 +1182,21 @@ export const insertBlogSchema = createInsertSchema(blogs).omit({
 });
 export type Blog = typeof blogs.$inferSelect;
 export type InsertBlog = z.infer<typeof insertBlogSchema>;
+
+// Refunds Table
+export const refunds = pgTable("refunds", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  paymentId: varchar("payment_id", { length: 50 }).notNull().references(() => payments.id),
+  appointmentId: varchar("appointment_id", { length: 50 }).notNull().references(() => appointments.id),
+  patientId: varchar("patient_id", { length: 50 }).notNull().references(() => users.id),
+  amount: integer("amount").notNull(),
+  reason: text("reason").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, completed, rejected
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRefundSchemaDb = createInsertSchema(refunds).omit({ id: true, createdAt: true, updatedAt: true, processedAt: true });
+export type Refund = typeof refunds.$inferSelect;
+export type InsertRefund = z.infer<typeof insertRefundSchemaDb>;

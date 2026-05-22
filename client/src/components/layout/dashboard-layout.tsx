@@ -58,6 +58,7 @@ import { DoctorNotificationPanel } from "@/components/notifications/doctor-notif
 import { AdminNotificationPanel } from "@/components/notifications/admin-notification-panel";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@shared/schema";
+import { Label } from "recharts";
 
 interface DashboardLayoutProps {
   children: ReactNode;
