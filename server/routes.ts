@@ -3119,15 +3119,36 @@ export async function registerRoutes(
     roleMiddleware(UserRole.ADMIN),
     async (req: Request, res: Response) => {
       try {
-        const { status } = req.query;
-        const filters = status ? { status: status as string } : undefined;
-        const doctors = await storage.getAllDoctors(filters);
-        res.json(doctors);
+        // URL එකෙන් එන parameters අල්ලගැනීම (query strings)
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const search = req.query.search as string | undefined;
+        const status = req.query.status as string | undefined;
+
+        // අලුත් server-side paginated method එක කෝල් කිරීම
+        const result = await storage.getAdminDoctorsList({
+          page,
+          limit,
+          search,
+          status,
+        });
+
+        res.json(result);
       } catch (error) {
+        console.error("Failed to fetch admin doctors:", error);
         res.status(500).json({ error: "Failed to get doctors" });
       }
     },
   );
+
+  app.get("/api/admin/doctors/counts", authMiddleware, roleMiddleware(UserRole.ADMIN), async (req, res) => {
+    try {
+      const counts = await storage.getDoctorStatusCounts();
+      res.json(counts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get doctor counts" });
+    }
+  });
 
   app.patch(
     "/api/admin/doctors/:id/verify",

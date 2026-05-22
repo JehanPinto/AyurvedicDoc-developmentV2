@@ -56,6 +56,7 @@ import PrivacyPolicyPage from "@/pages/privacy";
 import TermsAndConditionsPage from "@/pages/terms-and-conditions";
 import RefundPolicyPage from "@/pages/refund-policy";
 import ContactPrivacyPage from "@/pages/contact-privacy";
+import AdminRefundsPage from "./pages/admin/refunds";
 
 function ProtectedRoute({ 
   children, 
@@ -191,6 +192,7 @@ function Router() {
               <Route path="/admin/appointments" component={AdminAppointmentsPage} />
               <Route path="/admin/specializations" component={AdminSpecializationsPage} />
               <Route path="/admin/payments" component={AdminPaymentsPage} />
+              <Route path="/admin/refunds" component={AdminRefundsPage} />
               <Route path="/admin/careers" component={AdminCareersPage} />
               <Route path="/admin/blogs" component={AdminBlogsPage} />
               <Route path="/admin/settings" component={AdminSettingsPage} />

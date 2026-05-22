@@ -52,6 +52,7 @@ import {
   type InsertUser,
   type JobApplication,
   type Notification,
+  type PatientWithStats,
   type PatientDashboardStats,
   type Payment,
   type PlatformSettings,
@@ -68,7 +69,7 @@ import {
   type Refund,
   InsertRefund,
 } from "@shared/schema";
-import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 
 import type { IStorage } from "./storage";
@@ -945,16 +946,18 @@ export class DbStorage implements IStorage {
     reason: string,
     cancelledBy: string,
   ): Promise<Appointment | undefined> {
-    console.log(`[DB-STORAGE] 🛑 Cancelling appointment ID: ${id} by ${cancelledBy}`);
-    
+    console.log(
+      `[DB-STORAGE] 🛑 Cancelling appointment ID: ${id} by ${cancelledBy}`,
+    );
+
     // 1. Update Appointment Status
     const [updated] = await db
       .update(appointments)
-      .set({ 
-        status: AppointmentStatus.CANCELLED, 
-        cancelReason: reason, 
+      .set({
+        status: AppointmentStatus.CANCELLED,
+        cancelReason: reason,
         cancelledBy: cancelledBy as any,
-        updatedAt: new Date() 
+        updatedAt: new Date(),
       })
       .where(eq(appointments.id, id))
       .returning();
@@ -968,13 +971,18 @@ export class DbStorage implements IStorage {
       .where(eq(appointmentSlots.id, updated.slotId));
 
     console.log(`[DB-STORAGE] ✅ Appointment cancelled & slot unlocked.`);
-    
+
     // 3. Create Refund Request if Payment exists
     const payment = await this.getPaymentByAppointment(id);
     if (payment && payment.status === PaymentStatus.COMPLETED) {
-      console.log(`[DB-STORAGE] 💰 Payment found for refund. Status: ${payment.status}`);
-      const amountToRefund = payment.totalAmount - (payment.bookingCharges || 0) - (payment.tax || 0);
-      
+      console.log(
+        `[DB-STORAGE] 💰 Payment found for refund. Status: ${payment.status}`,
+      );
+      const amountToRefund =
+        payment.totalAmount -
+        (payment.bookingCharges || 0) -
+        (payment.tax || 0);
+
       if (amountToRefund > 0) {
         await this.createRefundRequest({
           paymentId: payment.id,
@@ -982,9 +990,11 @@ export class DbStorage implements IStorage {
           patientId: updated.patientId,
           amount: amountToRefund,
           reason: reason || `Cancelled by ${cancelledBy}`,
-          status: "pending"
+          status: "pending",
         });
-        console.log(`[DB-STORAGE] 📝 Pending refund record created: LKR ${amountToRefund}`);
+        console.log(
+          `[DB-STORAGE] 📝 Pending refund record created: LKR ${amountToRefund}`,
+        );
       }
     }
 
@@ -1189,7 +1199,6 @@ export class DbStorage implements IStorage {
             ? toISOString(r.doctorRespondedAt)
             : undefined,
           patient: safePatient as SafeUser,
-
         } as ReviewWithPatient);
       }
     }
@@ -1294,21 +1303,38 @@ export class DbStorage implements IStorage {
   async hideReview(id: string): Promise<Review | undefined> {
     return this.updateReview(id, { isHidden: true });
   }
-  
+
   async deleteReview(id: string): Promise<boolean> {
-    const existing = await db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
+    const existing = await db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.id, id))
+      .limit(1);
     if (!existing[0]) return false;
     const doctorId = existing[0].doctorId;
 
-    const result = await db.delete(reviews).where(eq(reviews.id, id)).returning();
-    
+    const result = await db
+      .delete(reviews)
+      .where(eq(reviews.id, id))
+      .returning();
+
     if (result.length > 0) {
-      const doctorReviews = await db.select().from(reviews).where(and(eq(reviews.doctorId, doctorId), eq(reviews.isHidden, false)));
+      const doctorReviews = await db
+        .select()
+        .from(reviews)
+        .where(
+          and(eq(reviews.doctorId, doctorId), eq(reviews.isHidden, false)),
+        );
       const totalRating = doctorReviews.reduce((sum, r) => sum + r.rating, 0);
-      const avgRating = doctorReviews.length > 0 ? totalRating / doctorReviews.length : 0;
-      
-      await db.update(doctorProfiles)
-        .set({ averageRating: parseFloat(avgRating.toFixed(1)), totalReviews: doctorReviews.length })
+      const avgRating =
+        doctorReviews.length > 0 ? totalRating / doctorReviews.length : 0;
+
+      await db
+        .update(doctorProfiles)
+        .set({
+          averageRating: parseFloat(avgRating.toFixed(1)),
+          totalReviews: doctorReviews.length,
+        })
         .where(eq(doctorProfiles.id, doctorId));
       return true;
     }
@@ -1435,6 +1461,10 @@ export class DbStorage implements IStorage {
       totalSpent,
       prescriptionsCount: patientPrescriptions.length,
     };
+  }
+
+  async getPatientStats(patientId: string): Promise<PatientDashboardStats> {
+    return this.getPatientDashboardStats(patientId);
   }
 
   async getDoctorDashboardStats(
@@ -1704,7 +1734,10 @@ export class DbStorage implements IStorage {
           eq(doctorCancellationCharges.settled, true),
         ),
       );
-    const totalDeductions = settledCharges.reduce((sum, c) => sum + c.amountOwed, 0);
+    const totalDeductions = settledCharges.reduce(
+      (sum, c) => sum + c.amountOwed,
+      0,
+    );
 
     return {
       totalEarnings: Math.max(0, totalEarnings - totalDeductions),
@@ -1895,8 +1928,15 @@ export class DbStorage implements IStorage {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
-    const result = await pool.query(`SELECT id, title, rate, created_at FROM tax_entries ORDER BY created_at ASC`);
-    return result.rows.map((r: any) => ({ id: r.id, title: r.title, rate: r.rate, createdAt: r.created_at }));
+    const result = await pool.query(
+      `SELECT id, title, rate, created_at FROM tax_entries ORDER BY created_at ASC`,
+    );
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      rate: r.rate,
+      createdAt: r.created_at,
+    }));
   }
 
   async createTaxEntry(title: string, rate: number): Promise<TaxEntry> {
@@ -1910,14 +1950,16 @@ export class DbStorage implements IStorage {
     `);
     const result = await pool.query(
       `INSERT INTO tax_entries (title, rate) VALUES ($1, $2) RETURNING id, title, rate, created_at`,
-      [title, rate]
+      [title, rate],
     );
     const r = result.rows[0];
     return { id: r.id, title: r.title, rate: r.rate, createdAt: r.created_at };
   }
 
   async deleteTaxEntry(id: string): Promise<boolean> {
-    const result = await pool.query(`DELETE FROM tax_entries WHERE id = $1`, [id]);
+    const result = await pool.query(`DELETE FROM tax_entries WHERE id = $1`, [
+      id,
+    ]);
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -2167,7 +2209,9 @@ export class DbStorage implements IStorage {
     });
   }
 
-  async getDoctorUnsettledCharges(doctorId: string): Promise<{ count: number; totalOwed: number }> {
+  async getDoctorUnsettledCharges(
+    doctorId: string,
+  ): Promise<{ count: number; totalOwed: number }> {
     const rows = await db
       .select()
       .from(doctorCancellationCharges)
@@ -2202,7 +2246,6 @@ export class DbStorage implements IStorage {
 
   // This method fetches all refund requests, including backfilling "virtual" pending refunds for legacy cancellations that don't have a record in the refunds table yet.
   async getRefundRequests(): Promise<any[]> {
-
     // 1. Get all cancelled appointments
     const cancelledApts = await db
       .select()
@@ -2214,112 +2257,230 @@ export class DbStorage implements IStorage {
     const aptIds = cancelledApts.map((a) => a.id);
 
     // 2. Get existing refund records
-    const allRefunds = await db.select().from(refunds).where(inArray(refunds.appointmentId, aptIds));
-    const allPayments = await db.select().from(payments).where(inArray(payments.appointmentId, aptIds));
+    const allRefunds = await db
+      .select()
+      .from(refunds)
+      .where(inArray(refunds.appointmentId, aptIds));
+    const allPayments = await db
+      .select()
+      .from(payments)
+      .where(inArray(payments.appointmentId, aptIds));
 
     const results = [];
 
     for (const app of cancelledApts) {
-      const payment = allPayments.find(p => p.appointmentId === app.id);
+      const payment = allPayments.find((p) => p.appointmentId === app.id);
       if (!payment) continue;
 
       // Check if a refund record already exists
-      const existingRefund = allRefunds.find(r => r.appointmentId === app.id);
+      const existingRefund = allRefunds.find((r) => r.appointmentId === app.id);
 
       if (existingRefund) {
         // Use existing record
         const appDetails = await this.getAppointmentWithDetails(app.id);
         if (appDetails) {
-            results.push({ refund: existingRefund, payment, appointment: appDetails });
+          results.push({
+            refund: existingRefund,
+            payment,
+            appointment: appDetails,
+          });
         }
       } else {
         // No refund record exists - this is a legacy cancellation. Create a "virtual" refund object with pending status to show in the UI until it's processed.
-        const amountToRefund = payment.totalAmount - (payment.bookingCharges || 0) - (payment.tax || 0);
+        const amountToRefund =
+          payment.totalAmount -
+          (payment.bookingCharges || 0) -
+          (payment.tax || 0);
         if (amountToRefund > 0) {
-            const virtualRefund = {
-                id: `virtual-${app.id}`,
-                paymentId: payment.id,
-                appointmentId: app.id,
-                patientId: app.patientId,
-                amount: amountToRefund,
-                reason: app.cancelReason || "Legacy cancellation (pending process)",
-                status: "pending",
-                processedAt: null,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            };
-            
-            const appDetails = await this.getAppointmentWithDetails(app.id);
-            if (appDetails) {
-                results.push({ refund: virtualRefund, payment, appointment: appDetails });
-            }
+          const virtualRefund = {
+            id: `virtual-${app.id}`,
+            paymentId: payment.id,
+            appointmentId: app.id,
+            patientId: app.patientId,
+            amount: amountToRefund,
+            reason: app.cancelReason || "Legacy cancellation (pending process)",
+            status: "pending",
+            processedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+
+          const appDetails = await this.getAppointmentWithDetails(app.id);
+          if (appDetails) {
+            results.push({
+              refund: virtualRefund,
+              payment,
+              appointment: appDetails,
+            });
+          }
         }
       }
     }
 
     return results.sort((a, b) => {
-      if (a.refund.status === 'pending' && b.refund.status !== 'pending') return -1;
-      if (a.refund.status !== 'pending' && b.refund.status === 'pending') return 1;
-      return new Date(b.refund.createdAt).getTime() - new Date(a.refund.createdAt).getTime();
+      if (a.refund.status === "pending" && b.refund.status !== "pending")
+        return -1;
+      if (a.refund.status !== "pending" && b.refund.status === "pending")
+        return 1;
+      return (
+        new Date(b.refund.createdAt).getTime() -
+        new Date(a.refund.createdAt).getTime()
+      );
     });
   }
 
   async processRefund(refundId: string, status: string): Promise<any> {
-    console.log(`\n[DB-STORAGE] ⚙️ Processing refund ID: ${refundId} with status: ${status}`);
+    console.log(
+      `\n[DB-STORAGE] ⚙️ Processing refund ID: ${refundId} with status: ${status}`,
+    );
 
     let refundRecord;
 
     // 1. Check if this is a "virtual" (legacy) refund request
-    if (refundId.startsWith('virtual-')) {
-      const originalAptId = refundId.replace('virtual-', '');
+    if (refundId.startsWith("virtual-")) {
+      const originalAptId = refundId.replace("virtual-", "");
 
       // Fetch source data to create the permanent record
-      const [apt] = await db.select().from(appointments).where(eq(appointments.id, originalAptId));
-      const [pay] = await db.select().from(payments).where(eq(payments.appointmentId, originalAptId));
+      const [apt] = await db
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, originalAptId));
+      const [pay] = await db
+        .select()
+        .from(payments)
+        .where(eq(payments.appointmentId, originalAptId));
 
       if (!apt || !pay) {
-        throw new Error("Could not find appointment or payment data for this virtual refund.");
+        throw new Error(
+          "Could not find appointment or payment data for this virtual refund.",
+        );
       }
 
       // Calculate the original amount
-      const amount = pay.totalAmount - (pay.bookingCharges || 0) - (pay.tax || 0);
+      const amount =
+        pay.totalAmount - (pay.bookingCharges || 0) - (pay.tax || 0);
 
       // Insert into DB
-      const [inserted] = await db.insert(refunds).values({
-        paymentId: pay.id,
-        appointmentId: apt.id,
-        patientId: apt.patientId,
-        amount: amount,
-        reason: apt.cancelReason || "Legacy cancellation (Auto-processed)",
-        status: status, 
-        processedAt: new Date(),
-        updatedAt: new Date()
-      }).returning();
-      
+      const [inserted] = await db
+        .insert(refunds)
+        .values({
+          paymentId: pay.id,
+          appointmentId: apt.id,
+          patientId: apt.patientId,
+          amount: amount,
+          reason: apt.cancelReason || "Legacy cancellation (Auto-processed)",
+          status: status,
+          processedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
       refundRecord = inserted;
     } else {
       // 2. Normal flow for existing DB records
-      const [updated] = await db.update(refunds)
+      const [updated] = await db
+        .update(refunds)
         .set({ status, processedAt: new Date(), updatedAt: new Date() })
         .where(eq(refunds.id, refundId))
         .returning();
       refundRecord = updated;
     }
-      
+
     // 3. Sync Payments table if status is completed
-    if (refundRecord && status === 'completed') {
-      
-      await db.update(payments)
-        .set({ 
-          status: PaymentStatus.REFUNDED, 
-          refundAmount: refundRecord.amount, 
-          refundReason: refundRecord.reason, 
-          refundDate: new Date().toISOString().split('T')[0] 
+    if (refundRecord && status === "completed") {
+      await db
+        .update(payments)
+        .set({
+          status: PaymentStatus.REFUNDED,
+          refundAmount: refundRecord.amount,
+          refundReason: refundRecord.reason,
+          refundDate: new Date().toISOString().split("T")[0],
         })
         .where(eq(payments.id, refundRecord.paymentId));
     }
-    
+
     return refundRecord;
+  }
+
+  async getAdminDoctorsList(filters: {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+  }): Promise<{
+    data: DoctorWithDetails[];
+    total: number;
+    counts: {
+      all: number;
+      pending: number;
+      verified: number;
+      rejected: number;
+      suspended: number;
+    };
+  }> {
+    const allProfiles = await db.select().from(doctorProfiles);
+    const allDetailedDoctors: DoctorWithDetails[] = [];
+
+    for (const p of allProfiles) {
+      const doc = await this.getDoctorWithDetails(p.id);
+      if (doc) allDetailedDoctors.push(doc);
+    }
+
+    const counts = {
+      all: allDetailedDoctors.length,
+      pending: allDetailedDoctors.filter(
+        (d) => d.status === DoctorStatus.PENDING,
+      ).length,
+      verified: allDetailedDoctors.filter(
+        (d) => d.status === DoctorStatus.VERIFIED,
+      ).length,
+      rejected: allDetailedDoctors.filter(
+        (d) => d.status === DoctorStatus.REJECTED,
+      ).length,
+      suspended: allDetailedDoctors.filter(
+        (d) => d.status === DoctorStatus.SUSPENDED,
+      ).length,
+    };
+
+    let filtered = allDetailedDoctors;
+
+    if (filters.status && filters.status !== "all") {
+      filtered = filtered.filter((d) => d.status === filters.status);
+    }
+
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      filtered = filtered.filter(
+        (d) =>
+          d.user.fullName.toLowerCase().includes(q) ||
+          d.user.email.toLowerCase().includes(q) ||
+          d.registrationNumber.toLowerCase().includes(q),
+      );
+    }
+
+    const total = filtered.length;
+    const startIndex = (filters.page - 1) * filters.limit;
+    const paginatedData = filtered.slice(
+      startIndex,
+      startIndex + filters.limit,
+    );
+
+    return {
+      data: paginatedData,
+      total,
+      counts,
+    };
+  }
+
+  async getDoctorStatusCounts() {
+    const all = await db.select().from(doctorProfiles);
+    return {
+      all: all.length,
+      pending: all.filter((d) => d.status === DoctorStatus.PENDING).length,
+      verified: all.filter((d) => d.status === DoctorStatus.VERIFIED).length,
+      rejected: all.filter((d) => d.status === DoctorStatus.REJECTED).length,
+      suspended: all.filter((d) => d.status === DoctorStatus.SUSPENDED).length,
+    };
   }
 }
 
