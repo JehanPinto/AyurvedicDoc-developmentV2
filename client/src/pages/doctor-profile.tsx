@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingPage } from "@/components/ui/loading-spinner";
 import type { DoctorWithDetails, AppointmentSlot } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
 
 // ─── Step icons ───────────────────────────────────────────────────────────────
 const STEP_ICONS = [
@@ -143,14 +144,23 @@ export default function DoctorProfilePage() {
     <PublicLayout showHeader={false}>
       <div className="min-h-screen bg-background">
         <div className="max-w-5xl mx-auto px-4 py-6">
-
-          {/* ── Top bar ── */}
           <div className="flex items-center justify-between mb-8">
-            <Link href="/patient/doctors">
-              <button className="flex items-center gap-1.5 text-sm font-medium border border-border bg-background text-foreground rounded-lg px-3 py-1.5 hover:bg-muted transition-colors">
+            <Link href="/patient/find-doctors">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-1.5 hover:bg-muted transition-colors"
+                onClick={() => {
+                    if (window.history.length > 1) {
+                        window.history.back();
+                    } else {
+                        navigate("/patient/find-doctors");
+                    }
+                }}
+              >
                 <ChevronLeft className="h-4 w-4" />
-                Back to Doctors
-              </button>
+                Back
+              </Button>
             </Link>
             {/* Real logo — light/dark aware */}
             <img src="/logo-light.png" alt="AyurPath" className="h-8 w-auto dark:hidden" />

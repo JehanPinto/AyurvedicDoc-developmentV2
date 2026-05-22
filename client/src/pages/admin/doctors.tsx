@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import {
-  Search,
-  Filter,
-  MoreVertical,
-  CheckCircle,
-  XCircle,
+import { 
+  Search, 
+  Filter, 
+  MoreVertical, 
+  CheckCircle, 
+  XCircle, 
   AlertCircle,
   Clock,
   Eye,
@@ -16,7 +16,7 @@ import {
   Phone,
   Mail,
   Calendar,
-  FileText,
+  FileText
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,20 +58,17 @@ import { Pagination } from "@/components/ui/pagination";
 
 const getDocumentUrl = (docUrl: string) => {
   // If it's already a Cloudinary URL, use it directly
-  if (docUrl && docUrl.includes("cloudinary.com")) {
+  if (docUrl && docUrl.includes('cloudinary.com')) {
     return docUrl;
   }
   // Otherwise, use the API endpoint for legacy local files
   if (!docUrl) return "#";
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  return token
-    ? `/api/documents/${docUrl}?token=${token}`
-    : `/api/documents/${docUrl}`;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  return token ? `/api/documents/${docUrl}?token=${token}` : `/api/documents/${docUrl}`;
 };
 
 const DoctorCardSkeleton = () => (
-  <Card className="bg-card border-border shadow-sm">
+  <Card className="bg-card border-border shadow-sm mb-4">
     <CardContent className="p-4">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="h-16 w-16 rounded-full bg-muted animate-pulse shrink-0 border border-border" />
@@ -83,14 +80,7 @@ const DoctorCardSkeleton = () => (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             <div className="h-4 w-full bg-muted rounded animate-pulse" />
             <div className="h-4 w-full bg-muted rounded animate-pulse" />
-            <div className="h-4 w-full bg-muted rounded animate-pulse" />
-            <div className="h-4 w-full bg-muted rounded animate-pulse" />
           </div>
-          <div className="h-6 w-1/2 bg-muted rounded animate-pulse mt-2" />
-        </div>
-        <div className="flex flex-row md:flex-col gap-2 shrink-0">
-          <div className="h-8 w-20 bg-muted rounded animate-pulse" />
-          <div className="h-8 w-10 bg-muted rounded animate-pulse" />
         </div>
       </div>
     </CardContent>
@@ -99,92 +89,87 @@ const DoctorCardSkeleton = () => (
 
 export default function AdminDoctorsPage() {
   const { toast } = useToast();
-
-  // states
+  
+  // Search & Filter States
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-
-  // server-side pagination
+  
+  // Client-side Pagination States
   const itemsPerPage = 10;
   const [currentPage, setCurrentPage] = useUrlPagination(1);
 
-  const [selectedDoctor, setSelectedDoctor] =
-    useState<DoctorWithDetails | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<DoctorWithDetails | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch((prevSearch) => {
-        if (prevSearch !== searchQuery) {
-          setCurrentPage(1);
-          return searchQuery;
-        }
-        return prevSearch;
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery, setCurrentPage]);
-
-  const { data: statusCounts = { all: 0, pending: 0, verified: 0, rejected: 0, suspended: 0 } } = useQuery<{
-    all: number;
-    pending: number;
-    verified: number;
-    rejected: number;
-    suspended: number;
-  }>({
-    queryKey: ["/api/admin/doctors/counts"],
-  });
-
-  const queryUrl = `/api/admin/doctors?page=${currentPage}&limit=${itemsPerPage}&status=${statusFilter}&search=${encodeURIComponent(debouncedSearch)}`;
-
-  const {
-    data: responseData,
-    isLoading,
-    isFetching,
-    isError,
-  } = useQuery<{
-    data: DoctorWithDetails[];
-    total: number;
-    counts: {
-      all: number;
-      pending: number;
-      verified: number;
-      rejected: number;
-      suspended: number;
-    };
-  }>({
-    queryKey: [queryUrl],
+  // React Query: Fetch all doctors at once (Client-side style)
+  const { data: doctors = [], isLoading, isFetching, isError } = useQuery<DoctorWithDetails[]>({
+    queryKey: ["/api/admin/doctors"],
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
   });
 
-  const doctors: DoctorWithDetails[] = responseData?.data || [];
-  const totalRecords = responseData?.total || 0;
-  
-  const totalPages = Math.max(1, Math.ceil(totalRecords / itemsPerPage));
+  const getStatusCounts = () => {
+    return {
+      all: doctors.length,
+      pending: doctors.filter(d => d.status === DoctorStatus.PENDING).length,
+      verified: doctors.filter(d => d.status === DoctorStatus.VERIFIED).length,
+      rejected: doctors.filter(d => d.status === DoctorStatus.REJECTED).length,
+      suspended: doctors.filter(d => d.status === DoctorStatus.SUSPENDED).length,
+    };
+  };
+
+  const statusCounts = getStatusCounts();
+
+  const filteredDoctors = doctors.filter(doctor => {
+    const matchesSearch = 
+      doctor.user?.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doctor.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doctor.user?.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || doctor.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredDoctors.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentDoctors = filteredDoctors.slice(startIndex, startIndex + itemsPerPage);
+
+  // Auto-reset page if bounds are exceeded during search/filter
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [filteredDoctors.length, currentPage, totalPages, setCurrentPage]);
 
   const verifyMutation = useMutation({
-    mutationFn: (doctorId: string) =>
+    mutationFn: (doctorId: string) => 
       apiRequest("PATCH", `/api/admin/doctors/${doctorId}/verify`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [queryUrl] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/doctors"] });
       toast({
         title: "Doctor Verified",
         description: "The doctor has been verified successfully.",
       });
       setShowDetailsDialog(false);
     },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to verify doctor. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ doctorId, reason }: { doctorId: string; reason: string }) =>
+    mutationFn: ({ doctorId, reason }: { doctorId: string; reason: string }) => 
       apiRequest("PATCH", `/api/admin/doctors/${doctorId}/reject`, { reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [queryUrl] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/doctors"] });
       toast({
         title: "Doctor Rejected",
         description: "The doctor application has been rejected.",
@@ -193,48 +178,58 @@ export default function AdminDoctorsPage() {
       setShowDetailsDialog(false);
       setRejectReason("");
     },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to reject doctor. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const suspendMutation = useMutation({
-    mutationFn: (doctorId: string) =>
+    mutationFn: (doctorId: string) => 
       apiRequest("PATCH", `/api/admin/doctors/${doctorId}/suspend`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [queryUrl] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/doctors"] });
       toast({
         title: "Doctor Suspended",
         description: "The doctor account has been suspended.",
       });
       setShowDetailsDialog(false);
     },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to suspend doctor. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const formatFee = (fee: number) => {
-    return new Intl.NumberFormat("en-LK", {
-      style: "currency",
-      currency: "LKR",
+    return new Intl.NumberFormat('en-LK', {
+      style: 'currency',
+      currency: 'LKR',
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(fee);
   };
 
   const getInitials = (name: string) => {
     if (!name) return "DR";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  // if (isLoading) return <LoadingPage message="Loading doctors..." />;
+  if (isLoading) {
+    return <LoadingPage message="Loading doctors..." />;
+  }
 
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <AlertCircle className="h-12 w-12 text-destructive" />
-        <p className="text-muted-foreground">
-          Failed to load doctors. Please try again.
-        </p>
+        <p className="text-muted-foreground">Failed to load doctors. Please try again.</p>
         <Button onClick={() => window.location.reload()}>Retry</Button>
       </div>
     );
@@ -244,17 +239,13 @@ export default function AdminDoctorsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold">
-            Doctors Management
-          </h1>
-          <p className="text-muted-foreground">
-            Manage and verify doctor registrations
-          </p>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold">Doctors Management</h1>
+          <p className="text-muted-foreground">Manage and verify doctor registrations</p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card
+        <Card 
           className={`cursor-pointer hover-elevate ${statusFilter === "all" ? "ring-2 ring-primary" : ""}`}
           onClick={() => setStatusFilter("all")}
           data-testid="filter-all"
@@ -264,51 +255,43 @@ export default function AdminDoctorsPage() {
             <p className="text-xs text-muted-foreground">All Doctors</p>
           </CardContent>
         </Card>
-        <Card
+        <Card 
           className={`cursor-pointer hover-elevate ${statusFilter === "pending" ? "ring-2 ring-primary" : ""}`}
           onClick={() => setStatusFilter("pending")}
           data-testid="filter-pending"
         >
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-amber-600">
-              {statusCounts.pending}
-            </p>
+            <p className="text-2xl font-bold text-amber-600">{statusCounts.pending}</p>
             <p className="text-xs text-muted-foreground">Pending</p>
           </CardContent>
         </Card>
-        <Card
+        <Card 
           className={`cursor-pointer hover-elevate ${statusFilter === "verified" ? "ring-2 ring-primary" : ""}`}
           onClick={() => setStatusFilter("verified")}
           data-testid="filter-verified"
         >
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-green-600">
-              {statusCounts.verified}
-            </p>
+            <p className="text-2xl font-bold text-green-600">{statusCounts.verified}</p>
             <p className="text-xs text-muted-foreground">Verified</p>
           </CardContent>
         </Card>
-        <Card
+        <Card 
           className={`cursor-pointer hover-elevate ${statusFilter === "rejected" ? "ring-2 ring-primary" : ""}`}
           onClick={() => setStatusFilter("rejected")}
           data-testid="filter-rejected"
         >
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-red-600">
-              {statusCounts.rejected}
-            </p>
+            <p className="text-2xl font-bold text-red-600">{statusCounts.rejected}</p>
             <p className="text-xs text-muted-foreground">Rejected</p>
           </CardContent>
         </Card>
-        <Card
+        <Card 
           className={`cursor-pointer hover-elevate ${statusFilter === "suspended" ? "ring-2 ring-primary" : ""}`}
           onClick={() => setStatusFilter("suspended")}
           data-testid="filter-suspended"
         >
           <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-gray-600">
-              {statusCounts.suspended}
-            </p>
+            <p className="text-2xl font-bold text-gray-600">{statusCounts.suspended}</p>
             <p className="text-xs text-muted-foreground">Suspended</p>
           </CardContent>
         </Card>
@@ -334,11 +317,12 @@ export default function AdminDoctorsPage() {
             <DoctorCardSkeleton />
             <DoctorCardSkeleton />
             <DoctorCardSkeleton />
+            <DoctorCardSkeleton />
           </>
-        ) : doctors.length > 0 ? (
-          doctors.map((doctor) => (
-            <Card
-              key={doctor.id}
+        ) : currentDoctors.length > 0 ? (
+          currentDoctors.map((doctor) => (
+            <Card 
+              key={doctor.id} 
               className="hover-elevate"
               data-testid={`card-doctor-${doctor.id}`}
             >
@@ -350,32 +334,24 @@ export default function AdminDoctorsPage() {
                       {getInitials(doctor.user?.fullName || "")}
                     </AvatarFallback>
                   </Avatar>
-
+                  
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between mb-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold">
-                          {doctor.user?.fullName}
-                        </h3>
+                        <h3 className="font-semibold">{doctor.user?.fullName}</h3>
                         <StatusBadge status={doctor.status} type="doctor" />
                       </div>
                       <div className="flex items-center gap-1">
                         <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
-                        <span className="font-medium">
-                          {doctor.averageRating?.toFixed(1)}
-                        </span>
-                        <span className="text-muted-foreground text-sm">
-                          ({doctor.totalReviews} reviews)
-                        </span>
+                        <span className="font-medium">{doctor.averageRating?.toFixed(1)}</span>
+                        <span className="text-muted-foreground text-sm">({doctor.totalReviews} reviews)</span>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm mb-3">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <FileText className="h-3.5 w-3.5" />
-                        <span className="truncate">
-                          {doctor.registrationNumber}
-                        </span>
+                        <span className="truncate">{doctor.registrationNumber}</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Mail className="h-3.5 w-3.5" />
@@ -393,11 +369,7 @@ export default function AdminDoctorsPage() {
 
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       {doctor.specializations?.map((spec) => (
-                        <Badge
-                          key={spec.id}
-                          variant="secondary"
-                          className="text-xs"
-                        >
+                        <Badge key={spec.id} variant="secondary" className="text-xs">
                           {spec.name}
                         </Badge>
                       ))}
@@ -411,8 +383,8 @@ export default function AdminDoctorsPage() {
                   </div>
 
                   <div className="flex flex-row md:flex-col gap-2 shrink-0">
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       size="sm"
                       onClick={() => {
                         setSelectedDoctor(doctor);
@@ -423,28 +395,24 @@ export default function AdminDoctorsPage() {
                       <Eye className="h-4 w-4 mr-1" />
                       View
                     </Button>
-
+                    
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          data-testid={`button-actions-${doctor.id}`}
-                        >
+                        <Button variant="ghost" size="icon" data-testid={`button-actions-${doctor.id}`}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {doctor.status === DoctorStatus.PENDING && (
                           <>
-                            <DropdownMenuItem
+                            <DropdownMenuItem 
                               onClick={() => verifyMutation.mutate(doctor.id)}
                               className="text-green-600"
                             >
                               <CheckCircle className="h-4 w-4 mr-2" />
                               Verify
                             </DropdownMenuItem>
-                            <DropdownMenuItem
+                            <DropdownMenuItem 
                               onClick={() => {
                                 setSelectedDoctor(doctor);
                                 setShowRejectDialog(true);
@@ -457,7 +425,7 @@ export default function AdminDoctorsPage() {
                           </>
                         )}
                         {doctor.status === DoctorStatus.VERIFIED && (
-                          <DropdownMenuItem
+                          <DropdownMenuItem 
                             onClick={() => suspendMutation.mutate(doctor.id)}
                             className="text-amber-600"
                           >
@@ -466,7 +434,7 @@ export default function AdminDoctorsPage() {
                           </DropdownMenuItem>
                         )}
                         {doctor.status === DoctorStatus.SUSPENDED && (
-                          <DropdownMenuItem
+                          <DropdownMenuItem 
                             onClick={() => verifyMutation.mutate(doctor.id)}
                             className="text-green-600"
                           >
@@ -475,7 +443,7 @@ export default function AdminDoctorsPage() {
                           </DropdownMenuItem>
                         )}
                         {doctor.status === DoctorStatus.REJECTED && (
-                          <DropdownMenuItem
+                          <DropdownMenuItem 
                             onClick={() => verifyMutation.mutate(doctor.id)}
                             className="text-green-600"
                           >
@@ -496,22 +464,23 @@ export default function AdminDoctorsPage() {
               <Stethoscope className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="font-semibold mb-1">No doctors found</h3>
               <p className="text-muted-foreground text-sm">
-                {searchQuery
-                  ? "Try adjusting your search or filters"
-                  : "No doctors registered yet"}
+                {searchQuery ? "Try adjusting your search or filters" : "No doctors registered yet"}
               </p>
             </CardContent>
           </Card>
         )}
-      </div>
 
-      {!isLoading && !isFetching && totalPages > 1 && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      )}
+        {totalPages > 1 && (
+          <div className="pt-6 pb-2">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
+
+      </div>
 
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -521,7 +490,7 @@ export default function AdminDoctorsPage() {
               Complete information about the doctor
             </DialogDescription>
           </DialogHeader>
-
+          
           {selectedDoctor && (
             <div className="space-y-6">
               <div className="flex items-center gap-4">
@@ -532,29 +501,17 @@ export default function AdminDoctorsPage() {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="text-xl font-semibold">
-                    {selectedDoctor.user?.fullName}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {selectedDoctor.qualifications}
-                  </p>
-                  <StatusBadge
-                    status={selectedDoctor.status}
-                    type="doctor"
-                    className="mt-1"
-                  />
+                  <h3 className="text-xl font-semibold">{selectedDoctor.user?.fullName}</h3>
+                  <p className="text-muted-foreground">{selectedDoctor.qualifications}</p>
+                  <StatusBadge status={selectedDoctor.status} type="doctor" className="mt-1" />
                 </div>
               </div>
 
               <div className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">
-                      Registration Number
-                    </p>
-                    <p className="font-medium">
-                      {selectedDoctor.registrationNumber}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Registration Number</p>
+                    <p className="font-medium">{selectedDoctor.registrationNumber}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
@@ -566,47 +523,30 @@ export default function AdminDoctorsPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">City</p>
-                    <p className="font-medium">
-                      {selectedDoctor.user?.city || "N/A"}
-                    </p>
+                    <p className="font-medium">{selectedDoctor.user?.city || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">
-                      Consultation Fee
-                    </p>
-                    <p className="font-medium">
-                      {formatFee(selectedDoctor.consultationFee)}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Consultation Fee</p>
+                    <p className="font-medium">{formatFee(selectedDoctor.consultationFee)}</p>
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Specializations
-                  </p>
+                  <p className="text-sm text-muted-foreground mb-2">Specializations</p>
                   <div className="flex flex-wrap gap-2">
                     {selectedDoctor.specializations?.map((spec) => (
-                      <Badge key={spec.id} variant="secondary">
-                        {spec.name}
-                      </Badge>
+                      <Badge key={spec.id} variant="secondary">{spec.name}</Badge>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Hospitals
-                  </p>
+                  <p className="text-sm text-muted-foreground mb-2">Hospitals</p>
                   <div className="space-y-2">
                     {selectedDoctor.hospitals?.map((hospital) => (
-                      <div
-                        key={hospital.id}
-                        className="p-2 bg-muted rounded-md"
-                      >
+                      <div key={hospital.id} className="p-2 bg-muted rounded-md">
                         <p className="font-medium">{hospital.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {hospital.address}, {hospital.city}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{hospital.address}, {hospital.city}</p>
                       </div>
                     ))}
                   </div>
@@ -614,80 +554,54 @@ export default function AdminDoctorsPage() {
 
                 {selectedDoctor.biography && (
                   <div>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Biography
-                    </p>
+                    <p className="text-sm text-muted-foreground mb-2">Biography</p>
                     <p className="text-sm">{selectedDoctor.biography}</p>
                   </div>
                 )}
 
-                {selectedDoctor.verificationDocuments &&
-                  selectedDoctor.verificationDocuments.length > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Verification Documents
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {selectedDoctor.verificationDocuments.map(
-                          (doc: string, index: number) => {
-                            const url = getDocumentUrl(doc);
-                            return (
-                              <a
-                                key={index}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 p-2 bg-muted rounded-md hover-elevate"
-                                data-testid={`link-document-${index}`}
-                              >
-                                <FileText className="h-4 w-4 text-primary" />
-                                <span className="text-sm">
-                                  Document {index + 1}
-                                </span>
-                              </a>
-                            );
-                          },
-                        )}
-                      </div>
+                {selectedDoctor.verificationDocuments && selectedDoctor.verificationDocuments.length > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Verification Documents</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedDoctor.verificationDocuments.map((doc: string, index: number) => {
+                        const url = getDocumentUrl(doc);
+                        return (
+                          <a 
+                            key={index}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 p-2 bg-muted rounded-md hover-elevate"
+                            data-testid={`link-document-${index}`}
+                          >
+                            <FileText className="h-4 w-4 text-primary" />
+                            <span className="text-sm">Document {index + 1}</span>
+                          </a>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                {selectedDoctor.status === DoctorStatus.REJECTED &&
-                  selectedDoctor.rejectionReason && (
-                    <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                      <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
-                        Rejection Reason
-                      </p>
-                      <p className="text-sm text-red-700 dark:text-red-300">
-                        {selectedDoctor.rejectionReason}
-                      </p>
-                    </div>
-                  )}
+                {selectedDoctor.status === DoctorStatus.REJECTED && selectedDoctor.rejectionReason && (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Rejection Reason</p>
+                    <p className="text-sm text-red-700 dark:text-red-300">{selectedDoctor.rejectionReason}</p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
                   <div className="text-center">
-                    <p className="text-2xl font-bold">
-                      {selectedDoctor.totalAppointments}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Total Appointments
-                    </p>
+                    <p className="text-2xl font-bold">{selectedDoctor.totalAppointments}</p>
+                    <p className="text-xs text-muted-foreground">Total Appointments</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold">
-                      {selectedDoctor.averageRating?.toFixed(1)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Average Rating
-                    </p>
+                    <p className="text-2xl font-bold">{selectedDoctor.averageRating?.toFixed(1)}</p>
+                    <p className="text-xs text-muted-foreground">Average Rating</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold">
-                      {selectedDoctor.totalReviews}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Total Reviews
-                    </p>
+                    <p className="text-2xl font-bold">{selectedDoctor.totalReviews}</p>
+                    <p className="text-xs text-muted-foreground">Total Reviews</p>
                   </div>
                 </div>
               </div>
@@ -695,15 +609,15 @@ export default function AdminDoctorsPage() {
               <DialogFooter className="flex-col sm:flex-row gap-2">
                 {selectedDoctor.status === DoctorStatus.PENDING && (
                   <>
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       className="text-red-600"
                       onClick={() => setShowRejectDialog(true)}
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Reject
                     </Button>
-                    <Button
+                    <Button 
                       onClick={() => verifyMutation.mutate(selectedDoctor.id)}
                       disabled={verifyMutation.isPending}
                     >
@@ -713,7 +627,7 @@ export default function AdminDoctorsPage() {
                   </>
                 )}
                 {selectedDoctor.status === DoctorStatus.VERIFIED && (
-                  <Button
+                  <Button 
                     variant="outline"
                     className="text-amber-600"
                     onClick={() => suspendMutation.mutate(selectedDoctor.id)}
@@ -724,7 +638,7 @@ export default function AdminDoctorsPage() {
                   </Button>
                 )}
                 {selectedDoctor.status === DoctorStatus.SUSPENDED && (
-                  <Button
+                  <Button 
                     onClick={() => verifyMutation.mutate(selectedDoctor.id)}
                     disabled={verifyMutation.isPending}
                   >
@@ -746,7 +660,7 @@ export default function AdminDoctorsPage() {
               Please provide a reason for rejecting this doctor's application.
             </DialogDescription>
           </DialogHeader>
-
+          
           <Textarea
             placeholder="Enter rejection reason..."
             value={rejectReason}
@@ -756,20 +670,14 @@ export default function AdminDoctorsPage() {
           />
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowRejectDialog(false)}
-            >
+            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
               Cancel
             </Button>
-            <Button
+            <Button 
               variant="destructive"
               onClick={() => {
                 if (selectedDoctor) {
-                  rejectMutation.mutate({
-                    doctorId: selectedDoctor.id,
-                    reason: rejectReason,
-                  });
+                  rejectMutation.mutate({ doctorId: selectedDoctor.id, reason: rejectReason });
                 }
               }}
               disabled={rejectMutation.isPending}

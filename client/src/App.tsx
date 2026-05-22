@@ -57,6 +57,7 @@ import TermsAndConditionsPage from "@/pages/terms-and-conditions";
 import RefundPolicyPage from "@/pages/refund-policy";
 import ContactPrivacyPage from "@/pages/contact-privacy";
 import AdminRefundsPage from "./pages/admin/refunds";
+import FindDoctors from "./pages/patient/find-doctors";
 
 function ProtectedRoute({ 
   children, 
@@ -137,6 +138,7 @@ function Router() {
           <DashboardLayout>
             <Switch>
               <Route path="/patient/appointments" component={PatientAppointmentsPage} />
+              <Route path="/patient/find-doctors" component={FindDoctors} />
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientReviewsPage} />
               <Route path="/patient/settings" component={PatientSettingsPage} />

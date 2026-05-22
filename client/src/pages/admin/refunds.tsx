@@ -8,7 +8,8 @@ import {
   Info, 
   X, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle, 
+  Loader2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -25,24 +26,34 @@ import { LoadingPage, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Modal } from "@/components/ui/modal";
+import { useUrlPagination } from "@/hooks/use-url-pagination";
+import { Pagination } from "@/components/ui/pagination";
+
+const RefundRowSkeleton = () => (
+  <tr className="animate-pulse border-b border-border">
+    <td className="px-3 py-5 md:px-6"><div className="h-4 w-4 bg-muted rounded" /></td>
+    <td className="px-3 py-5 md:px-6"><div className="h-4 w-28 bg-muted rounded" /></td>
+    <td className="px-3 py-5 md:px-6"><div className="h-4 w-36 bg-muted rounded" /></td>
+    <td className="px-3 py-5 md:px-6"><div className="h-4 w-20 bg-muted rounded" /></td>
+    <td className="px-3 py-5 md:px-6 hidden sm:table-cell"><div className="h-4 w-16 bg-muted rounded" /></td>
+    <td className="px-3 py-5 md:px-6 hidden sm:table-cell"><div className="h-4 w-12 bg-muted rounded" /></td>
+    <td className="px-3 py-5 md:px-6"><div className="h-4 w-20 bg-muted rounded" /></td>
+    <td className="px-3 py-5 md:px-6 text-right"><div className="h-8 w-20 bg-muted rounded-full inline-block" /></td>
+  </tr>
+);
 
 export default function AdminRefunds() {
   const { toast } = useToast();
   const [selectedRefund, setSelectedRefund] = useState<any>(null);
 
-  // Fetching from the new refunds table logic
-  const { data: allRequests = [], isLoading, isError, error } = useQuery<any[]>({
-    queryKey: ["/api/admin/refund-requests"],
-  });
+  const itemsPerPage = 10;
+  const [currentPage, setCurrentPage] = useUrlPagination(1);
 
-  useEffect(() => {
-    if (!isLoading) {
-      if (allRequests.length === 0) {
-      }
-    }
-    if (isError) {
-    }
-  }, [allRequests, isLoading, isError, error]);
+  // Fetching from the new refunds table logic
+  const { data: allRequests = [], isLoading, isFetching, isError, error } = useQuery<any[]>({
+    queryKey: ["/api/admin/refund-requests"],
+    staleTime: 0,
+  });
 
   const processMutation = useMutation({
     mutationFn: (data: { id: string; status: string }) => {
@@ -57,18 +68,6 @@ export default function AdminRefunds() {
       toast({ title: "Failed to process", description: err.message, variant: "destructive" });
     },
   });
-
-  if (isLoading) return <LoadingPage message="Loading refund requests..." />;
-
-  if (isError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <AlertCircle className="h-12 w-12 text-rose-500" />
-        <p className="text-slate-500 font-medium">Failed to load refund data.</p>
-        <Button onClick={() => window.location.reload()} variant="outline">Reload Page</Button>
-      </div>
-    );
-  }
 
   // --- Statistics Calculations based on NEW Table ---
   const pendingRequests = allRequests.filter((r) => r.refund.status === "pending");
@@ -87,8 +86,30 @@ export default function AdminRefunds() {
 
   const refundableTotal = pendingRequests.reduce((sum, r) => sum + r.refund.amount, 0);
 
+  const totalPages = Math.max(1, Math.ceil(pendingRequests.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentPendingRequests = pendingRequests.slice(startIndex, startIndex + itemsPerPage);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [pendingRequests.length, currentPage, totalPages, setCurrentPage]);
+
   const formatPrice = (value: number) => 
     new Intl.NumberFormat("en-LK", { minimumFractionDigits: 0 }).format(value || 0);
+
+  if (isLoading) return <LoadingPage message="Loading refund requests..." />;
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertCircle className="h-12 w-12 text-rose-500" />
+        <p className="text-slate-500 font-medium">Failed to load refund data.</p>
+        <Button onClick={() => window.location.reload()} variant="outline">Reload Page</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
@@ -159,7 +180,7 @@ export default function AdminRefunds() {
             <thead className="bg-primary/10 text-emerald-900 dark:text-emerald-500 font-bold uppercase tracking-wider border-b border-border">
               <tr>
                 {/* Sticky Column Header */}
-                <th className="px-3 py-4 md:px-6 md:py-5 whitespace-nowrap sticky left-0 bg-primary/10 z-20 border-r border-border">#</th>
+                <th className="px-3 py-4 md:px-6 md:py-5 whitespace-nowrap sticky left-0 bg-popover z-20 border-r border-border">#</th>
                 <th className="px-3 py-4 md:px-6 md:py-5 whitespace-nowrap">Patient</th>
                 <th className="px-3 py-4 md:px-6 md:py-5 whitespace-nowrap">Reason</th>
                 <th className="px-3 py-4 md:px-6 md:py-5 whitespace-nowrap">Total</th>
@@ -172,14 +193,22 @@ export default function AdminRefunds() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {pendingRequests.length === 0 ? (
+              {isFetching ? (
+                <>
+                  <RefundRowSkeleton />
+                  <RefundRowSkeleton />
+                  <RefundRowSkeleton />
+                  <RefundRowSkeleton />
+                  <RefundRowSkeleton />
+                </>
+              ) : currentPendingRequests.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-16 text-center text-muted-foreground font-bold text-base">
                     No pending refund requests.
                   </td>
                 </tr>
               ) : (
-                pendingRequests.map((req, index) => (
+                currentPendingRequests.map((req, index) => (
                   <tr key={req.refund.id} className="hover:bg-accent/50 transition-colors">
                     {/* Sticky Column Cell - bg-card use කරල තියෙන්නේ dark mode එකේදීත් පේන්න */}
                     <td className="px-3 py-4 md:px-6 md:py-5 font-mono font-bold text-muted-foreground bg-card sticky left-0 z-10 border-r border-border">
@@ -212,6 +241,14 @@ export default function AdminRefunds() {
           </table>
         </div>
       </Card>
+
+      <div className="flex items-center justify-center">
+        {totalPages > 1 && (
+          <div className="pt-4 flex justify-end">
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          </div>
+        )}
+      </div>
 
       <Modal 
         isOpen={!!selectedRefund} 

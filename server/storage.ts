@@ -106,15 +106,8 @@ export interface IStorage {
     status: string,
     rejectionReason?: string,
   ): Promise<DoctorProfile | undefined>;
-  addDoctorHospital(
-    doctorProfileId: string,
-    name: string,
-    address: string,
-  ): Promise<{ hospital: Hospital; hospitalIds: string[] } | null>;
-  removeDoctorHospital(
-    doctorProfileId: string,
-    hospitalId: string,
-  ): Promise<boolean>;
+  addDoctorHospital(doctorProfileId: string, name: string, address: string): Promise<{ hospital: Hospital; hospitalIds: string[] } | null>;
+  removeDoctorHospital(doctorProfileId: string, hospitalId: string): Promise<boolean>;
 
   getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]>;
   createDoctorSchedule(schedule: InsertDoctorSchedule): Promise<DoctorSchedule>;
@@ -191,7 +184,7 @@ export interface IStorage {
   ): Promise<Review | undefined>;
   hideReview(id: string): Promise<Review | undefined>;
   deleteReview(id: string): Promise<boolean>;
-
+  
   getUserNotifications(userId: string): Promise<Notification[]>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -300,22 +293,6 @@ export interface IStorage {
   createRefundRequest(data: InsertRefund): Promise<Refund>;
   getRefundRequests(): Promise<any[]>;
   processRefund(refundId: string, status: string): Promise<any>;
-  getAdminDoctorsList(filters: {
-    page: number;
-    limit: number;
-    search?: string;
-    status?: string;
-  }): Promise<{
-    data: DoctorWithDetails[];
-    total: number;
-    counts: {
-      all: number;
-      pending: number;
-      verified: number;
-      rejected: number;
-      suspended: number;
-    };
-  }>;
 }
 
 export class MemStorage implements IStorage {
@@ -957,48 +934,26 @@ export class MemStorage implements IStorage {
     return this.updateDoctorProfile(id, updates);
   }
 
-  async addDoctorHospital(
-    doctorProfileId: string,
-    name: string,
-    address: string,
-  ): Promise<{ hospital: Hospital; hospitalIds: string[] } | null> {
+  async addDoctorHospital(doctorProfileId: string, name: string, address: string): Promise<{ hospital: Hospital; hospitalIds: string[] } | null> {
     const profile = this.doctorProfiles.get(doctorProfileId);
     if (!profile) return null;
     const currentIds: string[] = (profile as any).hospitalIds || [];
     if (currentIds.length >= 5) return null;
     const hospId = randomUUID();
-    const hospital: Hospital = {
-      id: hospId,
-      name,
-      address,
-      city: "",
-      contactNumber: "N/A",
-      parkingAvailable: false,
-    };
+    const hospital: Hospital = { id: hospId, name, address, city: "", contactNumber: "N/A", parkingAvailable: false };
     this.hospitals.set(hospId, hospital);
     const newIds = [...currentIds, hospId];
-    const updated = {
-      ...profile,
-      hospitalIds: newIds,
-      updatedAt: new Date().toISOString(),
-    };
+    const updated = { ...profile, hospitalIds: newIds, updatedAt: new Date().toISOString() };
     this.doctorProfiles.set(doctorProfileId, updated as any);
     return { hospital, hospitalIds: newIds };
   }
 
-  async removeDoctorHospital(
-    doctorProfileId: string,
-    hospitalId: string,
-  ): Promise<boolean> {
+  async removeDoctorHospital(doctorProfileId: string, hospitalId: string): Promise<boolean> {
     const profile = this.doctorProfiles.get(doctorProfileId);
     if (!profile) return false;
     const currentIds: string[] = (profile as any).hospitalIds || [];
     const newIds = currentIds.filter((id) => id !== hospitalId);
-    const updated = {
-      ...profile,
-      hospitalIds: newIds,
-      updatedAt: new Date().toISOString(),
-    };
+    const updated = { ...profile, hospitalIds: newIds, updatedAt: new Date().toISOString() };
     this.doctorProfiles.set(doctorProfileId, updated as any);
     return true;
   }
@@ -1232,10 +1187,7 @@ export class MemStorage implements IStorage {
       // Create a Pending Refund Record automatically when cancelled
       const payment = await this.getPaymentByAppointment(existing.id);
       if (payment && payment.status === PaymentStatus.COMPLETED) {
-        const amountToRefund =
-          payment.totalAmount -
-          (payment.bookingCharges || 0) -
-          (payment.tax || 0);
+        const amountToRefund = payment.totalAmount - (payment.bookingCharges || 0) - (payment.tax || 0);
         if (amountToRefund > 0) {
           await this.createRefundRequest({
             paymentId: payment.id,
@@ -1243,7 +1195,7 @@ export class MemStorage implements IStorage {
             patientId: existing.patientId,
             amount: amountToRefund,
             reason: reason || `Cancelled by ${cancelledBy}`,
-            status: "pending",
+            status: "pending"
           });
         }
       }
@@ -1683,12 +1635,7 @@ export class MemStorage implements IStorage {
   }
 
   async createTaxEntry(title: string, rate: number): Promise<TaxEntry> {
-    const entry: TaxEntry = {
-      id: randomUUID(),
-      title,
-      rate,
-      createdAt: new Date().toISOString(),
-    };
+    const entry: TaxEntry = { id: randomUUID(), title, rate, createdAt: new Date().toISOString() };
     this.taxEntries.push(entry);
     return entry;
   }
@@ -1804,61 +1751,50 @@ export class MemStorage implements IStorage {
       .where(inArray(refunds.appointmentId, aptIds));
 
     const results = [];
-
+    
     // Combine them with full patient/doctor details
     for (const r of allRefunds) {
       const app = await this.getAppointmentWithDetails(r.appointmentId);
-      const payment = relatedPayments.find((p) => p.id === r.paymentId);
+      const payment = relatedPayments.find(p => p.id === r.paymentId);
       if (app && payment) {
-        results.push({
+        results.push({ 
           refund: r,
           payment: {
             ...payment,
-            createdAt: payment.createdAt
-              ? new Date(payment.createdAt).toISOString()
-              : new Date().toISOString(),
-            updatedAt: payment.updatedAt
-              ? new Date(payment.updatedAt).toISOString()
-              : new Date().toISOString(),
-          },
-          appointment: app,
+            createdAt: payment.createdAt ? new Date(payment.createdAt).toISOString() : new Date().toISOString(),
+            updatedAt: payment.updatedAt ? new Date(payment.updatedAt).toISOString() : new Date().toISOString(),
+          }, 
+          appointment: app 
         });
       }
     }
 
     // Sort by pending first, then by date
     return results.sort((a, b) => {
-      if (a.refund.status === "pending" && b.refund.status !== "pending")
-        return -1;
-      if (a.refund.status !== "pending" && b.refund.status === "pending")
-        return 1;
-      return (
-        new Date(b.refund.createdAt).getTime() -
-        new Date(a.refund.createdAt).getTime()
-      );
+      if (a.refund.status === 'pending' && b.refund.status !== 'pending') return -1;
+      if (a.refund.status !== 'pending' && b.refund.status === 'pending') return 1;
+      return new Date(b.refund.createdAt).getTime() - new Date(a.refund.createdAt).getTime();
     });
   }
 
   async processRefund(refundId: string, status: string): Promise<any> {
-    const result = await db
-      .update(refunds)
+    const result = await db.update(refunds)
       .set({ status, processedAt: new Date(), updatedAt: new Date() })
       .where(eq(refunds.id, refundId))
       .returning();
-
+      
     // If approved, update the original payment table too
-    if (result[0] && status === "completed") {
-      await db
-        .update(payments)
-        .set({
-          status: PaymentStatus.REFUNDED,
-          refundAmount: result[0].amount,
-          refundReason: result[0].reason,
-          refundDate: new Date().toISOString().split("T")[0],
+    if (result[0] && status === 'completed') {
+      await db.update(payments)
+        .set({ 
+          status: PaymentStatus.REFUNDED, 
+          refundAmount: result[0].amount, 
+          refundReason: result[0].reason, 
+          refundDate: new Date().toISOString().split('T')[0] 
         })
         .where(eq(payments.id, result[0].paymentId));
     }
-
+    
     return result[0];
   }
 }
