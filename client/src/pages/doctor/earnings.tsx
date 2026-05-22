@@ -167,7 +167,7 @@ export default function DoctorEarnings() {
           </p>
           <p className={`text-sm mt-0.5 ${cancellationCharges.totalOwed > 0 ? "text-red-600 dark:text-red-500" : "text-green-600 dark:text-green-500"}`}>
             {cancellationCharges.count > 0
-              ? `When you cancel an appointment, the booking charge and tax are billed back to you. ${cancellationCharges.count} cancellation${cancellationCharges.count > 1 ? "s" : ""} this period — patients fully refunded.`
+              ? `When you cancel an appointment, the cancellation charge is billed back to you. ${cancellationCharges.count} cancellation${cancellationCharges.count > 1 ? "s" : ""} this period — patients fully refunded.`
               : "No outstanding cancellation charges. All patients have been settled."}
           </p>
         </div>

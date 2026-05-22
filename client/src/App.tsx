@@ -43,6 +43,7 @@ import AdminPatientsPage from "@/pages/admin/patients";
 import AdminAppointmentsPage from "@/pages/admin/appointments";
 import AdminSpecializationsPage from "@/pages/admin/specializations";
 import AdminPaymentsPage from "@/pages/admin/payments";
+import AdminPayoutsPage from "@/pages/admin/payouts";
 import AdminSettingsPage from "@/pages/admin/settings";
 import AdminBlogsPage from "@/pages/admin/blogs";
 import AdminBlogViewPage from "@/pages/admin/blog-view";
