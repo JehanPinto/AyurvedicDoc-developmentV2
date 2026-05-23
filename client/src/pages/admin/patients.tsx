@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Search, 
@@ -13,7 +13,7 @@ import {
   Ban,
   CheckCircle
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,11 +41,30 @@ import { LoadingPage } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
+import { useUrlPagination } from "@/hooks/use-url-pagination";
+import { Pagination } from "@/components/ui/pagination";
 
 interface PatientWithStats extends Omit<User, 'password'> {
   totalAppointments?: number;
   totalSpent?: number;
 }
+
+const PatientCardSkeleton = () => (
+  <Card className="bg-card border-border shadow-sm mb-4">
+    <CardContent className="p-4">
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="h-14 w-14 rounded-full bg-muted animate-pulse shrink-0" />
+        <div className="flex-1 space-y-3 py-1">
+          <div className="h-5 w-1/4 bg-muted rounded animate-pulse" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="h-4 w-full bg-muted rounded animate-pulse" />
+            <div className="h-4 w-full bg-muted rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default function AdminPatientsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,13 +72,49 @@ export default function AdminPatientsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [patientToSuspend, setPatientToSuspend] = useState<PatientWithStats | null>(null);
-
+  const itemsPerPage = 10;
+  const [currentPage, setCurrentPage] = useUrlPagination(1);
+  const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: patients = [], isLoading, isError } = useQuery<PatientWithStats[]>({
+  const { data: patients = [], isLoading, isFetching, isError } = useQuery<PatientWithStats[]>({
     queryKey: ["/api/admin/users?role=patient"],
+    staleTime: 0,
   });
+
+  const getStatusCounts = () => {
+    return {
+      all: patients.length,
+      active: patients.filter(p => p.isActive !== false).length,
+      inactive: patients.filter(p => p.isActive === false).length,
+    };
+  };
+  const statusCounts = getStatusCounts();
+
+  const filteredPatients = patients.filter(patient => {
+    const matchesSearch = 
+      patient.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.phone?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = 
+      statusFilter === "all" || 
+      (statusFilter === "verified" && patient.isActive !== false) || 
+      (statusFilter === "rejected" && patient.isActive === false);
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentPatients = filteredPatients.slice(startIndex, startIndex + itemsPerPage);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [filteredPatients.length, currentPage, totalPages, setCurrentPage]);
 
   const suspendMutation = useMutation({
     mutationFn: async (patientId: string) =>
@@ -101,27 +156,16 @@ export default function AdminPatientsPage() {
     },
   });
 
-  const formatFee = (fee: number) => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(fee);
+  const safeFormatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return isValid(date) ? format(date, "MMM d, yyyy") : "N/A";
   };
 
   const getInitials = (name: string) => {
     if (!name) return "U";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
-
-  const filteredPatients = patients.filter(patient => {
-    return (
-      patient.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.phone?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
 
   if (isLoading) {
     return <LoadingPage message="Loading patients..." />;
@@ -157,6 +201,27 @@ export default function AdminPatientsPage() {
         </Card>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className={`cursor-pointer hover-elevate ${statusFilter === "all" ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => { setStatusFilter("all"); setCurrentPage(1); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold">{statusCounts.all}</p>
+            <p className="text-xs text-muted-foreground">All Patients</p>
+          </CardContent>
+        </Card>
+        <Card className={`cursor-pointer hover-elevate ${statusFilter === "verified" ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => { setStatusFilter("verified"); setCurrentPage(1); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-green-600">{statusCounts.active}</p>
+            <p className="text-xs text-muted-foreground">Active</p>
+          </CardContent>
+        </Card>
+        <Card className={`cursor-pointer hover-elevate ${statusFilter === "rejected" ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => { setStatusFilter("rejected"); setCurrentPage(1); }}>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-red-600">{statusCounts.inactive}</p>
+            <p className="text-xs text-muted-foreground">Suspended</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -171,8 +236,14 @@ export default function AdminPatientsPage() {
       </div>
 
       <div className="grid gap-4">
-        {filteredPatients.length > 0 ? (
-          filteredPatients.map((patient) => (
+        {isLoading || isFetching ? (
+          <>
+            <PatientCardSkeleton />
+            <PatientCardSkeleton />
+            <PatientCardSkeleton />
+          </>
+        ) : currentPatients.length > 0 ? (
+          currentPatients.map((patient) => (
             <Card 
               key={patient.id} 
               className={`hover-elevate ${patient.isActive === false ? 'opacity-60' : ''}`}
@@ -288,6 +359,10 @@ export default function AdminPatientsPage() {
           </Card>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+      )}
 
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
         <DialogContent className="max-w-lg">

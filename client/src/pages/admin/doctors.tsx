@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Search, 
@@ -53,6 +53,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { DoctorWithDetails } from "@shared/schema";
 import { DoctorStatus } from "@shared/schema";
+import { useUrlPagination } from "@/hooks/use-url-pagination";
+import { Pagination } from "@/components/ui/pagination";
 
 const getDocumentUrl = (docUrl: string) => {
   // If it's already a Cloudinary URL, use it directly
@@ -65,22 +67,83 @@ const getDocumentUrl = (docUrl: string) => {
   return token ? `/api/documents/${docUrl}?token=${token}` : `/api/documents/${docUrl}`;
 };
 
+const DoctorCardSkeleton = () => (
+  <Card className="bg-card border-border shadow-sm mb-4">
+    <CardContent className="p-4">
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="h-16 w-16 rounded-full bg-muted animate-pulse shrink-0 border border-border" />
+        <div className="flex-1 min-w-0 py-1 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="h-5 w-1/3 bg-muted rounded animate-pulse" />
+            <div className="h-5 w-20 bg-muted rounded animate-pulse" />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="h-4 w-full bg-muted rounded animate-pulse" />
+            <div className="h-4 w-full bg-muted rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
+
 export default function AdminDoctorsPage() {
   const { toast } = useToast();
+  
+  // Search & Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  
+  // Client-side Pagination States
+  const itemsPerPage = 10;
+  const [currentPage, setCurrentPage] = useUrlPagination(1);
+
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorWithDetails | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
-  const { data: doctors = [], isLoading, isError } = useQuery<DoctorWithDetails[]>({
+  // React Query: Fetch all doctors at once (Client-side style)
+  const { data: doctors = [], isLoading, isFetching, isError } = useQuery<DoctorWithDetails[]>({
     queryKey: ["/api/admin/doctors"],
-    // Always refetch so newly registered doctors show up without needing a hard reload
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
   });
+
+  const getStatusCounts = () => {
+    return {
+      all: doctors.length,
+      pending: doctors.filter(d => d.status === DoctorStatus.PENDING).length,
+      verified: doctors.filter(d => d.status === DoctorStatus.VERIFIED).length,
+      rejected: doctors.filter(d => d.status === DoctorStatus.REJECTED).length,
+      suspended: doctors.filter(d => d.status === DoctorStatus.SUSPENDED).length,
+    };
+  };
+
+  const statusCounts = getStatusCounts();
+
+  const filteredDoctors = doctors.filter(doctor => {
+    const matchesSearch = 
+      doctor.user?.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doctor.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doctor.user?.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || doctor.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredDoctors.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentDoctors = filteredDoctors.slice(startIndex, startIndex + itemsPerPage);
+
+  // Auto-reset page if bounds are exceeded during search/filter
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [filteredDoctors.length, currentPage, totalPages, setCurrentPage]);
 
   const verifyMutation = useMutation({
     mutationFn: (doctorId: string) => 
@@ -157,29 +220,6 @@ export default function AdminDoctorsPage() {
     if (!name) return "DR";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
-
-  const filteredDoctors = doctors.filter(doctor => {
-    const matchesSearch = 
-      doctor.user?.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doctor.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doctor.user?.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || doctor.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  const getStatusCounts = () => {
-    return {
-      all: doctors.length,
-      pending: doctors.filter(d => d.status === DoctorStatus.PENDING).length,
-      verified: doctors.filter(d => d.status === DoctorStatus.VERIFIED).length,
-      rejected: doctors.filter(d => d.status === DoctorStatus.REJECTED).length,
-      suspended: doctors.filter(d => d.status === DoctorStatus.SUSPENDED).length,
-    };
-  };
-
-  const statusCounts = getStatusCounts();
 
   if (isLoading) {
     return <LoadingPage message="Loading doctors..." />;
@@ -271,8 +311,16 @@ export default function AdminDoctorsPage() {
       </div>
 
       <div className="space-y-4">
-        {filteredDoctors.length > 0 ? (
-          filteredDoctors.map((doctor) => (
+        {isLoading || isFetching ? (
+          <>
+            <DoctorCardSkeleton />
+            <DoctorCardSkeleton />
+            <DoctorCardSkeleton />
+            <DoctorCardSkeleton />
+            <DoctorCardSkeleton />
+          </>
+        ) : currentDoctors.length > 0 ? (
+          currentDoctors.map((doctor) => (
             <Card 
               key={doctor.id} 
               className="hover-elevate"
@@ -421,6 +469,17 @@ export default function AdminDoctorsPage() {
             </CardContent>
           </Card>
         )}
+
+        {totalPages > 1 && (
+          <div className="pt-6 pb-2">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
+
       </div>
 
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>

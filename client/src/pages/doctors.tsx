@@ -7,6 +7,8 @@ import { DoctorSearchFilters } from "@/components/doctors/doctor-search-filters"
 import { LoadingCard, LoadingPage } from "@/components/ui/loading-spinner";
 import { PublicLayout } from "@/components/layout/public-layout";
 import type { DoctorWithDetails, Specialization, Hospital } from "@shared/schema";
+import { useUrlPagination } from "@/hooks/use-url-pagination";
+import { Pagination } from "@/components/ui/pagination";
 
 const cities = ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Matara"];
 
@@ -117,6 +119,23 @@ export default function DoctorsPage() {
     return filtered;
   }, [doctors, searchQuery, selectedSpecialization, selectedCity, selectedConsultationType, selectedLanguages, minRating, priceRange, sortBy]);
 
+  const itemsPerPage = 6;
+  const [currentPage, setCurrentPage] = useUrlPagination(1);
+  const totalPages = Math.max(1, Math.ceil(filteredDoctors.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+
+  const currentDoctors = useMemo(() => {
+    return filteredDoctors.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredDoctors, startIndex, itemsPerPage]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("page")) {
+       params.delete("page");
+       window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+    }
+  }, [searchQuery, selectedSpecialization, selectedCity, selectedConsultationType, selectedLanguages.join(","), minRating, priceRange.join("-"), sortBy]);
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (selectedSpecialization !== "all") count++;
@@ -212,9 +231,9 @@ export default function DoctorsPage() {
               There was an error loading the doctors list. Please try again later.
             </p>
           </div>
-        ) : filteredDoctors.length > 0 ? (
+        ) : currentDoctors.length > 0 ? (
           <div className="mt-6 grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {filteredDoctors.map((doctor) => (
+            {currentDoctors.map((doctor) => (
               <DoctorCard key={doctor.id} doctor={doctor} />
             ))}
           </div>
@@ -227,6 +246,19 @@ export default function DoctorsPage() {
             <p className="text-muted-foreground max-w-md mx-auto">
               Try adjusting your search filters or browse all available doctors.
             </p>
+          </div>
+        )}
+
+        {!isLoading && totalPages > 1 && (
+          <div className="pt-8">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+                scrollToTop();
+              }}
+            />
           </div>
         )}
       </div>

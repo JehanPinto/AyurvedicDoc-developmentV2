@@ -57,6 +57,8 @@ import PrivacyPolicyPage from "@/pages/privacy";
 import TermsAndConditionsPage from "@/pages/terms-and-conditions";
 import RefundPolicyPage from "@/pages/refund-policy";
 import ContactPrivacyPage from "@/pages/contact-privacy";
+import AdminRefundsPage from "./pages/admin/refunds";
+import FindDoctors from "./pages/patient/find-doctors";
 
 function ProtectedRoute({ 
   children, 
@@ -137,6 +139,7 @@ function Router() {
           <DashboardLayout>
             <Switch>
               <Route path="/patient/appointments" component={PatientAppointmentsPage} />
+              <Route path="/patient/find-doctors" component={FindDoctors} />
               <Route path="/patient/records" component={PatientDashboard} />
               <Route path="/patient/reviews" component={PatientReviewsPage} />
               <Route path="/patient/settings" component={PatientSettingsPage} />
@@ -192,7 +195,7 @@ function Router() {
               <Route path="/admin/appointments" component={AdminAppointmentsPage} />
               <Route path="/admin/specializations" component={AdminSpecializationsPage} />
               <Route path="/admin/payments" component={AdminPaymentsPage} />
-              <Route path="/admin/payouts" component={AdminPayoutsPage} />
+              <Route path="/admin/refunds" component={AdminRefundsPage} />
               <Route path="/admin/careers" component={AdminCareersPage} />
               <Route path="/admin/blogs" component={AdminBlogsPage} />
               <Route path="/admin/settings" component={AdminSettingsPage} />
