@@ -1,8 +1,14 @@
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import cookieParser from "cookie-parser";
 
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+// Load .env file only if it exists (for development)
+// In production (Railway), env vars are set via the platform
+const envPath = path.join(process.cwd(), ".env");
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
 
 import express, { NextFunction, type Request, Response } from "express";
 import { createServer } from "http";
@@ -13,6 +19,9 @@ import { serveStatic } from "./static";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Trust proxy headers for Railway (converts http to https)
+app.set('trust proxy', 1);
 
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -116,7 +125,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
 const port = parseInt(process.env.PORT || "5000", 10);
-const host = process.env.HOST || "localhost";
+const host = process.env.HOST || "0.0.0.0";
 
 httpServer.listen(
   {

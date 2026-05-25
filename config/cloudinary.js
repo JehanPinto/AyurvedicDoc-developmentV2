@@ -1,11 +1,13 @@
 import dotenv from "dotenv";
 import path from "path";
-import { fileURLToPath } from "url";
+import fs from "fs";
 
-// Load .env file before doing anything else
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+// Load .env file before doing anything else (only if it exists)
+// Don't use import.meta.url as it's not available in CommonJS builds
+const envPath = path.join(process.cwd(), ".env");
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
 
 import CloudinaryLib from "cloudinary";
 import multer from "multer";
