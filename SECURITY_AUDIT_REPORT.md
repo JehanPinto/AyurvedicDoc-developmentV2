@@ -182,8 +182,8 @@ npm audit
 # SESSION_SECRET=ayurvedic-doctor-secret-key-2024-change-in-production
 
 # Google OAuth (Optional)
- GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID_HERE
- GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET_HERE
+# GOOGLE_CLIENT_ID=[Configure in .env]
+# GOOGLE_CLIENT_SECRET=[Configure in .env]
 
 SESSION_SECRET="YOUR_SESSION_SECRET_HERE"
 DATABASE_URL="postgresql://username:password@host/database"
