@@ -910,10 +910,10 @@ export class DbStorage implements IStorage {
       .values(appointment)
       .returning();
 
-    await db
-      .update(appointmentSlots)
-      .set({ isBooked: true })
-      .where(eq(appointmentSlots.id, appointment.slotId));
+    // await db
+    //   .update(appointmentSlots)
+    //   .set({ isBooked: true })
+    //   .where(eq(appointmentSlots.id, appointment.slotId));
 
     return {
       ...result[0],

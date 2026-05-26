@@ -1,4 +1,5 @@
-import { createHmac, randomInt, randomUUID } from "crypto";
+// import { createHmac, randomInt, randomUUID } from "crypto";
+import { createHash, randomInt, randomUUID } from "crypto";
 import type { Express, NextFunction, Request, Response } from "express";
 import fs from "fs";
 import { type Server } from "http";
@@ -2016,20 +2017,17 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Doctor not available" });
         }
 
-        // Atomic slot locking to prevent race conditions
-        const lockResult = await pool.query(
-          `UPDATE appointment_slots
-           SET is_booked = true
-           WHERE id = $1 AND doctor_id = $2 AND is_booked = false AND is_blocked = false AND is_active = true
-           RETURNING date, start_time as "startTime"`,
+        const checkResult = await pool.query(
+          `SELECT date, start_time as "startTime" FROM appointment_slots
+           WHERE id = $1 AND doctor_id = $2 AND is_booked = false AND is_blocked = false AND is_active = true`,
           [bookingData.slotId, bookingData.doctorId]
         );
 
-        if (lockResult.rowCount === 0) {
-          return res.status(409).json({ error: "Sorry, this slot is no longer available. It may have just been booked." });
+        if (checkResult.rowCount === 0) {
+          return res.status(409).json({ error: "Sorry, this slot is no longer available." });
         }
-
-        const slotData = lockResult.rows[0];
+        
+        const slotData = checkResult.rows[0];
 
         const appointmentData = {
           patientId: req.user!.id,
@@ -2095,47 +2093,45 @@ export async function registerRoutes(
 
         await storage.createPayment(paymentData);
 
-        const doctorUser = await storage.getUser(doctor.userId);
-        const doctorName = doctorUser?.fullName || "your doctor";
-        const months = [
-          "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        ];
-        // Handle timezone issues manually, usually formatted as YYYY-MM-DD
-        const dateParts = typeof slotData.date === 'string' ? slotData.date.split("-") : new Date(slotData.date).toISOString().split('T')[0].split("-");
-        const formattedBookingDate = `${parseInt(dateParts[2])} ${months[parseInt(dateParts[1]) - 1]}`;
-        const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
+        if (bookingData.paymentMethod === PaymentMethod.AT_CLINIC) {
+          const doctorUser = await storage.getUser(doctor.userId);
+          const doctorName = doctorUser?.fullName || "your doctor";
+          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const dateParts = typeof slotData.date === 'string' ? slotData.date.split("-") : new Date(slotData.date).toISOString().split('T')[0].split("-");
+          const formattedBookingDate = `${parseInt(dateParts[2])} ${months[parseInt(dateParts[1]) - 1]}`;
+          const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
 
-        await storage.createNotification({
-          userId: req.user!.id,
-          title: "Appointment Booked",
-          message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slotData.startTime}. Total: ${formattedAmount}.`,
-          type: "appointment",
-          isRead: false,
-          relatedId: appointment.id,
-        });
-
-        await storage.createNotification({
-          userId: doctor.userId,
-          title: "New appointment booked",
-          message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slotData.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
-          type: "appointment",
-          isRead: false,
-          relatedId: appointment.id,
-        });
-
-        const today = new Date().toISOString().split("T")[0];
-        const slotDateStr = Array.isArray(dateParts) ? dateParts.join("-") : String(slotData.date);
-        
-        if (slotDateStr > today) {
           await storage.createNotification({
-            userId: doctor.userId,
-            title: `Consultation on ${formattedBookingDate} at ${slotData.startTime}`,
-            message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
-            type: "reminder",
+            userId: req.user!.id,
+            title: "Appointment Booked",
+            message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slotData.startTime}. Total: ${formattedAmount}.`,
+            type: "appointment",
             isRead: false,
             relatedId: appointment.id,
           });
+
+          await storage.createNotification({
+            userId: doctor.userId,
+            title: "New appointment booked",
+            message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slotData.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
+            type: "appointment",
+            isRead: false,
+            relatedId: appointment.id,
+          });
+
+          const today = new Date().toISOString().split("T")[0];
+          const slotDateStr = Array.isArray(dateParts) ? dateParts.join("-") : String(slotData.date);
+          
+          if (slotDateStr > today) {
+            await storage.createNotification({
+              userId: doctor.userId,
+              title: `Consultation on ${formattedBookingDate} at ${slotData.startTime}`,
+              message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
+              type: "reminder",
+              isRead: false,
+              relatedId: appointment.id,
+            });
+          }
         }
 
         const fullAppointment = await storage.getAppointmentWithDetails(
@@ -4259,6 +4255,121 @@ export async function registerRoutes(
         res.status(500).json({ error: "Failed to process refund" });
       }
     },
+  );
+
+  // Generate Hash for PayHere Checkout (Frontend will call this)
+  app.post(
+    "/api/payhere/hash",
+    authMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const { order_id, amount, currency } = req.body;
+        const merchant_id = process.env.PAYHERE_MERCHANT_ID;
+        const merchant_secret = process.env.PAYHERE_SECRET;
+
+        if (!merchant_id || !merchant_secret) {
+          return res.status(500).json({ error: "PayHere credentials missing on server" });
+        }
+
+        // CRITICAL: Amount MUST be exactly 2 decimal places as a string
+        const formattedAmount = Number(amount).toFixed(2);
+        
+        // CRITICAL FIX: Use createHash('md5') instead of createHmac!
+        const hashedSecret = createHash('md5').update(merchant_secret).digest('hex').toUpperCase();
+        
+        const hashString = merchant_id + order_id + formattedAmount + currency + hashedSecret;
+        const hash = createHash('md5').update(hashString).digest('hex').toUpperCase();
+
+        res.json({ hash, merchant_id, formattedAmount });
+      } catch (error) {
+        console.error("Failed to generate PayHere hash:", error);
+        res.status(500).json({ error: "Failed to generate hash" });
+      }
+    }
+  );
+
+  // PayHere IPN (Webhook) - PayHere Server will call this directly!
+  app.post(
+    "/api/payhere/notify",
+    async (req: Request, res: Response) => {
+      console.log("\n[PAYHERE WEBHOOK] 📥 Received notification:", req.body);
+      
+      try {
+        const {
+          merchant_id, order_id, payhere_amount, payhere_currency, status_code, md5sig
+        } = req.body;
+
+        const merchant_secret = process.env.PAYHERE_SECRET;
+        
+        // 1. Verify the signature (Fixed to use createHash)
+        const hashedSecret = createHash('md5').update(merchant_secret!).digest('hex').toUpperCase();
+        const hashString = merchant_id + order_id + payhere_amount + payhere_currency + status_code + hashedSecret;
+        const generatedSig = createHash('md5').update(hashString).digest('hex').toUpperCase();
+
+        if (generatedSig !== md5sig) {
+          console.error("[PAYHERE WEBHOOK] ❌ Security Alert: Invalid Signature!");
+          return res.status(400).send("Invalid Signature");
+        }
+
+        console.log(`[PAYHERE WEBHOOK] ✅ Signature Valid. Status Code: ${status_code}`);
+
+        const appointmentId = order_id.replace('booking-', '');
+
+        if (status_code === "2") {
+          console.log(`[PAYHERE WEBHOOK] 💰 Payment Success for Appointment: ${appointmentId}`);
+          const payment = await storage.getPaymentByAppointment(appointmentId);
+          
+          if (payment) {
+            await storage.updatePayment(payment.id, { status: PaymentStatus.COMPLETED });
+            await storage.updateAppointment(appointmentId, { status: AppointmentStatus.CONFIRMED });
+            
+            await pool.query(
+              `UPDATE appointment_slots SET is_booked = true WHERE id = $1`,
+              [(payment as any).slotId]
+            );
+            console.log(`[PAYHERE WEBHOOK] ✅ DB Updated & Slot Locked Successfully.`);
+            
+            // Send Success Notifications
+            const appt = await storage.getAppointment(appointmentId);
+            if(appt){
+                const docProfile = await storage.getDoctorProfile(appt.doctorId);
+                if(docProfile) {
+                    const docUser = await storage.getUser(docProfile.userId);
+                    const ptUser = await storage.getUser(appt.patientId);
+                    if(docUser && ptUser) {
+                        await storage.createNotification({
+                          userId: ptUser.id, title: "Payment Successful",
+                          message: `Your payment of LKR ${payhere_amount} for appointment with Dr. ${docUser.fullName} was successful.`,
+                          type: "payment", isRead: false, relatedId: payment.id,
+                        });
+                        await storage.createNotification({
+                          userId: docUser.id, title: "New Online Payment",
+                          message: `${ptUser.fullName} has paid for their upcoming appointment.`,
+                          type: "payment", isRead: false, relatedId: payment.id,
+                        });
+                    }
+                }
+            }
+          }
+        } else if (status_code === "-2" || status_code === "-1" || status_code === "0") {
+           // Canceled or Failed Payment
+           console.log(`[PAYHERE WEBHOOK] ⚠️ Payment Failed/Canceled for Appointment: ${appointmentId}`);
+           const payment = await storage.getPaymentByAppointment(appointmentId);
+           if (payment) {
+             await storage.updatePayment(payment.id, { status: PaymentStatus.FAILED });
+             await storage.updateAppointment(appointmentId, { 
+                status: AppointmentStatus.CANCELLED, 
+                cancelReason: "Payment Failed or Canceled by User" 
+             });
+           }
+        }
+        
+        res.status(200).send("OK");
+      } catch (error) {
+        console.error("[PAYHERE WEBHOOK] ❌ Processing error:", error);
+        res.status(500).send("Internal Server Error");
+      }
+    }
   );
 
   return httpServer;
