@@ -783,7 +783,7 @@ export async function registerRoutes(
         const token = req.cookies?.token;
 
         if (token) {
-          const decoded = jwt.decode(token) as JwtPayload;
+          const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
           const exp = decoded?.exp ? decoded.exp * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000;
           tokenBlacklist.set(token, exp);
         }
@@ -2016,28 +2016,15 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Doctor not available" });
         }
 
-        // Atomic slot locking to prevent race conditions
-        const lockResult = await pool.query(
-          `UPDATE appointment_slots
-           SET is_booked = true
-           WHERE id = $1 AND doctor_id = $2 AND is_booked = false AND is_blocked = false AND is_active = true
-           RETURNING date, start_time as "startTime"`,
-          [bookingData.slotId, bookingData.doctorId]
-        );
-
-        if (lockResult.rowCount === 0) {
-          return res.status(409).json({ error: "Sorry, this slot is no longer available. It may have just been booked." });
-        }
-
-        const slotData = lockResult.rows[0];
-
+        // Prepare appointment data
         const appointmentData = {
+          id: randomUUID(),
           patientId: req.user!.id,
           doctorId: bookingData.doctorId,
           slotId: bookingData.slotId,
           hospitalId: bookingData.hospitalId,
-          appointmentDate: slotData.date,
-          appointmentTime: slotData.startTime,
+          appointmentDate: new Date().toISOString().split('T')[0],
+          appointmentTime: "",
           consultationType: bookingData.consultationType,
           symptoms: bookingData.symptoms,
           isForDependent: bookingData.isForDependent,
@@ -2049,8 +2036,7 @@ export async function registerRoutes(
           status: AppointmentStatus.PENDING,
         };
 
-        const appointment = await storage.createAppointment(appointmentData);
-
+        // Calculate fees
         let consultationFee = doctor.consultationFee;
         if (
           bookingData.consultationType === "online" &&
@@ -2077,7 +2063,7 @@ export async function registerRoutes(
         const totalAmount = consultationFee + bookingCharges + tax;
 
         const paymentData = {
-          appointmentId: appointment.id,
+          appointmentId: appointmentData.id,
           patientId: req.user!.id,
           doctorId: bookingData.doctorId,
           consultationFee,
@@ -2093,49 +2079,75 @@ export async function registerRoutes(
           method: bookingData.paymentMethod,
         };
 
-        await storage.createPayment(paymentData);
+        // =====================================================
+        // ATOMIC BOOKING WITH PAYMENT: Single transaction
+        // If ANY step fails (slot lock, appointment creation, payment creation),
+        // entire transaction rolls back and nothing is persisted
+        // =====================================================
+        const result = await storage.bookAppointmentWithPaymentAtomic(
+          appointmentData,
+          paymentData,
+          bookingData.slotId,
+        );
 
+        if (!result) {
+          return res.status(409).json({ 
+            error: "Sorry, this slot is no longer available. It may have just been booked." 
+          });
+        }
+
+        const appointment = result.appointment;
         const doctorUser = await storage.getUser(doctor.userId);
         const doctorName = doctorUser?.fullName || "your doctor";
         const months = [
           "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
         ];
-        // Handle timezone issues manually, usually formatted as YYYY-MM-DD
-        const dateParts = typeof slotData.date === 'string' ? slotData.date.split("-") : new Date(slotData.date).toISOString().split('T')[0].split("-");
+        
+        // Format date from appointment record
+        const dateParts = appointment.appointmentDate.split("-");
         const formattedBookingDate = `${parseInt(dateParts[2])} ${months[parseInt(dateParts[1]) - 1]}`;
         const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
 
-        await storage.createNotification({
-          userId: req.user!.id,
-          title: "Appointment Booked",
-          message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slotData.startTime}. Total: ${formattedAmount}.`,
-          type: "appointment",
-          isRead: false,
-          relatedId: appointment.id,
-        });
-
-        await storage.createNotification({
-          userId: doctor.userId,
-          title: "New appointment booked",
-          message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slotData.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
-          type: "appointment",
-          isRead: false,
-          relatedId: appointment.id,
-        });
-
-        const today = new Date().toISOString().split("T")[0];
-        const slotDateStr = Array.isArray(dateParts) ? dateParts.join("-") : String(slotData.date);
-        
-        if (slotDateStr > today) {
+        // =====================================================
+        // NOTIFICATIONS: Created AFTER transaction commits
+        // Safe to create now because appointment & payment are guaranteed to exist
+        // If notifications fail, the booking is still valid (user can see it in their dashboard)
+        // =====================================================
+        try {
           await storage.createNotification({
-            userId: doctor.userId,
-            title: `Consultation on ${formattedBookingDate} at ${slotData.startTime}`,
-            message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
-            type: "reminder",
+            userId: req.user!.id,
+            title: "Appointment Booked",
+            message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${appointment.appointmentTime}. Total: ${formattedAmount}.`,
+            type: "appointment",
             isRead: false,
             relatedId: appointment.id,
           });
+
+          await storage.createNotification({
+            userId: doctor.userId,
+            title: "New appointment booked",
+            message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${appointment.appointmentTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
+            type: "appointment",
+            isRead: false,
+            relatedId: appointment.id,
+          });
+
+          const today = new Date().toISOString().split("T")[0];
+          if (appointment.appointmentDate > today) {
+            await storage.createNotification({
+              userId: doctor.userId,
+              title: `Consultation on ${formattedBookingDate} at ${appointment.appointmentTime}`,
+              message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
+              type: "reminder",
+              isRead: false,
+              relatedId: appointment.id,
+            });
+          }
+        } catch (notifError) {
+          // Log notification failure but don't fail the booking
+          console.error("[BOOKING] Notification creation failed (non-critical):", notifError);
+          // Booking is still valid, notifications are just a nice-to-have
         }
 
         const fullAppointment = await storage.getAppointmentWithDetails(

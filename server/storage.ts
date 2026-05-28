@@ -144,6 +144,15 @@ export interface IStorage {
     date?: string,
   ): Promise<AppointmentWithDetails[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  bookAppointmentAtomic(
+    appointment: InsertAppointment,
+    slotId: string,
+  ): Promise<Appointment | null>;
+  bookAppointmentWithPaymentAtomic(
+    appointment: InsertAppointment,
+    paymentData: InsertPayment,
+    slotId: string,
+  ): Promise<{ appointment: Appointment; payment: Payment } | null>;
   updateAppointment(
     id: string,
     updates: Partial<InsertAppointment>,
@@ -1147,6 +1156,92 @@ export class MemStorage implements IStorage {
     }
 
     return a;
+  }
+
+  async bookAppointmentAtomic(
+    appointment: InsertAppointment,
+    slotId: string,
+  ): Promise<Appointment | null> {
+    // In-memory version: check slot availability "atomically"
+    const slot = this.appointmentSlots.get(slotId);
+    if (!slot || slot.isBooked || slot.isBlocked) {
+      return null;
+    }
+
+    // "Lock" the slot
+    const updatedSlot = { ...slot, isBooked: true };
+    this.appointmentSlots.set(slotId, updatedSlot);
+
+    // Create appointment
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const a: Appointment = {
+      ...appointment,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.appointments.set(id, a);
+
+    // Update doctor profile stats
+    const profile = await this.getDoctorProfile(appointment.doctorId);
+    if (profile) {
+      await this.updateDoctorProfile(profile.id, {
+        totalAppointments: profile.totalAppointments + 1,
+        currentQueueNumber: profile.currentQueueNumber + 1,
+      });
+    }
+
+    return a;
+  }
+
+  async bookAppointmentWithPaymentAtomic(
+    appointment: InsertAppointment,
+    paymentData: InsertPayment,
+    slotId: string,
+  ): Promise<{ appointment: Appointment; payment: Payment } | null> {
+    // In-memory version: simulate atomic transaction
+    const slot = this.appointmentSlots.get(slotId);
+    if (!slot || slot.isBooked || slot.isBlocked) {
+      return null;
+    }
+
+    // "Lock" the slot
+    const updatedSlot = { ...slot, isBooked: true };
+    this.appointmentSlots.set(slotId, updatedSlot);
+
+    // Create appointment
+    const appointmentId = randomUUID();
+    const now = new Date().toISOString();
+    const a: Appointment = {
+      ...appointment,
+      id: appointmentId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.appointments.set(appointmentId, a);
+
+    // Create payment record
+    const paymentId = randomUUID();
+    const p: Payment = {
+      ...paymentData,
+      id: paymentId,
+      appointmentId: appointmentId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.payments.set(paymentId, p);
+
+    // Update doctor profile stats
+    const profile = await this.getDoctorProfile(appointment.doctorId);
+    if (profile) {
+      await this.updateDoctorProfile(profile.id, {
+        totalAppointments: profile.totalAppointments + 1,
+        currentQueueNumber: profile.currentQueueNumber + 1,
+      });
+    }
+
+    return { appointment: a, payment: p };
   }
 
   async updateAppointment(
