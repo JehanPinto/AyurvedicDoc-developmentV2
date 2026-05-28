@@ -318,7 +318,8 @@ export const reviews = pgTable("reviews", {
     .default(sql`gen_random_uuid()`),
   appointmentId: varchar("appointment_id", { length: 50 })
     .notNull()
-    .references(() => appointments.id),
+    .references(() => appointments.id)
+    .unique(),
   patientId: varchar("patient_id", { length: 50 })
     .notNull()
     .references(() => users.id),
