@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { AnimatedStat } from "@/components/ui/animated-stat";
 import HomeAnimation from "@/components/ui/home-animation";
+import { toast } from "@/hooks/use-toast";
 
 const testimonials = [
   {
@@ -119,9 +120,27 @@ export default function HomePage() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim().length >= 2) {
-      setIsDropdownOpen(true);
+    
+    if (!searchQuery.trim()) {
+      toast({
+        title: "Search Criteria Required",
+        description: "Please enter a specialization, doctor name, or location to browse.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    if (searchQuery.trim().length < 2) {
+      toast({
+        title: "Search Term Too Short",
+        description: "Please enter at least 2 characters to search.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDropdownOpen(false);
+    setLocation(`/doctors?q=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   const handleSeeAllResults = () => {
