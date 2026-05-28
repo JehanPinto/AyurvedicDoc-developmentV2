@@ -786,7 +786,7 @@ export async function registerRoutes(
         const token = req.cookies?.token;
 
         if (token) {
-          const decoded = jwt.decode(token) as JwtPayload;
+          const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
           const exp = decoded?.exp ? decoded.exp * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000;
           tokenBlacklist.set(token, exp);
         }
@@ -2045,12 +2045,13 @@ export async function registerRoutes(
         const slotData = checkResult.rows[0];
 
         const appointmentData = {
+          id: randomUUID(),
           patientId: req.user!.id,
           doctorId: bookingData.doctorId,
           slotId: bookingData.slotId,
           hospitalId: bookingData.hospitalId,
-          appointmentDate: slotData.date,
-          appointmentTime: slotData.startTime,
+          appointmentDate: new Date().toISOString().split('T')[0],
+          appointmentTime: "",
           consultationType: bookingData.consultationType,
           symptoms: bookingData.symptoms,
           isForDependent: bookingData.isForDependent,
@@ -2062,8 +2063,7 @@ export async function registerRoutes(
           status: AppointmentStatus.PENDING,
         };
 
-        const appointment = await storage.createAppointment(appointmentData);
-
+        // Calculate fees
         let consultationFee = doctor.consultationFee;
         if (
           bookingData.consultationType === "online" &&
@@ -2090,7 +2090,7 @@ export async function registerRoutes(
         const totalAmount = consultationFee + bookingCharges + tax;
 
         const paymentData = {
-          appointmentId: appointment.id,
+          appointmentId: appointmentData.id,
           patientId: req.user!.id,
           doctorId: bookingData.doctorId,
           consultationFee,
@@ -2106,7 +2106,16 @@ export async function registerRoutes(
           method: bookingData.paymentMethod,
         };
 
-        await storage.createPayment(paymentData);
+        // =====================================================
+        // ATOMIC BOOKING WITH PAYMENT: Single transaction
+        // If ANY step fails (slot lock, appointment creation, payment creation),
+        // entire transaction rolls back and nothing is persisted
+        // =====================================================
+        const result = await storage.bookAppointmentWithPaymentAtomic(
+          appointmentData,
+          paymentData,
+          bookingData.slotId,
+        );
 
         if (bookingData.paymentMethod === PaymentMethod.AT_CLINIC) {
           const doctorUser = await storage.getUser(doctor.userId);
