@@ -294,17 +294,39 @@ export default function BookAppointmentPage() {
               toast({ title: "Booking Confirmed!", description: "Payment was successful." });
             };
 
-            (window as any).payhere.onDismissed = function onDismissed() {
+            (window as any).payhere.onDismissed = async function onDismissed() {
+              try {
+                await apiRequest("PATCH", `/api/appointments/${appointmentData.id}/payment-failed`, {});
+              } catch(e) {
+                console.error("Failed to release slot", e);
+              }
+              
               toast({
-                title: "Payment Pending",
-                description: "You closed the window. Your appointment is reserved, but payment is required.",
+                title: "Payment Cancelled",
+                description: "You closed the payment window. Your reserved slot has been released.",
                 variant: "destructive",
               });
+              
+              setStep("details");
+              queryClient.invalidateQueries({ queryKey: ["/api/slots", slotId] });
             };
 
-            (window as any).payhere.onError = function onError(error: any) {
+            (window as any).payhere.onError = async function onError(error: any) {
               console.error("PayHere Error:", error);
-              toast({ title: "Payment Error", description: "An error occurred with the payment gateway.", variant: "destructive" });
+              try {
+                await apiRequest("PATCH", `/api/appointments/${appointmentData.id}/payment-failed`, {});
+              } catch(e) {
+                console.error("Failed to release slot", e);
+              }
+
+              toast({ 
+                title: "Payment Failed", 
+                description: "Your payment was declined. The slot has been released.", 
+                variant: "destructive" 
+              });
+              
+              setStep("details");
+              queryClient.invalidateQueries({ queryKey: ["/api/slots", slotId] });
             };
 
             // 5. Trigger the popup!

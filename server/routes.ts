@@ -38,6 +38,8 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { z } from "zod";
 import { upload } from "../config/cloudinary";
 import jwt from "jsonwebtoken";
+import { createGoogleMeetEvent } from "./util/google-calendar";
+import { sendPatientBookingReceiptEmail, sendDoctorNewBookingEmail } from "./util/email";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): {
@@ -1921,10 +1923,8 @@ export async function registerRoutes(
           doctorId: profile.id,
         });
 
-        // Check for overlapping slots on the same date before creating a new one
         const existingSlots = await storage.getAvailableSlots(profile.id, data.date);
         
-        // Helper function for time comparison in backend
         const isOverlap = (s1: string, e1: string, s2: string, e2: string) => {
           return s1 < e2 && s2 < e1;
         };
@@ -1939,7 +1939,22 @@ export async function registerRoutes(
           return res.status(400).json({ error: "A slot already exists during this time period on the selected date." });
         }
 
-        const slot = await storage.createAppointmentSlot(data);
+        // 🟢 අලුතෙන් ADD කරපු කෑල්ල (Online නම් විතරක් Google Meet Link එක හදනවා)
+        let meetLink: string | undefined = undefined;
+        if (data.consultationType === "online") {
+          // ලංකාවේ Timezone එකට අදාලව ISO Date string එකක් හදාගන්නවා
+          const startDateTime = new Date(`${data.date}T${data.startTime}:00+05:30`).toISOString();
+          
+          // Slot එක හදද්දී patient කෙනෙක් නැති නිසා null යවනවා
+          const meetData = await createGoogleMeetEvent(req.user!.email, null, startDateTime);
+          
+          if (meetData && meetData.meetingLink) {
+            meetLink = meetData.meetingLink;
+          }
+        }
+
+        // meetLink එකත් එක්කම DB එකට save කරනවා
+        const slot = await storage.createAppointmentSlot({ ...data, meetLink });
         res.status(201).json(slot);
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -4288,7 +4303,6 @@ export async function registerRoutes(
     }
   );
 
-  // PayHere IPN (Webhook) - PayHere Server will call this directly!
   app.post(
     "/api/payhere/notify",
     async (req: Request, res: Response) => {
@@ -4301,7 +4315,7 @@ export async function registerRoutes(
 
         const merchant_secret = process.env.PAYHERE_SECRET;
         
-        // 1. Verify the signature (Fixed to use createHash)
+        // 1. Verify the signature
         const hashedSecret = createHash('md5').update(merchant_secret!).digest('hex').toUpperCase();
         const hashString = merchant_id + order_id + payhere_amount + payhere_currency + status_code + hashedSecret;
         const generatedSig = createHash('md5').update(hashString).digest('hex').toUpperCase();
@@ -4317,51 +4331,91 @@ export async function registerRoutes(
 
         if (status_code === "2") {
           console.log(`[PAYHERE WEBHOOK] 💰 Payment Success for Appointment: ${appointmentId}`);
+          
+          // Payment record
           const payment = await storage.getPaymentByAppointment(appointmentId);
           
           if (payment) {
+            // 1. Payment status එක 'COMPLETED'
             await storage.updatePayment(payment.id, { status: PaymentStatus.COMPLETED });
+            
+            // 2. Appointment status එක 'CONFIRMED'
             await storage.updateAppointment(appointmentId, { status: AppointmentStatus.CONFIRMED });
             
+            // 3. Slot එක 'is_booked = true'
             await pool.query(
               `UPDATE appointment_slots SET is_booked = true WHERE id = $1`,
               [(payment as any).slotId]
             );
+            
             console.log(`[PAYHERE WEBHOOK] ✅ DB Updated & Slot Locked Successfully.`);
             
             // Send Success Notifications
             const appt = await storage.getAppointment(appointmentId);
             if(appt){
-                const docProfile = await storage.getDoctorProfile(appt.doctorId);
-                if(docProfile) {
-                    const docUser = await storage.getUser(docProfile.userId);
-                    const ptUser = await storage.getUser(appt.patientId);
-                    if(docUser && ptUser) {
-                        await storage.createNotification({
-                          userId: ptUser.id, title: "Payment Successful",
-                          message: `Your payment of LKR ${payhere_amount} for appointment with Dr. ${docUser.fullName} was successful.`,
-                          type: "payment", isRead: false, relatedId: payment.id,
-                        });
-                        await storage.createNotification({
-                          userId: docUser.id, title: "New Online Payment",
-                          message: `${ptUser.fullName} has paid for their upcoming appointment.`,
-                          type: "payment", isRead: false, relatedId: payment.id,
-                        });
-                    }
+              const docProfile = await storage.getDoctorProfile(appt.doctorId);
+              const slot = await storage.getAppointmentSlot(appt.slotId);
+              if(docProfile && slot) {
+                const docUser = await storage.getUser(docProfile.userId);
+                const ptUser = await storage.getUser(appt.patientId);
+                if(docUser && ptUser) {
+                  await storage.createNotification({
+                    userId: ptUser.id, title: "Payment Successful",
+                    message: `Your payment of LKR ${payhere_amount} for appointment with Dr. ${docUser.fullName} was successful.`,
+                    type: "payment", isRead: false, relatedId: payment.id,
+                  });
+                  await storage.createNotification({
+                    userId: docUser.id, title: "New Online Payment",
+                    message: `${ptUser.fullName} has paid for their upcoming appointment.`,
+                    type: "payment", isRead: false, relatedId: payment.id,
+                  });
+
+                  console.log(`[PAYHERE WEBHOOK] 📧 Triggering Resend Emails...`);
+
+                  await sendPatientBookingReceiptEmail(
+                    ptUser.email,
+                    ptUser.fullName,
+                    docUser.fullName,
+                    slot.date as unknown as string,
+                    slot.startTime,
+                    payment.totalAmount,
+                    slot.consultationType,
+                    slot.meetLink || "unavailable for online consultations without video, please check your notifications for details",
+                    "online"
+                  );
+
+                  await sendDoctorNewBookingEmail(
+                    docUser.email,
+                    docUser.fullName,
+                    ptUser.fullName,
+                    appt.symptoms,
+                    slot.date as unknown as string,
+                    slot.startTime,
+                    slot.consultationType,
+                    slot.meetLink || "unavailable for online consultations without video, please check your notifications for details"
+                  ); 
+                  console.log(`[PAYHERE WEBHOOK] ✅ Email sending process completed.`);
                 }
+              }
             }
+          } else {
+             console.error(`[PAYHERE WEBHOOK] ❌ Payment record not found for Appointment: ${appointmentId}`);
           }
         } else if (status_code === "-2" || status_code === "-1" || status_code === "0") {
-           // Canceled or Failed Payment
-           console.log(`[PAYHERE WEBHOOK] ⚠️ Payment Failed/Canceled for Appointment: ${appointmentId}`);
-           const payment = await storage.getPaymentByAppointment(appointmentId);
-           if (payment) {
-             await storage.updatePayment(payment.id, { status: PaymentStatus.FAILED });
-             await storage.updateAppointment(appointmentId, { 
+          // Canceled or Failed Payment
+          console.log(`[PAYHERE WEBHOOK] ⚠️ Payment Failed/Canceled for Appointment: ${appointmentId}`);
+          const payment = await storage.getPaymentByAppointment(appointmentId);
+          if (payment) {
+            await storage.updatePayment(payment.id, { status: PaymentStatus.FAILED });
+            await storage.updateAppointment(appointmentId, { 
                 status: AppointmentStatus.CANCELLED, 
                 cancelReason: "Payment Failed or Canceled by User" 
-             });
-           }
+            });
+            await pool.query(
+              `UPDATE appointment_slots SET is_booked = false WHERE id = $1`,
+              [(payment as any).slotId]
+            );
+          }
         }
         
         res.status(200).send("OK");
@@ -4371,6 +4425,92 @@ export async function registerRoutes(
       }
     }
   );
+
+  //  =========================================
+  // EXPLICIT FAIL ROUTE
+  // ==========================================
+  app.patch(
+    "/api/appointments/:id/payment-failed",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const appointmentId = req.params.id;
+        
+        // Appointment checking pending
+        const appointment = await storage.getAppointment(appointmentId);
+        if (!appointment || appointment.status !== AppointmentStatus.PENDING) {
+          return res.json({ success: true });
+        }
+
+        // 1. Payment status update to faild
+        const payment = await storage.getPaymentByAppointment(appointmentId);
+        if (payment) {
+          await storage.updatePayment(payment.id, { status: PaymentStatus.FAILED });
+        }
+
+        // 2. Appointment status update to cancelled with reason
+        await storage.updateAppointment(appointmentId, { 
+          status: AppointmentStatus.CANCELLED,
+          cancelReason: "Payment Failed or Cancelled by User"
+        });
+
+        // 3. Slot agian free
+        await pool.query(
+          `UPDATE appointment_slots SET is_booked = false WHERE id = $1`,
+          [appointment.slotId]
+        );
+
+        res.json({ success: true, message: "Slot released successfully" });
+      } catch (error) {
+        console.error("Payment Fail Error:", error);
+        res.status(500).json({ error: "Failed to release slot" });
+      }
+    }
+  );
+
+  // ==========================================
+  // BACKGROUND CLEANUP JOB (INDUSTRY STANDARD)
+  // ==========================================
+  // setInterval(async () => {
+  //   try {
+  //     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      
+  //     const query = `
+  //       SELECT id, slot_id 
+  //       FROM appointments 
+  //       WHERE status = 'pending' AND created_at < $1
+  //     `;
+  //     const result = await pool.query(query, [fifteenMinsAgo]);
+      
+  //     if (result.rows.length > 0) {
+  //       console.log(`[CLEANUP JOB] Found ${result.rows.length} abandoned appointments. Releasing slots...`);
+        
+  //       for (const row of result.rows) {
+  //         // 1. Appointment cancelled
+  //         await pool.query(
+  //           `UPDATE appointments SET status = 'cancelled', cancel_reason = 'Payment Timeout (Auto Cancelled)' WHERE id = $1`, 
+  //           [row.id]
+  //         );
+          
+  //         // 2. Payment faied
+  //         await pool.query(
+  //           `UPDATE payments SET status = 'failed' WHERE appointment_id = $1`, 
+  //           [row.id]
+  //         );
+          
+  //         // 3. Slot free
+  //         await pool.query(
+  //           `UPDATE appointment_slots SET is_booked = false WHERE id = $1`, 
+  //           [row.slot_id]
+  //         );
+          
+  //         console.log(`[CLEANUP JOB] Successfully released appointment: ${row.id} and slot: ${row.slot_id}`);
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.error("[CLEANUP JOB ERROR]:", err);
+  //   }
+  // }, 5 * 60 * 1000); // 5 * 60 * 1000 = 5 minutes
 
   return httpServer;
 }

@@ -150,13 +150,6 @@ export default function DoctorProfilePage() {
                 variant="outline" 
                 size="sm" 
                 className="flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-1.5 hover:bg-muted transition-colors"
-                onClick={() => {
-                    if (window.history.length > 1) {
-                        window.history.back();
-                    } else {
-                        navigate("/patient/find-doctors");
-                    }
-                }}
               >
                 <ChevronLeft className="h-4 w-4" />
                 Back
