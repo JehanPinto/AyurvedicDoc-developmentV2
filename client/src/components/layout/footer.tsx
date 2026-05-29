@@ -202,7 +202,7 @@ export function Footer() {
           <p className="text-sm text-muted-foreground text-center sm:text-left">
             &copy; {new Date().getFullYear()} AyurvedicDoctor. All rights reserved.
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 mr-14">
             {socialLinks.map((social) =>
               social.active ? (
                 <a
