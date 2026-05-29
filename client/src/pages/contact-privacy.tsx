@@ -25,7 +25,7 @@ export default function ContactPage() {
             </div>
 
             {/* Contact Card */}
-            <div className="bg-card border border-primary/30 rounded-2xl p-6 md:p-8 flex items-start gap-4 shadow-sm hover:shadow-md transition-shadow max-w-2xl">
+            <div className="bg-card border border-primary/30 rounded-2xl p-6 md:p-8 flex items-start gap-4 shadow-sm hover:shadow-md transition-shadow max-w-2xl mx-auto">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                 <Mail className="h-6 w-6 text-primary" />
               </div>
