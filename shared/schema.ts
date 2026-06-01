@@ -220,6 +220,7 @@ export const appointmentSlots = pgTable("appointment_slots", {
   isBooked: boolean("is_booked").default(false),
   isBlocked: boolean("is_blocked").default(false),
   isActive: boolean("is_active").default(true),
+  meetLink: varchar("meet_link", { length: 255 }),
 });
 
 export const appointments = pgTable("appointments", {
@@ -710,6 +711,7 @@ export const insertAppointmentSlotSchema = z.object({
   isBooked: z.boolean().default(false),
   isBlocked: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  meetLink: z.string().optional(),
 });
 
 export type InsertAppointmentSlot = z.infer<typeof insertAppointmentSlotSchema>;

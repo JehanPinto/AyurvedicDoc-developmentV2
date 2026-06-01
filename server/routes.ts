@@ -1,4 +1,5 @@
-import { createHmac, randomInt, randomUUID } from "crypto";
+// import { createHmac, randomInt, randomUUID } from "crypto";
+import { createHash, randomInt, randomUUID } from "crypto";
 import type { Express, NextFunction, Request, Response } from "express";
 import fs from "fs";
 import { type Server } from "http";
@@ -37,6 +38,8 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { z } from "zod";
 import { upload } from "../config/cloudinary";
 import jwt from "jsonwebtoken";
+import { createGoogleMeetEvent } from "./util/google-calendar";
+import { sendPatientBookingReceiptEmail, sendDoctorNewBookingEmail } from "./util/email";
 
 // Password strength validation utility
 function validatePasswordStrength(password: string): {
@@ -1920,10 +1923,8 @@ export async function registerRoutes(
           doctorId: profile.id,
         });
 
-        // Check for overlapping slots on the same date before creating a new one
         const existingSlots = await storage.getAvailableSlots(profile.id, data.date);
         
-        // Helper function for time comparison in backend
         const isOverlap = (s1: string, e1: string, s2: string, e2: string) => {
           return s1 < e2 && s2 < e1;
         };
@@ -1938,7 +1939,22 @@ export async function registerRoutes(
           return res.status(400).json({ error: "A slot already exists during this time period on the selected date." });
         }
 
-        const slot = await storage.createAppointmentSlot(data);
+        // 🟢 අලුතෙන් ADD කරපු කෑල්ල (Online නම් විතරක් Google Meet Link එක හදනවා)
+        let meetLink: string | undefined = undefined;
+        if (data.consultationType === "online") {
+          // ලංකාවේ Timezone එකට අදාලව ISO Date string එකක් හදාගන්නවා
+          const startDateTime = new Date(`${data.date}T${data.startTime}:00+05:30`).toISOString();
+          
+          // Slot එක හදද්දී patient කෙනෙක් නැති නිසා null යවනවා
+          const meetData = await createGoogleMeetEvent(req.user!.email, null, startDateTime);
+          
+          if (meetData && meetData.meetingLink) {
+            meetLink = meetData.meetingLink;
+          }
+        }
+
+        // meetLink එකත් එක්කම DB එකට save කරනවා
+        const slot = await storage.createAppointmentSlot({ ...data, meetLink });
         res.status(201).json(slot);
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -2016,7 +2032,18 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Doctor not available" });
         }
 
-        // Prepare appointment data
+        const checkResult = await pool.query(
+          `SELECT date, start_time as "startTime" FROM appointment_slots
+           WHERE id = $1 AND doctor_id = $2 AND is_booked = false AND is_blocked = false AND is_active = true`,
+          [bookingData.slotId, bookingData.doctorId]
+        );
+
+        if (checkResult.rowCount === 0) {
+          return res.status(409).json({ error: "Sorry, this slot is no longer available." });
+        }
+        
+        const slotData = checkResult.rows[0];
+
         const appointmentData = {
           id: randomUUID(),
           patientId: req.user!.id,
@@ -2090,35 +2117,18 @@ export async function registerRoutes(
           bookingData.slotId,
         );
 
-        if (!result) {
-          return res.status(409).json({ 
-            error: "Sorry, this slot is no longer available. It may have just been booked." 
-          });
-        }
+        if (bookingData.paymentMethod === PaymentMethod.AT_CLINIC) {
+          const doctorUser = await storage.getUser(doctor.userId);
+          const doctorName = doctorUser?.fullName || "your doctor";
+          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const dateParts = typeof slotData.date === 'string' ? slotData.date.split("-") : new Date(slotData.date).toISOString().split('T')[0].split("-");
+          const formattedBookingDate = `${parseInt(dateParts[2])} ${months[parseInt(dateParts[1]) - 1]}`;
+          const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
 
-        const appointment = result.appointment;
-        const doctorUser = await storage.getUser(doctor.userId);
-        const doctorName = doctorUser?.fullName || "your doctor";
-        const months = [
-          "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        ];
-        
-        // Format date from appointment record
-        const dateParts = appointment.appointmentDate.split("-");
-        const formattedBookingDate = `${parseInt(dateParts[2])} ${months[parseInt(dateParts[1]) - 1]}`;
-        const formattedAmount = `LKR ${totalAmount.toLocaleString("en-LK")}`;
-
-        // =====================================================
-        // NOTIFICATIONS: Created AFTER transaction commits
-        // Safe to create now because appointment & payment are guaranteed to exist
-        // If notifications fail, the booking is still valid (user can see it in their dashboard)
-        // =====================================================
-        try {
           await storage.createNotification({
             userId: req.user!.id,
             title: "Appointment Booked",
-            message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${appointment.appointmentTime}. Total: ${formattedAmount}.`,
+            message: `Your appointment with Dr. ${doctorName} has been booked for ${formattedBookingDate} at ${slotData.startTime}. Total: ${formattedAmount}.`,
             type: "appointment",
             isRead: false,
             relatedId: appointment.id,
@@ -2127,27 +2137,25 @@ export async function registerRoutes(
           await storage.createNotification({
             userId: doctor.userId,
             title: "New appointment booked",
-            message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${appointment.appointmentTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
+            message: `${req.user!.fullName} has booked a consultation for ${formattedBookingDate} at ${slotData.startTime}. Chief complaint: ${bookingData.symptoms.substring(0, 150)}.`,
             type: "appointment",
             isRead: false,
             relatedId: appointment.id,
           });
 
           const today = new Date().toISOString().split("T")[0];
-          if (appointment.appointmentDate > today) {
+          const slotDateStr = Array.isArray(dateParts) ? dateParts.join("-") : String(slotData.date);
+          
+          if (slotDateStr > today) {
             await storage.createNotification({
               userId: doctor.userId,
-              title: `Consultation on ${formattedBookingDate} at ${appointment.appointmentTime}`,
+              title: `Consultation on ${formattedBookingDate} at ${slotData.startTime}`,
               message: `You have an upcoming consultation with ${req.user!.fullName} on ${formattedBookingDate}. Review their case notes beforehand.`,
               type: "reminder",
               isRead: false,
               relatedId: appointment.id,
             });
           }
-        } catch (notifError) {
-          // Log notification failure but don't fail the booking
-          console.error("[BOOKING] Notification creation failed (non-critical):", notifError);
-          // Booking is still valid, notifications are just a nice-to-have
         }
 
         const fullAppointment = await storage.getAppointmentWithDetails(
@@ -4272,6 +4280,246 @@ export async function registerRoutes(
       }
     },
   );
+
+  // Generate Hash for PayHere Checkout (Frontend will call this)
+  app.post(
+    "/api/payhere/hash",
+    authMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const { order_id, amount, currency } = req.body;
+        const merchant_id = process.env.PAYHERE_MERCHANT_ID;
+        const merchant_secret = process.env.PAYHERE_SECRET;
+
+        if (!merchant_id || !merchant_secret) {
+          return res.status(500).json({ error: "PayHere credentials missing on server" });
+        }
+
+        // CRITICAL: Amount MUST be exactly 2 decimal places as a string
+        const formattedAmount = Number(amount).toFixed(2);
+        
+        // CRITICAL FIX: Use createHash('md5') instead of createHmac!
+        const hashedSecret = createHash('md5').update(merchant_secret).digest('hex').toUpperCase();
+        
+        const hashString = merchant_id + order_id + formattedAmount + currency + hashedSecret;
+        const hash = createHash('md5').update(hashString).digest('hex').toUpperCase();
+
+        res.json({ hash, merchant_id, formattedAmount });
+      } catch (error) {
+        console.error("Failed to generate PayHere hash:", error);
+        res.status(500).json({ error: "Failed to generate hash" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/payhere/notify",
+    async (req: Request, res: Response) => {
+      console.log("\n[PAYHERE WEBHOOK] 📥 Received notification:", req.body);
+      
+      try {
+        const {
+          merchant_id, order_id, payhere_amount, payhere_currency, status_code, md5sig
+        } = req.body;
+
+        const merchant_secret = process.env.PAYHERE_SECRET;
+        
+        // 1. Verify the signature
+        const hashedSecret = createHash('md5').update(merchant_secret!).digest('hex').toUpperCase();
+        const hashString = merchant_id + order_id + payhere_amount + payhere_currency + status_code + hashedSecret;
+        const generatedSig = createHash('md5').update(hashString).digest('hex').toUpperCase();
+
+        if (generatedSig !== md5sig) {
+          console.error("[PAYHERE WEBHOOK] ❌ Security Alert: Invalid Signature!");
+          return res.status(400).send("Invalid Signature");
+        }
+
+        console.log(`[PAYHERE WEBHOOK] ✅ Signature Valid. Status Code: ${status_code}`);
+
+        const appointmentId = order_id.replace('booking-', '');
+
+        if (status_code === "2") {
+          console.log(`[PAYHERE WEBHOOK] 💰 Payment Success for Appointment: ${appointmentId}`);
+          
+          // Payment record
+          const payment = await storage.getPaymentByAppointment(appointmentId);
+          
+          if (payment) {
+            // 1. Payment status එක 'COMPLETED'
+            await storage.updatePayment(payment.id, { status: PaymentStatus.COMPLETED });
+            
+            // 2. Appointment status එක 'CONFIRMED'
+            await storage.updateAppointment(appointmentId, { status: AppointmentStatus.CONFIRMED });
+            
+            // 3. Slot එක 'is_booked = true'
+            await pool.query(
+              `UPDATE appointment_slots SET is_booked = true WHERE id = $1`,
+              [(payment as any).slotId]
+            );
+            
+            console.log(`[PAYHERE WEBHOOK] ✅ DB Updated & Slot Locked Successfully.`);
+            
+            // Send Success Notifications
+            const appt = await storage.getAppointment(appointmentId);
+            if(appt){
+              const docProfile = await storage.getDoctorProfile(appt.doctorId);
+              const slot = await storage.getAppointmentSlot(appt.slotId);
+              if(docProfile && slot) {
+                const docUser = await storage.getUser(docProfile.userId);
+                const ptUser = await storage.getUser(appt.patientId);
+                if(docUser && ptUser) {
+                  await storage.createNotification({
+                    userId: ptUser.id, title: "Payment Successful",
+                    message: `Your payment of LKR ${payhere_amount} for appointment with Dr. ${docUser.fullName} was successful.`,
+                    type: "payment", isRead: false, relatedId: payment.id,
+                  });
+                  await storage.createNotification({
+                    userId: docUser.id, title: "New Online Payment",
+                    message: `${ptUser.fullName} has paid for their upcoming appointment.`,
+                    type: "payment", isRead: false, relatedId: payment.id,
+                  });
+
+                  console.log(`[PAYHERE WEBHOOK] 📧 Triggering Resend Emails...`);
+
+                  await sendPatientBookingReceiptEmail(
+                    ptUser.email,
+                    ptUser.fullName,
+                    docUser.fullName,
+                    slot.date as unknown as string,
+                    slot.startTime,
+                    payment.totalAmount,
+                    slot.consultationType,
+                    slot.meetLink || "unavailable for online consultations without video, please check your notifications for details",
+                    "online"
+                  );
+
+                  await sendDoctorNewBookingEmail(
+                    docUser.email,
+                    docUser.fullName,
+                    ptUser.fullName,
+                    appt.symptoms,
+                    slot.date as unknown as string,
+                    slot.startTime,
+                    slot.consultationType,
+                    slot.meetLink || "unavailable for online consultations without video, please check your notifications for details"
+                  ); 
+                  console.log(`[PAYHERE WEBHOOK] ✅ Email sending process completed.`);
+                }
+              }
+            }
+          } else {
+             console.error(`[PAYHERE WEBHOOK] ❌ Payment record not found for Appointment: ${appointmentId}`);
+          }
+        } else if (status_code === "-2" || status_code === "-1" || status_code === "0") {
+          // Canceled or Failed Payment
+          console.log(`[PAYHERE WEBHOOK] ⚠️ Payment Failed/Canceled for Appointment: ${appointmentId}`);
+          const payment = await storage.getPaymentByAppointment(appointmentId);
+          if (payment) {
+            await storage.updatePayment(payment.id, { status: PaymentStatus.FAILED });
+            await storage.updateAppointment(appointmentId, { 
+                status: AppointmentStatus.CANCELLED, 
+                cancelReason: "Payment Failed or Canceled by User" 
+            });
+            await pool.query(
+              `UPDATE appointment_slots SET is_booked = false WHERE id = $1`,
+              [(payment as any).slotId]
+            );
+          }
+        }
+        
+        res.status(200).send("OK");
+      } catch (error) {
+        console.error("[PAYHERE WEBHOOK] ❌ Processing error:", error);
+        res.status(500).send("Internal Server Error");
+      }
+    }
+  );
+
+  //  =========================================
+  // EXPLICIT FAIL ROUTE
+  // ==========================================
+  app.patch(
+    "/api/appointments/:id/payment-failed",
+    authMiddleware,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const appointmentId = req.params.id;
+        
+        // Appointment checking pending
+        const appointment = await storage.getAppointment(appointmentId);
+        if (!appointment || appointment.status !== AppointmentStatus.PENDING) {
+          return res.json({ success: true });
+        }
+
+        // 1. Payment status update to faild
+        const payment = await storage.getPaymentByAppointment(appointmentId);
+        if (payment) {
+          await storage.updatePayment(payment.id, { status: PaymentStatus.FAILED });
+        }
+
+        // 2. Appointment status update to cancelled with reason
+        await storage.updateAppointment(appointmentId, { 
+          status: AppointmentStatus.CANCELLED,
+          cancelReason: "Payment Failed or Cancelled by User"
+        });
+
+        // 3. Slot agian free
+        await pool.query(
+          `UPDATE appointment_slots SET is_booked = false WHERE id = $1`,
+          [appointment.slotId]
+        );
+
+        res.json({ success: true, message: "Slot released successfully" });
+      } catch (error) {
+        console.error("Payment Fail Error:", error);
+        res.status(500).json({ error: "Failed to release slot" });
+      }
+    }
+  );
+
+  // ==========================================
+  // BACKGROUND CLEANUP JOB (INDUSTRY STANDARD)
+  // ==========================================
+  // setInterval(async () => {
+  //   try {
+  //     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      
+  //     const query = `
+  //       SELECT id, slot_id 
+  //       FROM appointments 
+  //       WHERE status = 'pending' AND created_at < $1
+  //     `;
+  //     const result = await pool.query(query, [fifteenMinsAgo]);
+      
+  //     if (result.rows.length > 0) {
+  //       console.log(`[CLEANUP JOB] Found ${result.rows.length} abandoned appointments. Releasing slots...`);
+        
+  //       for (const row of result.rows) {
+  //         // 1. Appointment cancelled
+  //         await pool.query(
+  //           `UPDATE appointments SET status = 'cancelled', cancel_reason = 'Payment Timeout (Auto Cancelled)' WHERE id = $1`, 
+  //           [row.id]
+  //         );
+          
+  //         // 2. Payment faied
+  //         await pool.query(
+  //           `UPDATE payments SET status = 'failed' WHERE appointment_id = $1`, 
+  //           [row.id]
+  //         );
+          
+  //         // 3. Slot free
+  //         await pool.query(
+  //           `UPDATE appointment_slots SET is_booked = false WHERE id = $1`, 
+  //           [row.slot_id]
+  //         );
+          
+  //         console.log(`[CLEANUP JOB] Successfully released appointment: ${row.id} and slot: ${row.slot_id}`);
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.error("[CLEANUP JOB ERROR]:", err);
+  //   }
+  // }, 5 * 60 * 1000); // 5 * 60 * 1000 = 5 minutes
 
   return httpServer;
 }
