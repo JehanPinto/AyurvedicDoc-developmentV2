@@ -170,7 +170,7 @@ export default function PatientDashboard() {
             Easily find doctors, manage your bookings and payment history.
           </p>
         </div>
-        <Link href="/patient/doctors">
+        <Link href="/patient/find-doctors">
           <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm px-6 h-11 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Book New Appointment
           </Button>

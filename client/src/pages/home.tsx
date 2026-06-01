@@ -6,6 +6,7 @@ import {
   Calendar,
   Shield,
   ArrowRight,
+  ArrowUp,
   CheckCircle,
   Users,
   Award,
@@ -22,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { AnimatedStat } from "@/components/ui/animated-stat";
 import HomeAnimation from "@/components/ui/home-animation";
+import { toast } from "@/hooks/use-toast";
 
 const testimonials = [
   {
@@ -119,9 +121,27 @@ export default function HomePage() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim().length >= 2) {
-      setIsDropdownOpen(true);
+    
+    if (!searchQuery.trim()) {
+      toast({
+        title: "Search Criteria Required",
+        description: "Please enter a specialization, doctor name, or location to browse.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    if (searchQuery.trim().length < 2) {
+      toast({
+        title: "Search Term Too Short",
+        description: "Please enter at least 2 characters to search.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDropdownOpen(false);
+    setLocation(`/doctors?q=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   const handleSeeAllResults = () => {
@@ -414,15 +434,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Scroll to top */}
       <button
         onClick={scrollToTop}
         aria-label="Scroll to top"
-        className={`fixed bottom-6 border right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl ${
+        className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl hover:brightness-110 ${
           showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
         }`}
       >
-        <ArrowRight className="h-5 w-5 rotate-[-90deg]" />
+        <ArrowUp className="h-5 w-5" />
       </button>
     </PublicLayout>
   );

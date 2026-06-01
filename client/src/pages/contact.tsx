@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Mail,
   Phone,
   MapPin,
   Send,
+  ArrowUp,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -89,11 +90,18 @@ const inquiryTypes = [
   { value: "feedback", label: "Feedback" },
   { value: "partnership", label: "Partnership" },
   { value: "doctor_registration", label: "Doctor Registration" },
+  { value: "other", label: "Other" },
 ];
 
 export default function ContactPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 300);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -103,12 +111,56 @@ export default function ContactPage() {
     message: "",
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const { [field]: _, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?\d{10,15}$/;
+    const nameRegex = /^[a-zA-Z\s]+$/;
+
+    if (!formData.name.trim()) newErrors.name = "Full Name is required.";
+    if (!formData.subject.trim()) newErrors.subject = "Subject is required.";
+    if (!formData.message.trim()) newErrors.message = "Message cannot be empty.";
+    if (!formData.inquiryType) newErrors.inquiryType = "Please select an inquiry type.";
+
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone Number is required.";
+    } else if (!phoneRegex.test(formData.phone.trim())) {
+      newErrors.phone = "Please enter a valid phone number.";
+    }
+    
+    if (!formData.email.trim()) {
+      newErrors.email = "Email Address is required.";
+    } else if (!emailRegex.test(formData.email.trim())) {
+      newErrors.email = "Please enter a valid email address.";
+    }
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Full Name is required.";
+    } else if (!nameRegex.test(formData.name.trim())) {
+      newErrors.name = "Please enter a valid full name.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validateForm()) return;
+
     setIsSubmitting(true);
     await new Promise((resolve) => setTimeout(resolve, 1500));
     toast({
@@ -169,7 +221,9 @@ export default function ContactPage() {
           </div>
 
           <div className="bg-primary/10 rounded-2xl p-6 md:p-8">
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+              
+              
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name *</Label>
                 <Input
@@ -177,8 +231,9 @@ export default function ContactPage() {
                   placeholder="Your full name"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
-                  required
+                  className={errors.name ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {errors.name && <p className="text-xs font-medium text-destructive mt-1">{errors.name}</p>}
               </div>
 
               <div className="space-y-2">
@@ -189,8 +244,9 @@ export default function ContactPage() {
                   placeholder="your@email.com"
                   value={formData.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
-                  required
+                  className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {errors.email && <p className="text-xs font-medium text-destructive mt-1">{errors.email}</p>}
               </div>
 
               <div className="space-y-2">
@@ -200,7 +256,9 @@ export default function ContactPage() {
                   placeholder="+94 77 123 4567"
                   value={formData.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
+                  className={errors.phone ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {errors.phone && <p className="text-xs font-medium text-destructive mt-1">{errors.phone}</p>}
               </div>
 
               <div className="space-y-2">
@@ -209,10 +267,10 @@ export default function ContactPage() {
                   value={formData.inquiryType}
                   onValueChange={(value) => handleInputChange("inquiryType", value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={errors.inquiryType ? "border-destructive focus:ring-destructive" : ""}>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-border">
                     {inquiryTypes.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
                         {type.label}
@@ -220,6 +278,7 @@ export default function ContactPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {errors.inquiryType && <p className="text-xs font-medium text-destructive mt-1">{errors.inquiryType}</p>}
               </div>
 
               <div className="space-y-2">
@@ -229,8 +288,9 @@ export default function ContactPage() {
                   placeholder="Brief subject of your inquiry"
                   value={formData.subject}
                   onChange={(e) => handleInputChange("subject", e.target.value)}
-                  required
+                  className={errors.subject ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {errors.subject && <p className="text-xs font-medium text-destructive mt-1">{errors.subject}</p>}
               </div>
 
               <div className="space-y-2">
@@ -241,8 +301,9 @@ export default function ContactPage() {
                   rows={5}
                   value={formData.message}
                   onChange={(e) => handleInputChange("message", e.target.value)}
-                  required
+                  className={errors.message ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {errors.message && <p className="text-xs font-medium text-destructive mt-1">{errors.message}</p>}
               </div>
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -314,6 +375,15 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        aria-label="Scroll to top"
+        className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl hover:brightness-110 ${
+          showScrollTop ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+        }`}
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
     </PublicLayout>
   );
 }

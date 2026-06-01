@@ -68,7 +68,7 @@ import {
   type Refund,
   InsertRefund,
 } from "@shared/schema";
-import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, sql, or } from "drizzle-orm";
 import { db, pool } from "./db";
 
 import type { IStorage } from "./storage";
@@ -144,6 +144,7 @@ function mapDoctorProfile(row: any): DoctorProfile {
     currentQueueNumber: row.currentQueueNumber || 0,
     createdAt: toISOString(row.createdAt),
     updatedAt: toISOString(row.updatedAt),
+    qrCode: row.qrCode || undefined,
   };
 }
 
@@ -902,24 +903,216 @@ export class DbStorage implements IStorage {
     return this.buildAppointmentsWithDetails(rows);
   }
 
+  /**
+   * @deprecated Use bookAppointmentAtomic() instead. This function is unsafe as it
+   * creates the appointment and then separately marks the slot as booked.
+   * If the second operation fails, the slot becomes orphaned with a dangling appointment.
+   * 
+   * This method now delegates to bookAppointmentAtomic for safety.
+   */
   async createAppointment(
     appointment: InsertAppointment,
   ): Promise<Appointment> {
-    const result = await db
-      .insert(appointments)
-      .values(appointment)
-      .returning();
+    // Safely delegate to atomic booking to maintain compatibility
+    const atomicAppt = await this.bookAppointmentAtomic(appointment, appointment.slotId);
+    if (!atomicAppt) {
+      throw new Error(`Failed to create appointment: slot ${appointment.slotId} is already booked or unavailable`);
+    }
+    return atomicAppt;
+  }
 
-    await db
-      .update(appointmentSlots)
-      .set({ isBooked: true })
-      .where(eq(appointmentSlots.id, appointment.slotId));
+  /**
+   * ATOMIC BOOKING: Locks slot and creates appointment in a single transaction.
+   * If either step fails, the entire transaction rolls back.
+   * This prevents the race condition where slot is locked but appointment creation fails.
+   * 
+   * Returns:
+   *   - Appointment object if success
+   *   - null if slot was already booked or unavailable
+   *   - throws error if other database issues occur
+   */
+  async bookAppointmentAtomic(
+    appointment: InsertAppointment,
+    slotId: string,
+  ): Promise<Appointment | null> {
+    const client = await pool.connect();
+    try {
+      // Start transaction
+      await client.query("BEGIN");
 
-    return {
-      ...result[0],
-      createdAt: toISOString(result[0].createdAt),
-      updatedAt: toISOString(result[0].updatedAt),
-    } as Appointment;
+      // Step 1: ATOMICALLY lock the slot - only succeeds if slot is free
+      const lockResult = await client.query(
+        `UPDATE appointment_slots 
+         SET is_booked = true, updated_at = NOW()
+         WHERE id = $1 AND is_booked = false AND is_blocked = false AND is_active = true
+         RETURNING id, date, start_time`,
+        [slotId],
+      );
+
+      // If slot was already booked, rollback and return null
+      if (lockResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      // Step 2: Create appointment record (within same transaction)
+      const appointmentResult = await client.query(
+        `INSERT INTO appointments 
+         (id, patient_id, doctor_id, slot_id, hospital_id, appointment_date, 
+          appointment_time, consultation_type, symptoms, is_for_dependent, 
+          dependent_name, dependent_age, dependent_gender, dependent_contact, 
+          status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+         RETURNING *`,
+        [
+          appointment.id,
+          appointment.patientId,
+          appointment.doctorId,
+          appointment.slotId,
+          appointment.hospitalId,
+          appointment.appointmentDate,
+          appointment.appointmentTime,
+          appointment.consultationType,
+          appointment.symptoms,
+          appointment.isForDependent,
+          appointment.dependentName,
+          appointment.dependentAge,
+          appointment.dependentGender,
+          appointment.dependentContact,
+          appointment.status,
+        ],
+      );
+
+      // Commit transaction - both slot lock and appointment are now permanent
+      await client.query("COMMIT");
+
+      const result = appointmentResult.rows[0];
+      return {
+        ...result,
+        createdAt: toISOString(result.created_at),
+        updatedAt: toISOString(result.updated_at),
+      } as Appointment;
+    } catch (error) {
+      // Rollback on ANY error to prevent partial state
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * COMPLETE BOOKING TRANSACTION: Locks slot + creates appointment + creates payment
+   * ALL in a single atomic transaction. No partial states possible.
+   * 
+   * If ANY step fails, entire transaction rolls back:
+   *   - Appointment is not created
+   *   - Slot remains free
+   *   - Payment is not recorded
+   * 
+   * Returns: { appointment, payment } on success
+   * Throws: error if transaction fails (client code should handle rollback/retry)
+   * Returns null: if slot was already booked/unavailable
+   */
+  async bookAppointmentWithPaymentAtomic(
+    appointment: InsertAppointment,
+    paymentData: InsertPayment,
+    slotId: string,
+  ): Promise<{ appointment: Appointment; payment: Payment } | null> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Step 1: ATOMICALLY lock the slot
+      const lockResult = await client.query(
+        `UPDATE appointment_slots 
+         SET is_booked = true, updated_at = NOW()
+         WHERE id = $1 AND is_booked = false AND is_blocked = false AND is_active = true
+         RETURNING id, date, start_time`,
+        [slotId],
+      );
+
+      if (lockResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      // Step 2: Create appointment record (within same transaction)
+      const appointmentResult = await client.query(
+        `INSERT INTO appointments 
+         (id, patient_id, doctor_id, slot_id, hospital_id, appointment_date, 
+          appointment_time, consultation_type, symptoms, is_for_dependent, 
+          dependent_name, dependent_age, dependent_gender, dependent_contact, 
+          status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+         RETURNING *`,
+        [
+          appointment.id,
+          appointment.patientId,
+          appointment.doctorId,
+          appointment.slotId,
+          appointment.hospitalId,
+          appointment.appointmentDate,
+          appointment.appointmentTime,
+          appointment.consultationType,
+          appointment.symptoms,
+          appointment.isForDependent,
+          appointment.dependentName,
+          appointment.dependentAge,
+          appointment.dependentGender,
+          appointment.dependentContact,
+          appointment.status,
+        ],
+      );
+
+      const createdAppointment = appointmentResult.rows[0];
+
+      // Step 3: Create payment record (within same transaction)
+      const paymentResult = await client.query(
+        `INSERT INTO payments 
+         (id, appointment_id, patient_id, doctor_id, consultation_fee, booking_charges,
+          tax, platform_commission, doctor_earnings, total_amount, status, method, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+         RETURNING *`,
+        [
+          randomUUID(),
+          paymentData.appointmentId,
+          paymentData.patientId,
+          paymentData.doctorId,
+          paymentData.consultationFee,
+          paymentData.bookingCharges,
+          paymentData.tax,
+          paymentData.platformCommission,
+          paymentData.doctorEarnings,
+          paymentData.totalAmount,
+          paymentData.status,
+          paymentData.method,
+        ],
+      );
+
+      const createdPayment = paymentResult.rows[0];
+
+      // COMMIT: All three operations are now permanent and consistent
+      await client.query("COMMIT");
+
+      return {
+        appointment: {
+          ...createdAppointment,
+          createdAt: toISOString(createdAppointment.created_at),
+          updatedAt: toISOString(createdAppointment.updated_at),
+        } as Appointment,
+        payment: {
+          ...createdPayment,
+          createdAt: toISOString(createdPayment.created_at),
+          updatedAt: toISOString(createdPayment.updated_at),
+        } as Payment,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async updateAppointment(
@@ -1545,31 +1738,71 @@ export class DbStorage implements IStorage {
     return this.buildAppointmentsWithDetails(rows);
   }
 
-  async getAllPayments(): Promise<
-    (Payment & { appointment?: AppointmentWithDetails })[]
-  > {
-    const result = await db
-      .select()
-      .from(payments)
-      .orderBy(desc(payments.createdAt));
+  async getPaginatedPayments(page: number, limit: number): Promise<any> {
+    const offset = (page - 1) * limit;
 
-    const paymentsWithDetails: (Payment & {
-      appointment?: AppointmentWithDetails;
-    })[] = [];
-    for (const p of result) {
-      const payment = {
-        ...p,
-        createdAt: toISOString(p.createdAt),
-        updatedAt: toISOString(p.updatedAt),
-      } as Payment;
+    try {
+      // 1. තත්පරයකින් සියලු දත්ත Join කරලා ගන්නවා
+      const rawData = await db
+        .select({
+          payment: payments,
+          appointment: appointments,
+          patient: {
+            id: users.id,
+            fullName: users.fullName,
+            profileImage: users.profileImage,
+          },
+          doctorProfile: {
+            id: doctorProfiles.id,
+            userId: doctorProfiles.userId,
+          },
+        })
+        .from(payments)
+        .leftJoin(appointments, eq(payments.appointmentId, appointments.id))
+        .leftJoin(users, eq(payments.patientId, users.id))
+        .leftJoin(doctorProfiles, eq(payments.doctorId, doctorProfiles.id))
+        .orderBy(desc(payments.createdAt))
+        .limit(limit)
+        .offset(offset);
 
-      const appointment = await this.getAppointmentWithDetails(p.appointmentId);
-      paymentsWithDetails.push({
-        ...payment,
-        appointment: appointment || undefined,
+      // 2. Doctor ගේ නම ගන්නවා
+      const doctorUserIds = [...new Set(rawData.map(r => r.doctorProfile?.userId).filter(Boolean))];
+      const doctorUsers = doctorUserIds.length > 0 
+        ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, doctorUserIds as string[]))
+        : [];
+      const doctorUserMap = new Map(doctorUsers.map(u => [u.id, u.fullName]));
+
+      // 3. Frontend එකට ඕනේ විදිහට හදනවා
+      const formattedData = rawData.map(row => {
+        const docFullName = row.doctorProfile ? doctorUserMap.get(row.doctorProfile.userId) : "Unknown Doctor";
+        return {
+          ...row.payment,
+          createdAt: toISOString(row.payment.createdAt as any),
+          updatedAt: toISOString(row.payment.updatedAt as any),
+          appointment: row.appointment ? {
+            ...row.appointment,
+            patient: row.patient,
+            doctor: {
+              user: { fullName: docFullName }
+            }
+          } : undefined
+        };
       });
+
+      // 4. මුළු ගණන (Total Count)
+      const allRecords = await db.select({ id: payments.id }).from(payments);
+      const count = allRecords.length;
+
+      return {
+        data: formattedData,
+        totalCount: count,
+        totalPages: Math.ceil(count / limit) || 1,
+        currentPage: page
+      };
+    } catch (error) {
+      console.error("[DB] Error in getPaginatedPayments:", error);
+      throw error;
     }
-    return paymentsWithDetails;
   }
 
   async getDoctorPatients(doctorId: string): Promise<
@@ -2145,23 +2378,97 @@ export class DbStorage implements IStorage {
     return true;
   }
 
-  async getDoctorsWithDetailsByIds(ids: string[]) {
-    if (ids.length === 0) return [];
+  async getPaginatedDoctors(page: number, limit: number, search?: string, status?: string): Promise<any> {
+    const offset = (page - 1) * limit;
 
-    const query = `
-      SELECT
-        dp.*,
-        json_build_object(
-          'fullName', u.full_name,
-          'profileImage', u.profile_image
-        ) as user
-      FROM doctor_profiles dp
-      JOIN users u ON dp.user_id = u.id
-      WHERE dp.id = ANY($1)
-    `;
+    try {
+      const conditions = [];
+      if (status && status !== "all") {
+        conditions.push(eq(doctorProfiles.status, status));
+      }
+      if (search) {
+        conditions.push(
+          or(
+            ilike(users.fullName, `%${search}%`),
+            ilike(users.email, `%${search}%`),
+            ilike(doctorProfiles.registrationNumber, `%${search}%`)
+          )
+        );
+      }
 
-    const result = await pool.query(query, [ids]);
-    return result.rows;
+      let query = db
+        .select({
+          profile: doctorProfiles,
+          user: {
+            id: users.id,
+            fullName: users.fullName,
+            email: users.email,
+            phone: users.phone,
+            city: users.city,
+            profileImage: users.profileImage,
+          }
+        })
+        .from(doctorProfiles)
+        .leftJoin(users, eq(doctorProfiles.userId, users.id));
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+
+      const rawData = await query
+        .orderBy(desc(doctorProfiles.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      const allSpecs = await this.getAllSpecializations();
+      const allHospitals = await this.getAllHospitals();
+
+      const formattedData = rawData.map(row => {
+        const specList = allSpecs.filter(s => row.profile.specializationIds?.includes(s.id));
+        const hospList = allHospitals.filter(h => row.profile.hospitalIds?.includes(h.id));
+
+        return {
+          ...row.profile,
+          createdAt: toISOString(row.profile.createdAt as any),
+          updatedAt: toISOString(row.profile.updatedAt as any),
+          user: row.user,
+          specializations: specList,
+          hospitals: hospList
+        };
+      });
+
+      let countQuery = db.select({ count: sql`count(*)`.mapWith(Number) })
+                         .from(doctorProfiles)
+                         .leftJoin(users, eq(doctorProfiles.userId, users.id));
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(and(...conditions)) as any;
+      }
+      const [{ count }] = await countQuery;
+
+      const statsRaw = await db.select({
+        status: doctorProfiles.status,
+        count: sql`count(*)`.mapWith(Number)
+      }).from(doctorProfiles).groupBy(doctorProfiles.status);
+
+      const stats = { all: 0, pending: 0, verified: 0, rejected: 0, suspended: 0 };
+      statsRaw.forEach(s => {
+        if (s.status in stats) {
+          (stats as any)[s.status] = s.count;
+        }
+        stats.all += s.count;
+      });
+
+      return {
+        data: formattedData,
+        totalCount: count,
+        totalPages: Math.ceil(count / limit) || 1,
+        currentPage: page,
+        stats
+      };
+    } catch (error) {
+      console.error("[DB] Error in getPaginatedDoctors:", error);
+      throw error;
+    }
   }
 
   async createDoctorCancellationCharge(data: {
@@ -2212,68 +2519,48 @@ export class DbStorage implements IStorage {
     return result[0] as Refund;
   }
 
-  // This method fetches all refund requests, including backfilling "virtual" pending refunds for legacy cancellations that don't have a record in the refunds table yet.
-  async getRefundRequests(): Promise<any[]> {
+  async getPaginatedRefundRequests(page: number, limit: number): Promise<any> {
+    const offset = (page - 1) * limit;
 
-    // 1. Get all cancelled appointments
-    const cancelledApts = await db
-      .select()
-      .from(appointments)
-      .where(eq(appointments.status, AppointmentStatus.CANCELLED));
+    // single query to get refunds with payment, appointment, and patient details
+    const rawData = await db
+      .select({
+        refund: refunds,
+        payment: payments,
+        appointment: appointments,
+        patient: {
+          id: users.id,
+          fullName: users.fullName,
+        },
+      })
+      .from(refunds)
+      .leftJoin(payments, eq(refunds.paymentId, payments.id))
+      .leftJoin(appointments, eq(refunds.appointmentId, appointments.id))
+      .leftJoin(users, eq(refunds.patientId, users.id))
+      .orderBy(sql`CASE WHEN ${refunds.status} = 'pending' THEN 0 ELSE 1 END`, desc(refunds.createdAt))
+      .limit(limit)
+      .offset(offset);
 
-    if (cancelledApts.length === 0) return [];
+    const formattedData = rawData.map(row => ({
+      refund: row.refund,
+      payment: {
+        ...row.payment,
+        createdAt: row.payment?.createdAt ? toISOString(row.payment.createdAt) : null,
+      },
+      appointment: row.appointment ? {
+        ...row.appointment,
+        patient: row.patient
+      } : null
+    }));
 
-    const aptIds = cancelledApts.map((a) => a.id);
+    const [{ count }] = await db.select({ count: sql`count(*)`.mapWith(Number) }).from(refunds);
 
-    // 2. Get existing refund records
-    const allRefunds = await db.select().from(refunds).where(inArray(refunds.appointmentId, aptIds));
-    const allPayments = await db.select().from(payments).where(inArray(payments.appointmentId, aptIds));
-
-    const results = [];
-
-    for (const app of cancelledApts) {
-      const payment = allPayments.find(p => p.appointmentId === app.id);
-      if (!payment) continue;
-
-      // Check if a refund record already exists
-      const existingRefund = allRefunds.find(r => r.appointmentId === app.id);
-
-      if (existingRefund) {
-        // Use existing record
-        const appDetails = await this.getAppointmentWithDetails(app.id);
-        if (appDetails) {
-            results.push({ refund: existingRefund, payment, appointment: appDetails });
-        }
-      } else {
-        // No refund record exists - this is a legacy cancellation. Create a "virtual" refund object with pending status to show in the UI until it's processed.
-        const amountToRefund = payment.totalAmount - (payment.bookingCharges || 0) - (payment.tax || 0);
-        if (amountToRefund > 0) {
-            const virtualRefund = {
-                id: `virtual-${app.id}`,
-                paymentId: payment.id,
-                appointmentId: app.id,
-                patientId: app.patientId,
-                amount: amountToRefund,
-                reason: app.cancelReason || "Legacy cancellation (pending process)",
-                status: "pending",
-                processedAt: null,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            };
-            
-            const appDetails = await this.getAppointmentWithDetails(app.id);
-            if (appDetails) {
-                results.push({ refund: virtualRefund, payment, appointment: appDetails });
-            }
-        }
-      }
-    }
-
-    return results.sort((a, b) => {
-      if (a.refund.status === 'pending' && b.refund.status !== 'pending') return -1;
-      if (a.refund.status !== 'pending' && b.refund.status === 'pending') return 1;
-      return new Date(b.refund.createdAt).getTime() - new Date(a.refund.createdAt).getTime();
-    });
+    return {
+      data: formattedData,
+      totalCount: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page
+    };
   }
 
   async processRefund(refundId: string, status: string): Promise<any> {
