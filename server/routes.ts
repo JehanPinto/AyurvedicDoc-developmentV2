@@ -486,6 +486,13 @@ export async function registerRoutes(
 
         const existingUser = await storage.getUserByEmail(data.email);
         if (existingUser) {
+          if (existingUser.provider && existingUser.provider !== AuthProvider.LOCAL) {
+            const providerName = existingUser.provider.charAt(0).toUpperCase() + existingUser.provider.slice(1);
+            return res.status(400).json({ 
+              error: `This email is associated with a ${providerName} account. Please use a different email to register as a patient, or contact support.` 
+            });
+          }
+          
           return res.status(400).json({ error: "Email already registered" });
         }
 
@@ -555,6 +562,13 @@ export async function registerRoutes(
 
         const existingUser = await storage.getUserByEmail(userData.email);
         if (existingUser) {
+          if (existingUser.provider && existingUser.provider !== AuthProvider.LOCAL) {
+            const providerName = existingUser.provider.charAt(0).toUpperCase() + existingUser.provider.slice(1);
+            return res.status(400).json({ 
+              error: `This email is associated with a ${providerName} account. Please use a different email to register as a doctor, or contact support.` 
+            });
+          }
+          
           return res.status(400).json({ error: "Email already registered" });
         }
 
@@ -642,6 +656,13 @@ export async function registerRoutes(
 
         if (!user || !(await verifyPassword(password, user.password))) {
           return res.status(401).json({ error: "Invalid email or password" });
+        }
+
+        if (user.provider && user.provider !== AuthProvider.LOCAL) {
+          const providerName = user.provider.charAt(0).toUpperCase() + user.provider.slice(1);
+          return res.status(400).json({ 
+            error: "Already registered with a social account. Please login with " + providerName + " or reset your password to create a local account."
+          });
         }
 
         if (user.role === UserRole.DOCTOR) {
@@ -3128,19 +3149,23 @@ export async function registerRoutes(
   );
 
   app.get(
-    "/api/admin/doctors",
+    "/api/admin/doctors/paginated",
     authMiddleware,
     roleMiddleware(UserRole.ADMIN),
     async (req: Request, res: Response) => {
       try {
-        const { status } = req.query;
-        const filters = status ? { status: status as string } : undefined;
-        const doctors = await storage.getAllDoctors(filters);
-        res.json(doctors);
-      } catch (error) {
-        res.status(500).json({ error: "Failed to get doctors" });
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const search = req.query.search as string | undefined;
+        const status = req.query.status as string | undefined;
+
+        const result = await storage.getPaginatedDoctors(page, limit, search, status);
+        res.json(result);
+      } catch (error: any) {
+        console.error("🔴 Backend Error in Paginated Doctors:", error);
+        res.status(500).json({ error: "Failed to fetch doctors" });
       }
-    },
+    }
   );
 
   app.patch(
@@ -3341,27 +3366,13 @@ export async function registerRoutes(
     roleMiddleware(UserRole.ADMIN),
     async (req: Request, res: Response) => {
       try {
-        const { status, method, startDate, endDate } = req.query;
-        const payments = await storage.getAllPayments();
-
-        let filtered = payments;
-        if (status) {
-          filtered = filtered.filter((p) => p.status === status);
-        }
-        if (method) {
-          filtered = filtered.filter((p) => p.method === method);
-        }
-        if (startDate) {
-          filtered = filtered.filter(
-            (p) => p.createdAt >= (startDate as string),
-          );
-        }
-        if (endDate) {
-          filtered = filtered.filter((p) => p.createdAt <= (endDate as string));
-        }
-
-        res.json(filtered);
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        
+        const result = await storage.getPaginatedPayments(page, limit);
+        res.json(result);
       } catch (error) {
+        console.error(error);
         res.status(500).json({ error: "Failed to get payments" });
       }
     },
@@ -4091,7 +4102,14 @@ export async function registerRoutes(
       }
 
       const user = await storage.getUserByEmail(email.toLowerCase().trim());
-      // Always return success to prevent email enumeration
+      
+      if (user && user.provider && user.provider !== AuthProvider.LOCAL) {
+         const providerName = user.provider.charAt(0).toUpperCase() + user.provider.slice(1);
+         return res.status(400).json({ 
+           error: `Your account is linked with ${providerName}. Please use "Continue with ${providerName}" to log in. Password reset is not required.` 
+         });
+      }
+
       if (!user) {
         return res.json({ message: "If that email is registered, an OTP has been sent." });
       }
@@ -4249,9 +4267,13 @@ export async function registerRoutes(
     roleMiddleware(UserRole.ADMIN),
     async (req: Request, res: Response) => {
       try {
-        const requests = await storage.getRefundRequests();
-        res.json(requests);
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+
+        const result = await storage.getPaginatedRefundRequests(page, limit);
+        res.json(result);
       } catch (error) {
+        console.error(error);
         res.status(500).json({ error: "Failed to fetch refund requests" });
       }
     },
