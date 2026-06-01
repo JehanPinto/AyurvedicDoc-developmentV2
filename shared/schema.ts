@@ -185,6 +185,7 @@ export const doctorProfiles = pgTable("doctor_profiles", {
   totalReviews: integer("total_reviews").default(0),
   totalAppointments: integer("total_appointments").default(0),
   currentQueueNumber: integer("current_queue_number").default(0),
+  qrCode: text("qr_code"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -647,6 +648,7 @@ export const insertDoctorProfileSchema = z.object({
   minBookingNoticeHours: z.number().default(2),
   slotDurationMinutes: z.number().default(30),
   bufferTimeMinutes: z.number().default(10),
+  qrCode: z.string().optional(),
 });
 
 export type InsertDoctorProfile = z.infer<typeof insertDoctorProfileSchema>;

@@ -166,9 +166,9 @@ export default function DoctorProfilePage() {
             {/* Left: doctor info */}
             <div className="flex-1">
               <div className="flex items-start gap-4 mb-4">
-                <Avatar className="h-16 w-16 rounded-xl shrink-0">
+                <Avatar className="h-16 w-16 rounded-full shrink-0">
                   <AvatarImage src={doctor.user.profileImage} alt={doctor.user.fullName} />
-                  <AvatarFallback className="rounded-xl bg-primary/10 text-primary text-xl font-bold">
+                  <AvatarFallback className="rounded-full bg-primary/10 text-primary text-xl font-bold">
                     {getInitials(doctor.user.fullName)}
                   </AvatarFallback>
                 </Avatar>
