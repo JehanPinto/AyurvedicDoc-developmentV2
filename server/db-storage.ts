@@ -144,6 +144,7 @@ function mapDoctorProfile(row: any): DoctorProfile {
     currentQueueNumber: row.currentQueueNumber || 0,
     createdAt: toISOString(row.createdAt),
     updatedAt: toISOString(row.updatedAt),
+    qrCode: row.qrCode || undefined,
   };
 }
 

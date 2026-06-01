@@ -59,6 +59,7 @@ import RefundPolicyPage from "@/pages/refund-policy";
 import ContactPrivacyPage from "@/pages/contact-privacy";
 import AdminRefundsPage from "./pages/admin/refunds";
 import FindDoctors from "./pages/patient/find-doctors";
+import DoctorDetailsPage from "./pages/doctor-details";
 
 function ProtectedRoute({ 
   children, 
@@ -120,6 +121,7 @@ function Router() {
       <Route path="/terms" component={TermsAndConditionsPage} />
       <Route path="/refund-policy" component={RefundPolicyPage} />
       <Route path="/contact-privacy" component={ContactPrivacyPage} />
+      <Route path="/doctor-details/:id" component={DoctorDetailsPage} />
 
       <Route path="/book/:doctorId">
         <ProtectedRoute allowedRoles={[UserRole.PATIENT]}>
