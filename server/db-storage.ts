@@ -371,11 +371,7 @@ export class DbStorage implements IStorage {
     };
   }
 
-  async getDoctorsWithDetailsByIds(doctorIds: string[]): Promise<DoctorWithDetails[]> {
-    if (doctorIds.length === 0) return [];
-    const results = await Promise.all(doctorIds.map((id) => this.getDoctorWithDetails(id)));
-    return results.filter(Boolean) as DoctorWithDetails[];
-  }
+
 
   async getAllDoctors(filters?: {
     specializationId?: string;
