@@ -3019,9 +3019,12 @@ export async function registerRoutes(
         // 
         const allNeededDoctorIds = [...new Set([...myDoctorIds, ...recentPaymentDoctorIds])];
 
-        const doctorsList = allNeededDoctorIds.length > 0 
-          ? await storage.getDoctorsWithDetailsByIds(allNeededDoctorIds) 
-          : [];
+        const doctorsResults = await Promise.all(
+          allNeededDoctorIds.map((id) => storage.getDoctorWithDetails(id)),
+        );
+        const doctorsList = doctorsResults.filter(
+          (d): d is NonNullable<typeof d> => d != null,
+        );
 
         const doctorMap = new Map(doctorsList.map(doc => [doc.id, doc]));
 
