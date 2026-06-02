@@ -372,6 +372,8 @@ export class DbStorage implements IStorage {
     };
   }
 
+
+
   async getAllDoctors(filters?: {
     specializationId?: string;
     city?: string;

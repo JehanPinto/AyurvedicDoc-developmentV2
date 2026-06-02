@@ -229,11 +229,11 @@ export default function PatientSettings() {
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      toast({ title: "Invalid file type", variant: "destructive" });
+      toast({ title: "Invalid file type. Please upload a JPG, PNG, or WEBP image.", variant: "destructive" });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large (Max 5MB)", variant: "destructive" });
+      toast({ title: "Image size is too big. Maximum allowed size is 5MB.", variant: "destructive" });
       return;
     }
 
@@ -744,8 +744,8 @@ export default function PatientSettings() {
           />
 
           {!previewImage ? (
-            // State 1: When no image is selected yet, show current avatar and browse button
-            <div 
+            // State 1: No image selected — show file picker
+            <div
               className="w-full h-64 border-dashed border-2 border-primary/20 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-colors"
               onClick={() => fileInputRef.current?.click()}
             >
@@ -761,15 +761,16 @@ export default function PatientSettings() {
               <p className="text-xs text-muted-foreground mt-1 font-normal">Supports JPG, PNG, WEBP (Max 5MB)</p>
             </div>
           ) : (
-            // State 2: When image is selected, show the Cropper
+            // State 2: Image selected — show Cropper + prominent change button
             <div className="w-full flex flex-col items-center gap-4">
+              <p className="text-xs text-muted-foreground text-center">Drag to reposition · Use the slider to zoom</p>
               <div className="relative w-full h-[300px] sm:h-[400px] bg-black/5 rounded-2xl overflow-hidden shadow-inner">
                 <Cropper
                   image={previewImage}
                   crop={crop}
                   zoom={zoom}
-                  aspect={1}          
-                  cropShape="round"   
+                  aspect={1}
+                  cropShape="round"
                   showGrid={false}
                   onCropChange={setCrop}
                   onCropComplete={onCropComplete}
@@ -790,14 +791,14 @@ export default function PatientSettings() {
                 />
                 <ZoomIn className="w-4 h-4 text-muted-foreground" />
               </div>
-              
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="mt-2 text-muted-foreground"
+
+              <Button
+                variant="outline"
+                className="w-full border-primary/40 text-primary hover:bg-primary/10 font-semibold flex items-center justify-center gap-2"
                 onClick={() => fileInputRef.current?.click()}
               >
-                Choose a different photo
+                <UploadCloud className="w-4 h-4" />
+                Select a New Photo
               </Button>
             </div>
           )}
