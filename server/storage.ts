@@ -87,7 +87,6 @@ export interface IStorage {
   getDoctorWithDetails(
     doctorId: string,
   ): Promise<DoctorWithDetails | undefined>;
-  getDoctorsWithDetailsByIds(doctorIds: string[]): Promise<DoctorWithDetails[]>;
   getAllDoctors(filters?: {
     specializationId?: string;
     city?: string;
