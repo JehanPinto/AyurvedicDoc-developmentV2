@@ -902,216 +902,24 @@ export class DbStorage implements IStorage {
     return this.buildAppointmentsWithDetails(rows);
   }
 
-  /**
-   * @deprecated Use bookAppointmentAtomic() instead. This function is unsafe as it
-   * creates the appointment and then separately marks the slot as booked.
-   * If the second operation fails, the slot becomes orphaned with a dangling appointment.
-   * 
-   * This method now delegates to bookAppointmentAtomic for safety.
-   */
   async createAppointment(
     appointment: InsertAppointment,
   ): Promise<Appointment> {
-    // Safely delegate to atomic booking to maintain compatibility
-    const atomicAppt = await this.bookAppointmentAtomic(appointment, appointment.slotId);
-    if (!atomicAppt) {
-      throw new Error(`Failed to create appointment: slot ${appointment.slotId} is already booked or unavailable`);
-    }
-    return atomicAppt;
-  }
+    const result = await db
+      .insert(appointments)
+      .values(appointment)
+      .returning();
 
-  /**
-   * ATOMIC BOOKING: Locks slot and creates appointment in a single transaction.
-   * If either step fails, the entire transaction rolls back.
-   * This prevents the race condition where slot is locked but appointment creation fails.
-   * 
-   * Returns:
-   *   - Appointment object if success
-   *   - null if slot was already booked or unavailable
-   *   - throws error if other database issues occur
-   */
-  async bookAppointmentAtomic(
-    appointment: InsertAppointment,
-    slotId: string,
-  ): Promise<Appointment | null> {
-    const client = await pool.connect();
-    try {
-      // Start transaction
-      await client.query("BEGIN");
+    await db
+      .update(appointmentSlots)
+      .set({ isBooked: true })
+      .where(eq(appointmentSlots.id, appointment.slotId));
 
-      // Step 1: ATOMICALLY lock the slot - only succeeds if slot is free
-      const lockResult = await client.query(
-        `UPDATE appointment_slots 
-         SET is_booked = true, updated_at = NOW()
-         WHERE id = $1 AND is_booked = false AND is_blocked = false AND is_active = true
-         RETURNING id, date, start_time`,
-        [slotId],
-      );
-
-      // If slot was already booked, rollback and return null
-      if (lockResult.rowCount === 0) {
-        await client.query("ROLLBACK");
-        return null;
-      }
-
-      // Step 2: Create appointment record (within same transaction)
-      const appointmentResult = await client.query(
-        `INSERT INTO appointments 
-         (id, patient_id, doctor_id, slot_id, hospital_id, appointment_date, 
-          appointment_time, consultation_type, symptoms, is_for_dependent, 
-          dependent_name, dependent_age, dependent_gender, dependent_contact, 
-          status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
-         RETURNING *`,
-        [
-          appointment.id,
-          appointment.patientId,
-          appointment.doctorId,
-          appointment.slotId,
-          appointment.hospitalId,
-          appointment.appointmentDate,
-          appointment.appointmentTime,
-          appointment.consultationType,
-          appointment.symptoms,
-          appointment.isForDependent,
-          appointment.dependentName,
-          appointment.dependentAge,
-          appointment.dependentGender,
-          appointment.dependentContact,
-          appointment.status,
-        ],
-      );
-
-      // Commit transaction - both slot lock and appointment are now permanent
-      await client.query("COMMIT");
-
-      const result = appointmentResult.rows[0];
-      return {
-        ...result,
-        createdAt: toISOString(result.created_at),
-        updatedAt: toISOString(result.updated_at),
-      } as Appointment;
-    } catch (error) {
-      // Rollback on ANY error to prevent partial state
-      await client.query("ROLLBACK").catch(() => {});
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  /**
-   * COMPLETE BOOKING TRANSACTION: Locks slot + creates appointment + creates payment
-   * ALL in a single atomic transaction. No partial states possible.
-   * 
-   * If ANY step fails, entire transaction rolls back:
-   *   - Appointment is not created
-   *   - Slot remains free
-   *   - Payment is not recorded
-   * 
-   * Returns: { appointment, payment } on success
-   * Throws: error if transaction fails (client code should handle rollback/retry)
-   * Returns null: if slot was already booked/unavailable
-   */
-  async bookAppointmentWithPaymentAtomic(
-    appointment: InsertAppointment,
-    paymentData: InsertPayment,
-    slotId: string,
-  ): Promise<{ appointment: Appointment; payment: Payment } | null> {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      // Step 1: ATOMICALLY lock the slot
-      const lockResult = await client.query(
-        `UPDATE appointment_slots 
-         SET is_booked = true, updated_at = NOW()
-         WHERE id = $1 AND is_booked = false AND is_blocked = false AND is_active = true
-         RETURNING id, date, start_time`,
-        [slotId],
-      );
-
-      if (lockResult.rowCount === 0) {
-        await client.query("ROLLBACK");
-        return null;
-      }
-
-      // Step 2: Create appointment record (within same transaction)
-      const appointmentResult = await client.query(
-        `INSERT INTO appointments 
-         (id, patient_id, doctor_id, slot_id, hospital_id, appointment_date, 
-          appointment_time, consultation_type, symptoms, is_for_dependent, 
-          dependent_name, dependent_age, dependent_gender, dependent_contact, 
-          status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
-         RETURNING *`,
-        [
-          appointment.id,
-          appointment.patientId,
-          appointment.doctorId,
-          appointment.slotId,
-          appointment.hospitalId,
-          appointment.appointmentDate,
-          appointment.appointmentTime,
-          appointment.consultationType,
-          appointment.symptoms,
-          appointment.isForDependent,
-          appointment.dependentName,
-          appointment.dependentAge,
-          appointment.dependentGender,
-          appointment.dependentContact,
-          appointment.status,
-        ],
-      );
-
-      const createdAppointment = appointmentResult.rows[0];
-
-      // Step 3: Create payment record (within same transaction)
-      const paymentResult = await client.query(
-        `INSERT INTO payments 
-         (id, appointment_id, patient_id, doctor_id, consultation_fee, booking_charges,
-          tax, platform_commission, doctor_earnings, total_amount, status, method, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
-         RETURNING *`,
-        [
-          randomUUID(),
-          paymentData.appointmentId,
-          paymentData.patientId,
-          paymentData.doctorId,
-          paymentData.consultationFee,
-          paymentData.bookingCharges,
-          paymentData.tax,
-          paymentData.platformCommission,
-          paymentData.doctorEarnings,
-          paymentData.totalAmount,
-          paymentData.status,
-          paymentData.method,
-        ],
-      );
-
-      const createdPayment = paymentResult.rows[0];
-
-      // COMMIT: All three operations are now permanent and consistent
-      await client.query("COMMIT");
-
-      return {
-        appointment: {
-          ...createdAppointment,
-          createdAt: toISOString(createdAppointment.created_at),
-          updatedAt: toISOString(createdAppointment.updated_at),
-        } as Appointment,
-        payment: {
-          ...createdPayment,
-          createdAt: toISOString(createdPayment.created_at),
-          updatedAt: toISOString(createdPayment.updated_at),
-        } as Payment,
-      };
-    } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
-      throw error;
-    } finally {
-      client.release();
-    }
+    return {
+      ...result[0],
+      createdAt: toISOString(result[0].createdAt),
+      updatedAt: toISOString(result[0].updatedAt),
+    } as Appointment;
   }
 
   async updateAppointment(
