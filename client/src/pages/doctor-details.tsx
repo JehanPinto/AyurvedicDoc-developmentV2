@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
 import {
-    ArrowLeft,
     MapPin,
     CheckCircle2,
     Award,
@@ -18,9 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LoadingPage } from "@/components/ui/loading-spinner";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { appointments, type DoctorWithDetails } from "@shared/schema";
+import { type DoctorWithDetails } from "@shared/schema";
 import { navigate } from "wouter/use-browser-location";
-import { apiRequest } from "@/lib/queryClient";
 
 export default function DoctorDetailsPage() {
     const { id } = useParams();
@@ -33,10 +31,7 @@ export default function DoctorDetailsPage() {
         enabled: !!id,
     });
 
-    const { data: appointmentCount = 0 } = useQuery<number>({
-        queryKey: [`/api/doctors/${id}/appointment-count`],
-        queryFn: () => apiRequest("GET", `/api/doctors/${id}/appointment-count`),
-    });
+    const appointmentCount = doctor?.totalAppointments ?? 0;
 
     if (isLoading) {
         return (

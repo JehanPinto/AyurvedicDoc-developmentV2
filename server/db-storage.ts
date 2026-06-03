@@ -69,6 +69,7 @@ import {
   InsertRefund,
 } from "@shared/schema";
 import { and, desc, eq, gte, ilike, inArray, lte, sql, or } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { db, pool } from "./db";
 
 import type { IStorage } from "./storage";
@@ -370,6 +371,8 @@ export class DbStorage implements IStorage {
       hospitals: hospitalsData,
     };
   }
+
+
 
   async getAllDoctors(filters?: {
     specializationId?: string;
